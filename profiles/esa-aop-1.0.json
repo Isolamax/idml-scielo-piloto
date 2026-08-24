@@ -1,0 +1,29 @@
+{
+  "profile_id": "esa-aop-1.0.0",
+  "profile_version": "1.0.0",
+  "journal_title": "Engenharia Sanitária e Ambiental",
+  "journal_abbreviated_title": "Eng. Sanit. Ambient.",
+  "journal_issn": "1809-4457",
+  "primary_language": "pt",
+  "secondary_language": "en",
+  "article_category": "research-article",
+  "style_roles": {
+    "01.0": "title-primary",
+    "01.1": "title-secondary",
+    "02.0": "contributors",
+    "03.0": "abstract-heading",
+    "03.1": "abstract",
+    "03.2": "keywords",
+    "03.4": "affiliations",
+    "03.5": "correspondence",
+    "04.0": "section-level-1",
+    "04.1": "section-level-2",
+    "05": "paragraph",
+    "05.0": "paragraph",
+    "06.0": "references-heading",
+    "06.1": "references",
+    "07.0": "caption",
+    "07.1": "table-heading",
+    "07.2": "table-cell"
+  }
+}

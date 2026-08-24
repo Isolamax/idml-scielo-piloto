@@ -15,9 +15,9 @@ PLANO_ANALISE_CODEX_SCIELO_IDML_OPENCLAW_SWARM.md
 ## 2. Estado geral
 
 ```text
-PROJECT_STATUS: PHASE_2_COMPLETE
-CURRENT_PHASE: FASE 2 concluída — FASE 3 aguardando autorização
-IMPLEMENTATION_AUTHORIZED: PHASE_2_COMPLETE — PHASE_3_NOT_AUTHORIZED
+PROJECT_STATUS: PHASE_3_COMPLETE
+CURRENT_PHASE: FASE 3 concluída — FASE 4 aguardando autorização
+IMPLEMENTATION_AUTHORIZED: PHASE_3_COMPLETE — PHASE_4_NOT_AUTHORIZED
 PRODUCTION_DEPLOYMENT_AUTHORIZED: NO
 ARCHITECTURE_STATUS: APPROVED_WITH_CHANGES
 INFRASTRUCTURE_STATUS: IN_USE_WITH_CONSTRAINTS
@@ -111,7 +111,7 @@ Antes de qualquer implantação futura na VPS:
 | 0 | Descoberta e viabilidade | Decisão formal GO/NO-GO | Concluída — `GO_WITH_CONSTRAINTS` |
 | 1 | Fundação técnica e segurança | Base isolada, persistente e auditável | Concluída — Gate G1 aprovado |
 | 2 | Corpus e modelo de domínio | Corpus piloto e modelo canônico estável | Concluída — Gate G2 aprovado |
-| 3 | Pipeline determinístico mínimo | IDML → modelo → XML válido sem IA | Não iniciada |
+| 3 | Pipeline determinístico mínimo | IDML → modelo → XML válido sem IA | Concluída — Gate G3 aprovado |
 | 4 | Validação, fidelidade e pacote | Pacote validado e política de release | Não iniciada |
 | 5 | Revisão humana e interface mínima | Correção humana auditável | Não iniciada |
 | 6 | IA assistiva e OpenClaw | Assistência semântica controlada | Não iniciada |
@@ -375,48 +375,48 @@ Produzir o primeiro XML válido sem IA e sem depender do Swarm.
 
 ## Pacote 3.1 — Parser IDML seguro
 
-- [ ] Abrir e validar IDML como ZIP não confiável.
-- [ ] Extrair DesignMap, Stories, Spreads, Styles e Resources.
-- [ ] Reconstruir threads e relações de frames.
-- [ ] Implementar estratégia de reading order.
-- [ ] Extrair texto e estrutura sem IA.
-- [ ] Extrair assets e registrar proveniência.
-- [ ] Produzir Raw Article Model.
-- [ ] Medir cobertura no corpus.
+- [x] Abrir e validar IDML como ZIP não confiável.
+- [x] Extrair DesignMap, Stories, Spreads, Styles e Resources.
+- [x] Reconstruir threads e relações de frames.
+- [x] Implementar estratégia de reading order.
+- [x] Extrair texto e estrutura sem IA.
+- [x] Extrair assets e registrar proveniência.
+- [x] Produzir Raw Article Model.
+- [x] Medir cobertura no corpus.
 
 ## Pacote 3.2 — Mapeamento canônico
 
-- [ ] Criar mapeamento Raw → Canonical.
-- [ ] Criar Journal Profile piloto.
-- [ ] Criar style mappings versionados.
-- [ ] Registrar ambiguidades sem inventar conteúdo.
-- [ ] Preservar elementos não reconhecidos para auditoria.
+- [x] Criar mapeamento Raw → Canonical.
+- [x] Criar Journal Profile piloto.
+- [x] Criar style mappings versionados.
+- [x] Registrar ambiguidades sem inventar conteúdo.
+- [x] Preservar elementos não reconhecidos para auditoria.
 
 ## Pacote 3.3 — Builder SPS/JATS
 
-- [ ] Implementar builder com árvore XML.
-- [ ] Implementar front, body e back por componentes.
-- [ ] Implementar IdRegistry.
-- [ ] Impedir IDs duplicados e RIDs órfãos.
-- [ ] Aplicar SpsProfile versionado.
-- [ ] Gerar XML reprodutível.
+- [x] Implementar builder com árvore XML.
+- [x] Implementar front, body e back por componentes.
+- [x] Implementar IdRegistry.
+- [x] Impedir IDs duplicados e RIDs órfãos.
+- [x] Aplicar SpsProfile versionado.
+- [x] Gerar XML reprodutível.
 
 ## Pacote 3.4 — Validação básica
 
-- [ ] Validar well-formed XML.
-- [ ] Validar DTD/JATS offline e allowlisted.
-- [ ] Executar regras SPS disponíveis.
-- [ ] Normalizar resultados dos validadores.
-- [ ] Produzir relatório processável.
+- [x] Validar well-formed XML.
+- [x] Validar DTD/JATS offline e allowlisted.
+- [x] Executar regras SPS disponíveis.
+- [x] Normalizar resultados dos validadores.
+- [x] Produzir relatório processável.
 
 ## Gate de saída G3
 
-- [ ] Ao menos um artigo real gera XML válido sem IA.
-- [ ] Pipeline é idempotente.
-- [ ] Mesmo input e mesmas versões geram resultado equivalente.
-- [ ] Reading order atinge o limiar definido.
-- [ ] Nenhum erro é corrigido silenciosamente.
-- [ ] Falhas são classificadas e auditáveis.
+- [x] Ao menos um artigo real gera XML válido sem IA.
+- [x] Pipeline é idempotente.
+- [x] Mesmo input e mesmas versões geram resultado equivalente.
+- [x] Reading order atinge o limiar definido.
+- [x] Nenhum erro é corrigido silenciosamente.
+- [x] Falhas são classificadas e auditáveis.
 
 ---
 
@@ -812,3 +812,4 @@ ADRs iniciais esperados:
 | 2026-08-24 | Fase 1 concluída; Gate G1 aprovado com testes locais e validação ao vivo na VPS; Fase 2 não autorizada | Codex |
 | 2026-08-24 | Fase 2 autorizada; corpus, modelos e métricas implementados; Gate G2 em validação | Codex |
 | 2026-08-24 | Fase 2 concluída; Gate G2 aprovado localmente e na VPS; Fase 3 não autorizada | Codex |
+| 2026-08-24 | Fase 3 autorizada e concluída; parser, profile ESA, builder JATS 1.3 e validação offline implementados; Gate G3 aprovado; Fase 4 não autorizada | Codex |

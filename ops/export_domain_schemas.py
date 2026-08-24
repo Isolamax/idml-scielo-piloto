@@ -12,7 +12,7 @@ from idml_foundation.domain.raw import RawArticle
 OUTPUTS = {
     "canonical-article-1.0.0.schema.json": CanonicalArticle.model_json_schema(),
     "corpus-manifest-1.0.0.schema.json": CorpusManifest.model_json_schema(),
-    "raw-article-1.0.0.schema.json": RawArticle.model_json_schema(),
+    "raw-article-1.1.0.schema.json": RawArticle.model_json_schema(),
 }
 
 

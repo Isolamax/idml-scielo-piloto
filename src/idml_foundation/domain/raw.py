@@ -10,7 +10,7 @@ from idml_foundation.domain.common import (
     StrictModel,
 )
 
-RAW_SCHEMA_VERSION = "1.0.0"
+RAW_SCHEMA_VERSION = "1.1.0"
 
 
 class StyleKind(StrEnum):
@@ -39,10 +39,20 @@ class RawTextRun(StrictModel):
     evidence_ids: tuple[str, ...] = ()
 
 
+class RawParagraph(StrictModel):
+    id: str
+    position: int = Field(ge=0)
+    paragraph_style_id: str | None = None
+    text_run_ids: tuple[str, ...] = ()
+    table_cell_id: str | None = None
+    evidence_ids: tuple[str, ...] = ()
+
+
 class RawStory(StrictModel):
     id: str
     source_self_id: str
     runs: tuple[RawTextRun, ...] = ()
+    paragraphs: tuple[RawParagraph, ...] = ()
     table_ids: tuple[str, ...] = ()
     anchored_object_ids: tuple[str, ...] = ()
     note_ids: tuple[str, ...] = ()
@@ -142,6 +152,14 @@ class RawNote(StrictModel):
     evidence_ids: tuple[str, ...] = ()
 
 
+class ReadingOrderIssue(StrictModel):
+    code: str
+    story_id: str | None = None
+    frame_id: str | None = None
+    details: dict[str, str | int | float | bool | None] = Field(default_factory=dict)
+    evidence_ids: tuple[str, ...] = ()
+
+
 class RawArticle(StrictModel):
     schema_version: str = RAW_SCHEMA_VERSION
     article_id: str
@@ -157,6 +175,8 @@ class RawArticle(StrictModel):
     assets: tuple[RawAsset, ...] = ()
     links: tuple[RawLink, ...] = ()
     notes: tuple[RawNote, ...] = ()
+    reading_order: tuple[str, ...] = ()
+    reading_order_issues: tuple[ReadingOrderIssue, ...] = ()
     evidence: tuple[Evidence, ...]
 
     @model_validator(mode="after")
@@ -177,7 +197,10 @@ class RawArticle(StrictModel):
         )
         all_ids = [item.id for collection in collections for item in collection]
         run_ids = [run.id for story in self.stories for run in story.runs]
-        if len(set(all_ids + run_ids)) != len(all_ids) + len(run_ids):
+        paragraph_ids = [paragraph.id for story in self.stories for paragraph in story.paragraphs]
+        if len(set(all_ids + run_ids + paragraph_ids)) != len(all_ids) + len(run_ids) + len(
+            paragraph_ids
+        ):
             raise ValueError("domain IDs must be globally unique")
 
         story_ids = {item.id for item in self.stories}
@@ -207,6 +230,9 @@ class RawArticle(StrictModel):
                 raise ValueError("story references an unknown anchored object")
             if not set(story.note_ids) <= note_ids:
                 raise ValueError("story references an unknown note")
+            for paragraph in story.paragraphs:
+                if not set(paragraph.text_run_ids) <= known_run_ids:
+                    raise ValueError("paragraph references an unknown text run")
         for style in self.styles:
             if style.parent_style_id and style.parent_style_id not in style_ids:
                 raise ValueError("style references an unknown parent")
@@ -224,12 +250,20 @@ class RawArticle(StrictModel):
         for note in self.notes:
             if not set(note.text_run_ids) <= known_run_ids:
                 raise ValueError("note references an unknown text run")
+        if len(set(self.reading_order)) != len(self.reading_order):
+            raise ValueError("reading_order cannot contain duplicate stories")
+        if not set(self.reading_order) <= story_ids:
+            raise ValueError("reading_order references an unknown story")
 
         evidence_bearers: list[object] = [
             item for collection in collections[:-1] for item in collection
         ]
         evidence_bearers.extend(run for story in self.stories for run in story.runs)
+        evidence_bearers.extend(
+            paragraph for story in self.stories for paragraph in story.paragraphs
+        )
         evidence_bearers.extend(cell for table in self.tables for cell in table.cells)
+        evidence_bearers.extend(self.reading_order_issues)
         for bearer in evidence_bearers:
             if not set(getattr(bearer, "evidence_ids", ())) <= evidence_ids:
                 raise ValueError("component references unknown evidence")

@@ -16,6 +16,16 @@ class UnsupportedSchemaVersion(ValueError):
 def _raw_0_1_to_1_0(payload: dict[str, Any]) -> dict[str, Any]:
     migrated = copy.deepcopy(payload)
     migrated["source_artifact_sha256"] = migrated.pop("source_sha256")
+    migrated["schema_version"] = "1.0.0"
+    return migrated
+
+
+def _raw_1_0_to_1_1(payload: dict[str, Any]) -> dict[str, Any]:
+    migrated = copy.deepcopy(payload)
+    for story in migrated.get("stories", []):
+        story.setdefault("paragraphs", [])
+    migrated.setdefault("reading_order", [story["id"] for story in migrated.get("stories", [])])
+    migrated.setdefault("reading_order_issues", [])
     migrated["schema_version"] = RAW_SCHEMA_VERSION
     return migrated
 
@@ -31,7 +41,8 @@ def _canonical_0_1_to_1_0(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 MIGRATIONS: dict[tuple[ModelKind, str], tuple[str, Migration]] = {
-    ("raw", "0.1.0"): (RAW_SCHEMA_VERSION, _raw_0_1_to_1_0),
+    ("raw", "0.1.0"): ("1.0.0", _raw_0_1_to_1_0),
+    ("raw", "1.0.0"): (RAW_SCHEMA_VERSION, _raw_1_0_to_1_1),
     ("canonical", "0.1.0"): (CANONICAL_SCHEMA_VERSION, _canonical_0_1_to_1_0),
 }
 

@@ -1,14 +1,13 @@
-# Raw e Canonical Article Model — versão 1.0.0
+# Raw Article 1.1.0 e Canonical Article 1.0.0
 
 ## Limites de responsabilidade
 
 O Raw Article Model preserva fatos observados no IDML. O Canonical Article Model
 representa a semântica editorial sem depender de IDML, XML, IA ou interface. A
-transformação entre ambos pertence à Fase 3; esta fase define e testa os
-contratos, não implementa o parser final.
+transformação entre ambos é determinística e foi implementada na Fase 3.
 
 ```text
-artefato + locator -> Evidence -> Raw Article -> Canonical Article -> futuro builder SPS
+artefato + locator -> Evidence -> Raw Article -> Canonical Article -> builder JATS
 ```
 
 ## Evidência e proveniência
@@ -28,12 +27,13 @@ não são necessários no modelo persistido.
 
 O contrato representa:
 
-- Stories e runs de texto em ordem interna;
+- Stories, parágrafos e runs de texto em ordem interna;
 - Spreads, páginas, TextFrames, caixas, transformações e threads;
 - estilos originais e normalizados, preservando hierarquia/propriedades;
 - tabelas, células, spans e referências aos runs;
 - objetos ancorados/soltos, figuras, fórmulas, mídia e assets externos;
 - links, notas e evidência de origem.
+- ordem de leitura reconstruída e conflitos classificados explicitamente.
 
 IDs provenientes do InDesign são preservados em `source_self_id`; IDs internos
 são separados e estáveis. O validador de grafo recusa referências órfãs e IDs
@@ -74,9 +74,11 @@ conteúdo. Dados obrigatórios ausentes permanecem ausentes.
 mesmo artigo/localizador produz o mesmo ID entre retries; localizadores distintos
 produzem IDs distintos.
 
-Raw e Canonical usam `schema_version=1.0.0`, JSON canônico com chaves ordenadas e
-SHA-256 do conteúdo. Os JSON Schemas ficam em `schemas/`. Migrations explícitas
-convertem payloads `0.1.0` e recusam versões desconhecidas.
+Raw usa `schema_version=1.1.0`; Canonical permanece em `1.0.0`. O incremento Raw
+adiciona parágrafos e a decisão auditável de reading order. JSON canônico usa
+chaves ordenadas e SHA-256 do conteúdo. Os JSON Schemas ficam em `schemas/`.
+Migrations explícitas encadeiam Raw `0.1.0 -> 1.0.0 -> 1.1.0` e recusam versões
+desconhecidas.
 
 `DomainSnapshot` persiste payload imutável por empresa, recurso, tipo, revisão,
 hash, artefato fonte e snapshot pai. Unicidade impede revisão duplicada e o
