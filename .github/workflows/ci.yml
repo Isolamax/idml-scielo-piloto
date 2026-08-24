@@ -1,0 +1,38 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      IDML_ENVIRONMENT: test
+      IDML_DATABASE_URL: sqlite+pysqlite:///:memory:
+      IDML_REDIS_URL: redis://127.0.0.1:6379/15
+      IDML_ARTIFACT_ROOT: /tmp/idml-test-artifacts
+      IDML_SESSION_PEPPER: ci-only-not-a-production-secret-00000000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install --require-hashes -r requirements-dev.lock
+      - run: pip install --no-deps -e .
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: mypy src
+      - run: pytest
+      - name: Check repository for obvious secrets
+        run: |
+          if git grep -nE '(sk-proj-|BEGIN (RSA|OPENSSH) PRIVATE KEY|password=[^$<{])' -- ':!*.md' ':!.env.example'; then
+            echo "Possible secret found"
+            exit 1
+          fi

@@ -1,0 +1,2 @@
+# Compile from pyproject.toml:
+# pip-compile --extra=dev --generate-hashes --output-file=requirements-dev.lock pyproject.toml

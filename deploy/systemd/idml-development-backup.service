@@ -1,0 +1,13 @@
+[Unit]
+Description=Backup do ambiente de desenvolvimento IDML
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/opt/idml-platform/.env
+ExecStart=/opt/idml-platform/ops/backup.sh
+User=root
+Group=root
+Nice=10
+

@@ -1,0 +1,24 @@
+name: Bug
+description: Registrar comportamento incorreto reproduzível
+title: "[bug] "
+body:
+  - type: textarea
+    id: expected
+    attributes:
+      label: Resultado esperado
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Resultado observado
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidências sanitizadas
+      description: Nunca inclua tokens, senhas ou conteúdo confidencial.
+    validations:
+      required: true
+

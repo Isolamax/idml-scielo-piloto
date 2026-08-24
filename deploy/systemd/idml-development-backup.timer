@@ -1,0 +1,11 @@
+[Unit]
+Description=Backup diário do ambiente de desenvolvimento IDML
+
+[Timer]
+OnCalendar=*-*-* 04:40:00 America/Sao_Paulo
+Persistent=true
+RandomizedDelaySec=10m
+
+[Install]
+WantedBy=timers.target
+

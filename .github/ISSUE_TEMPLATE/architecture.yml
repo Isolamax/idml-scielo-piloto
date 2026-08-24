@@ -1,0 +1,17 @@
+name: Decisão arquitetural
+description: Propor alteração que exija ADR
+title: "[adr] "
+body:
+  - type: textarea
+    id: context
+    attributes:
+      label: Contexto e restrições
+    validations:
+      required: true
+  - type: textarea
+    id: options
+    attributes:
+      label: Alternativas e consequências
+    validations:
+      required: true
+

@@ -1,0 +1,152 @@
+name: idml-development
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  init: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  networks:
+    - idml_internal
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "3"
+
+x-app-environment: &app-environment
+  IDML_ENVIRONMENT: ${IDML_ENVIRONMENT:-development}
+  IDML_DATABASE_URL: postgresql+psycopg://${IDML_POSTGRES_USER}:${IDML_POSTGRES_PASSWORD}@postgres:5432/${IDML_POSTGRES_DB}
+  IDML_REDIS_URL: redis://redis:6379/0
+  IDML_ARTIFACT_ROOT: /var/lib/idml/artifacts
+  IDML_SESSION_PEPPER: ${IDML_SESSION_PEPPER}
+  IDML_LOG_LEVEL: ${IDML_LOG_LEVEL:-INFO}
+  IDML_UPLOAD_MAX_BYTES: ${IDML_UPLOAD_MAX_BYTES:-104857600}
+  IDML_ZIP_MAX_ENTRIES: ${IDML_ZIP_MAX_ENTRIES:-5000}
+  IDML_ZIP_MAX_UNCOMPRESSED_BYTES: ${IDML_ZIP_MAX_UNCOMPRESSED_BYTES:-524288000}
+  IDML_ZIP_MAX_RATIO: ${IDML_ZIP_MAX_RATIO:-100}
+  IDML_SESSION_TTL_SECONDS: ${IDML_SESSION_TTL_SECONDS:-28800}
+  IDML_FEATURE_OPENCLAW: "false"
+  IDML_FEATURE_CLAMAV: ${IDML_FEATURE_CLAMAV:-false}
+  IDML_CLAMAV_HOST: ${IDML_CLAMAV_HOST:-clamav}
+  IDML_CLAMAV_PORT: ${IDML_CLAMAV_PORT:-3310}
+
+services:
+  postgres:
+    <<: *service-defaults
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${IDML_POSTGRES_DB}
+      POSTGRES_USER: ${IDML_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${IDML_POSTGRES_PASSWORD}
+    volumes:
+      - idml_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    mem_limit: 384m
+    cpus: 0.50
+    pids_limit: 120
+
+  redis:
+    <<: *service-defaults
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "64mb", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - idml_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    mem_limit: 96m
+    cpus: 0.20
+    pids_limit: 80
+
+  migrate:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: idml-foundation:${IDML_IMAGE_TAG:-development}
+    environment: *app-environment
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - idml_internal
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: "no"
+    mem_limit: 256m
+    cpus: 0.50
+    pids_limit: 100
+
+  api:
+    <<: *service-defaults
+    image: idml-foundation:${IDML_IMAGE_TAG:-development}
+    environment: *app-environment
+    ports:
+      - "127.0.0.1:${IDML_API_PORT:-18080}:8000"
+    volumes:
+      - idml_artifacts:/var/lib/idml/artifacts
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=2)",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    mem_limit: 256m
+    cpus: 0.50
+    pids_limit: 120
+
+  worker:
+    <<: *service-defaults
+    image: idml-foundation:${IDML_IMAGE_TAG:-development}
+    environment: *app-environment
+    command: ["idml-worker"]
+    volumes:
+      - idml_artifacts:/var/lib/idml/artifacts
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os; os.kill(1, 0)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    mem_limit: 256m
+    cpus: 0.50
+    pids_limit: 120
+
+networks:
+  idml_internal:
+    name: idml_development_internal
+    internal: true
+
+volumes:
+  idml_postgres_data:
+    name: idml_development_postgres
+  idml_redis_data:
+    name: idml_development_redis
+  idml_artifacts:
+    name: idml_development_artifacts
