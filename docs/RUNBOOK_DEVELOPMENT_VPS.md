@@ -19,6 +19,9 @@ ops/verify-stack.sh
 ```
 
 O serviço `migrate` precisa terminar com sucesso antes de API/worker. Não use `docker system prune`.
+Em atualização rotineira, não use `--force-recreate` sobre toda a stack: recrie
+somente `migrate`, `api`, `worker` e inicializadores necessários. PostgreSQL e
+Redis só devem ser recriados em manutenção planejada, preservando os volumes.
 
 ## Verificar
 

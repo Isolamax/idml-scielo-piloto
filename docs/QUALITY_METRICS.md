@@ -48,4 +48,3 @@ corpus e revisão registrada, nunca ajuste para esconder regressão.
 
 Validade DTD/SPS, Packtools e XPM serão gates adicionais nas Fases 3 e 4. Um
 `PASS` destas métricas isoladas nunca significa `READY_FOR_SCIELO`.
-

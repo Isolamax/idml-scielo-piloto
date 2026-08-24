@@ -63,6 +63,7 @@ services:
     image: redis:7-alpine
     cap_add:
       - CHOWN
+      - DAC_READ_SEARCH
       - SETGID
       - SETUID
     command: ["redis-server", "--appendonly", "yes", "--maxmemory", "64mb", "--maxmemory-policy", "noeviction"]

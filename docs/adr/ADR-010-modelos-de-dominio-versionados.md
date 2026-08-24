@@ -16,4 +16,3 @@ funções explícitas e versões desconhecidas falham de forma fechada.
 
 Parser, IA e builder não compartilham estruturas informais. Há custo de manter
 schemas/migrations, compensado por reprodutibilidade, auditoria e evolução segura.
-

@@ -61,4 +61,3 @@ contaminação. Duplicatas físicas são identificadas por SHA-256.
 
 Esses casos devem produzir evidência, `ambiguous` ou `needs_review`; não autorizam
 invenção nem perda silenciosa.
-

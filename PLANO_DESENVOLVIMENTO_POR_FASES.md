@@ -15,9 +15,9 @@ PLANO_ANALISE_CODEX_SCIELO_IDML_OPENCLAW_SWARM.md
 ## 2. Estado geral
 
 ```text
-PROJECT_STATUS: PHASE_2_IN_PROGRESS
-CURRENT_PHASE: FASE 2 em validação — Gate G2 pendente
-IMPLEMENTATION_AUTHORIZED: PHASE_2_ONLY
+PROJECT_STATUS: PHASE_2_COMPLETE
+CURRENT_PHASE: FASE 2 concluída — FASE 3 aguardando autorização
+IMPLEMENTATION_AUTHORIZED: PHASE_2_COMPLETE — PHASE_3_NOT_AUTHORIZED
 PRODUCTION_DEPLOYMENT_AUTHORIZED: NO
 ARCHITECTURE_STATUS: APPROVED_WITH_CHANGES
 INFRASTRUCTURE_STATUS: IN_USE_WITH_CONSTRAINTS
@@ -110,7 +110,7 @@ Antes de qualquer implantação futura na VPS:
 |---|---|---|---|
 | 0 | Descoberta e viabilidade | Decisão formal GO/NO-GO | Concluída — `GO_WITH_CONSTRAINTS` |
 | 1 | Fundação técnica e segurança | Base isolada, persistente e auditável | Concluída — Gate G1 aprovado |
-| 2 | Corpus e modelo de domínio | Corpus piloto e modelo canônico estável | Em validação |
+| 2 | Corpus e modelo de domínio | Corpus piloto e modelo canônico estável | Concluída — Gate G2 aprovado |
 | 3 | Pipeline determinístico mínimo | IDML → modelo → XML válido sem IA | Não iniciada |
 | 4 | Validação, fidelidade e pacote | Pacote validado e política de release | Não iniciada |
 | 5 | Revisão humana e interface mínima | Correção humana auditável | Não iniciada |
@@ -358,12 +358,12 @@ Construir o corpus de referência e definir modelos independentes de IDML, IA e 
 
 ## Gate de saída G2
 
-- [ ] Corpus mínimo representa o periódico piloto.
-- [ ] Modelos serializam e desserializam sem perda.
-- [ ] IDs permanecem estáveis entre versões.
-- [ ] Evidências podem ser rastreadas até a fonte.
-- [ ] Casos não representáveis estão documentados.
-- [ ] Métricas e limiares foram aprovados antes do parser final.
+- [x] Corpus mínimo representa o periódico piloto.
+- [x] Modelos serializam e desserializam sem perda.
+- [x] IDs permanecem estáveis entre versões.
+- [x] Evidências podem ser rastreadas até a fonte.
+- [x] Casos não representáveis estão documentados.
+- [x] Métricas e limiares foram aprovados antes do parser final.
 
 ---
 
@@ -736,11 +736,12 @@ Cada novo periódico deve possuir corpus, profile, style mapping, métricas, hom
 | R-05 | Impacto no sistema atual | Crítico | Compose/network/volumes exclusivos e limites | Mitigado e monitorado |
 | R-06 | Prompt injection por artigo | Alto | Ferramentas tipadas, conteúdo não confiável e testes | Aberto |
 | R-07 | Vazamento entre empresas | Crítico | Escopo no backend, storage isolado e testes negativos | Mitigado na fundação; monitorado |
-| R-08 | Modelo canônico insuficiente | Alto | Corpus antes do congelamento e migrations | Aberto |
+| R-08 | Modelo canônico insuficiente | Alto | Corpus antes do congelamento e migrations | Mitigado no contrato; validar no parser |
 | R-09 | Confiança de IA mal calibrada | Alto | Evidência, agreement, métricas e revisão humana | Aberto |
 | R-10 | Custo ou latência excessivos | Médio/Alto | Model routing, cache seguro, limites e métricas | Aberto |
 | R-11 | Falha sem retomada idempotente | Alto | Máquina de estados, idempotency keys e recuperação pelo PostgreSQL | Mitigado na fundação; monitorado |
 | R-12 | Perda de dados ou histórico | Crítico | Imutabilidade, backups e restore testado | Mitigado na fundação; monitorado |
+| R-13 | Vazamento ou contaminação do corpus | Alto | Manifestos sem conteúdo, acesso restrito e holdout separado | Mitigado; monitorado |
 
 # 8. Definition of Done global
 
@@ -810,3 +811,4 @@ ADRs iniciais esperados:
 | 2026-08-24 | Fase 0 concluída; Gate G0 aprovado como `GO_WITH_CONSTRAINTS`; nenhuma funcionalidade desenvolvida | Codex |
 | 2026-08-24 | Fase 1 concluída; Gate G1 aprovado com testes locais e validação ao vivo na VPS; Fase 2 não autorizada | Codex |
 | 2026-08-24 | Fase 2 autorizada; corpus, modelos e métricas implementados; Gate G2 em validação | Codex |
+| 2026-08-24 | Fase 2 concluída; Gate G2 aprovado localmente e na VPS; Fase 3 não autorizada | Codex |

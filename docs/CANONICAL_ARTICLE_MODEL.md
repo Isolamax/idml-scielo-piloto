@@ -90,4 +90,3 @@ backend valida tenant em recurso, artefato e linhagem.
 - downgrade de banco remove somente a tabela de snapshots; downgrade semântico
   de conteúdo não é implícito;
 - builder XML nunca modifica o Canonical Model em memória.
-
