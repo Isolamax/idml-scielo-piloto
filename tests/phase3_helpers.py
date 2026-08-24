@@ -55,7 +55,7 @@ def synthetic_idml() -> bytes:
         ),
         "Stories/Story_u4.xml": story(
             "u4",
-            paragraph("07.0.caption", "Figure caption"),
+            paragraph("07.0.caption", "Figure 1. Figure caption"),
             '<Rectangle Self="rectangle-1"><Image><Link Self="link-1" '
             'LinkResourceURI="file:C:/private/source/Figure%201.jpg" '
             'LinkResourceFormat="$ID/JPEG"/></Image></Rectangle>',

@@ -119,6 +119,15 @@ class OfflineJatsValidator:
                     message="article must declare JATS dtd-version 1.3",
                 )
             )
+        if root.get("specific-use") != "sps-1.10":
+            issues.append(
+                ValidationIssue(
+                    stage=ValidationStage.SPS_BASELINE,
+                    severity=ValidationSeverity.ERROR,
+                    code="unsupported-sps-version",
+                    message="article must declare specific-use sps-1.10",
+                )
+            )
         require(
             "front/article-meta/article-id[@pub-id-type='publisher-id'][normalize-space()]",
             "missing-publisher-id",

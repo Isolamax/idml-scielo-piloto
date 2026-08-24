@@ -428,51 +428,51 @@ Comprovar conformidade, fidelidade e integridade do pacote antes de adicionar IA
 
 ## Pacote 4.1 — Validation Engine
 
-- [ ] Integrar well-formed, DTD, SPS/Schematron e Packtools.
-- [ ] Criar formato único para errors e warnings.
-- [ ] Implementar regras internas e cross-reference validator.
-- [ ] Implementar asset validator.
-- [ ] Registrar versões dos validadores.
+- [x] Integrar well-formed, DTD, SPS/Schematron e Packtools/SPSValidator.
+- [x] Criar formato único para errors e warnings.
+- [x] Implementar regras internas e cross-reference validator.
+- [x] Implementar asset validator.
+- [x] Registrar versões dos validadores.
 
 ## Pacote 4.2 — PDF Fidelity Engine
 
-- [ ] Extrair camada textual do PDF quando disponível.
-- [ ] Usar OCR apenas quando necessário.
-- [ ] Comparar PDF, modelo canônico e XML.
-- [ ] Medir título, autores, texto, figuras, tabelas e referências.
-- [ ] Classificar divergências legítimas e bloqueadoras.
+- [x] Extrair camada textual do PDF quando disponível.
+- [x] Usar OCR apenas quando necessário.
+- [x] Comparar PDF, modelo canônico e XML.
+- [x] Medir título, autores, texto, figuras, tabelas e referências.
+- [x] Classificar divergências legítimas e bloqueadoras.
 
 ## Pacote 4.3 — Error Classifier e reparos determinísticos
 
-- [ ] Classificar deterministic, semantic, missing data, source conflict e system.
-- [ ] Implementar apenas reparos formalmente seguros.
-- [ ] Definir limite de ciclos.
-- [ ] Rebuild e revalidation após cada patch.
-- [ ] Encaminhar ambiguidades para revisão humana.
+- [x] Classificar deterministic, semantic, missing data, source conflict e system.
+- [x] Implementar apenas reparos formalmente seguros.
+- [x] Definir limite de ciclos.
+- [x] Rebuild e revalidation após cada patch.
+- [x] Encaminhar ambiguidades para revisão humana.
 
 ## Pacote 4.4 — Package Builder
 
-- [ ] Definir layout final do pacote.
-- [ ] Aplicar regras de nomes de arquivos.
-- [ ] Verificar presença e hash dos assets.
-- [ ] Gerar ConversionManifest.
-- [ ] Tornar releases imutáveis.
+- [x] Definir layout final do pacote.
+- [x] Aplicar regras de nomes de arquivos.
+- [x] Verificar presença e hash dos assets.
+- [x] Gerar ConversionManifest.
+- [x] Tornar releases imutáveis.
 
 ## Pacote 4.5 — XPM e Release Policy
 
-- [ ] Integrar XPM conforme decisão da Fase 0.
-- [ ] Criar política determinística de release.
-- [ ] Definir gates obrigatórios por SpsProfile.
-- [ ] Impedir que IA conceda `READY_FOR_SCIELO`.
-- [ ] Registrar override humano permitido e sua justificativa.
+- [x] Integrar contrato/parser XPM conforme decisão da Fase 0; executor Windows pendente.
+- [x] Criar política determinística de release.
+- [x] Definir gates obrigatórios por SpsProfile.
+- [x] Impedir que IA conceda `READY_FOR_SCIELO`.
+- [x] Registrar override humano permitido e sua justificativa.
 
 ## Gate de saída G4
 
-- [ ] Pacote é construído antes do gate XPM.
-- [ ] Todos os validadores obrigatórios são executados.
-- [ ] Release Policy é versionada e testada.
-- [ ] ConversionManifest permite auditar a conversão.
-- [ ] Corpus determinístico alcança métricas mínimas aprovadas.
+- [x] Pacote é construído antes do gate XPM.
+- [ ] Todos os validadores obrigatórios são executados (XPM do candidato pendente).
+- [x] Release Policy é versionada e testada.
+- [x] ConversionManifest permite auditar a conversão.
+- [ ] Corpus determinístico alcança todos os targets e fica sem erros SPS.
 
 ---
 
@@ -801,7 +801,7 @@ ADRs iniciais esperados:
 - [ ] ADR — estrutura do Canonical Article Model.
 - [x] ADR-004 — estratégia de reading order.
 - [x] ADR-005 — abstração de orquestração e fallback.
-- [ ] ADR — política determinística de release.
+- [x] ADR-012 — política determinística de release.
 
 # 11. Histórico deste plano
 
@@ -813,3 +813,4 @@ ADRs iniciais esperados:
 | 2026-08-24 | Fase 2 autorizada; corpus, modelos e métricas implementados; Gate G2 em validação | Codex |
 | 2026-08-24 | Fase 2 concluída; Gate G2 aprovado localmente e na VPS; Fase 3 não autorizada | Codex |
 | 2026-08-24 | Fase 3 autorizada e concluída; parser, profile ESA, builder JATS 1.3 e validação offline implementados; Gate G3 aprovado; Fase 4 não autorizada | Codex |
+| 2026-08-24 | Fase 4 implementada; validação/fidelidade/pacote/policy concluídos; Gate G4 bloqueado por erros SPS/editoriais e ausência do XPM do candidato; Fase 5 não autorizada | Codex |

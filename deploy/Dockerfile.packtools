@@ -1,0 +1,21 @@
+# syntax=docker/dockerfile:1.7
+FROM python:3.12-slim
+
+ARG PACKTOOLS_COMMIT=fe1ada8cd7cc638c8eab7ab1651f3b4f891d08e7
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1
+
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends git ca-certificates \
+    && python -m pip install "packtools @ git+https://github.com/scieloorg/packtools.git@${PACKTOOLS_COMMIT}" \
+    && apt-get purge --yes --auto-remove git \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd --gid 10001 validator \
+    && useradd --uid 10001 --gid validator --no-create-home validator
+WORKDIR /validator
+COPY ops/packtools_validate.py /validator/packtools_validate.py
+USER 10001:10001
+ENTRYPOINT ["python", "/validator/packtools_validate.py"]

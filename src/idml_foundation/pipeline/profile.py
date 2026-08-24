@@ -15,7 +15,15 @@ class JournalProfile(StrictModel):
     primary_language: str = Field(pattern=r"^[a-z]{2,3}$")
     secondary_language: str = Field(pattern=r"^[a-z]{2,3}$")
     article_category: str
+    sps_version: str = Field(pattern=r"^sps-\d+\.\d+$")
+    package_name_template: str
     style_roles: dict[str, str]
+
+    def package_stem(self, article_id: str) -> str:
+        value = self.package_name_template.replace("{article_id}", article_id)
+        if not value or any(character in value for character in "/\\"):
+            raise ValueError("profile produced an unsafe package name")
+        return value
 
     def role_for_prefix(self, prefix: str | None) -> str | None:
         if prefix is None:

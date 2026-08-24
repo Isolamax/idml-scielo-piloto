@@ -23,6 +23,7 @@ from idml_foundation.domain.canonical import (
 XLINK_NS = "http://www.w3.org/1999/xlink"
 XML_NS = "http://www.w3.org/XML/1998/namespace"
 JATS_DTD_NAME = "JATS-journalpublishing1-3-mathml3.dtd"
+JATS_PUBLIC_ID = "-//NLM//DTD JATS (Z39.96) Journal Publishing DTD v1.3 20210610//EN"
 _INVALID_NCNAME = re.compile(r"[^A-Za-z0-9_.-]+")
 
 
@@ -67,6 +68,9 @@ def _add(
 
 
 class JatsBuilder:
+    def __init__(self, *, sps_version: str = "sps-1.10") -> None:
+        self._sps_version = sps_version
+
     def build(self, article: CanonicalArticle) -> bytes:
         registry = IdRegistry()
         self._register_ids(article, registry)
@@ -76,6 +80,7 @@ class JatsBuilder:
             attrib={
                 "article-type": article.front.article_category.value or "research-article",
                 "dtd-version": "1.3",
+                "specific-use": self._sps_version,
                 f"{{{XML_NS}}}lang": self._primary_language(article),
             },
         )
@@ -88,7 +93,7 @@ class JatsBuilder:
             encoding="UTF-8",
             xml_declaration=True,
             pretty_print=False,
-            doctype=f'<!DOCTYPE article SYSTEM "{JATS_DTD_NAME}">',
+            doctype=f'<!DOCTYPE article PUBLIC "{JATS_PUBLIC_ID}" "{JATS_DTD_NAME}">',
         )
 
     def _register_ids(self, article: CanonicalArticle, registry: IdRegistry) -> None:

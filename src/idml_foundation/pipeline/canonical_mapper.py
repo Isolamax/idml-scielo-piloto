@@ -39,6 +39,7 @@ from idml_foundation.pipeline.profile import JournalProfile
 
 _ARTICLE_NUMBER = re.compile(r"(?:^|_)(20\d{2})(\d{1,4})(?:_|$)")
 _AUTHOR_MARKERS = re.compile(r"[\d*]+")
+_NUMBERED_GRAPHIC = re.compile(r"^\s*(figure|table)\s*([1-9]\d*)\b", re.IGNORECASE)
 
 
 def _present(value: str, evidence_ids: tuple[str, ...], transformation: str) -> SourcedText:
@@ -165,7 +166,7 @@ class CanonicalMapper:
                     )
                 )
 
-        sections = self._sections(
+        sections, graphic_review_reasons = self._sections(
             raw,
             paragraphs_by_role,
             style_names,
@@ -191,6 +192,7 @@ class CanonicalMapper:
         )
         if any(item.external for item in raw.assets):
             review_reasons.append("external_assets_require_package_resolution")
+        review_reasons.extend(graphic_review_reasons)
 
         return CanonicalArticle(
             article_id=article_id,
@@ -363,7 +365,7 @@ class CanonicalMapper:
         style_names: dict[str, str],
         character_names: dict[str, str],
         article_id: str,
-    ) -> tuple[Section, ...]:
+    ) -> tuple[tuple[Section, ...], tuple[str, ...]]:
         body_items = [
             (*item, role)
             for role in ("section-level-1", "section-level-2", "paragraph")
@@ -408,76 +410,127 @@ class CanonicalMapper:
                 )
 
         raw_tables = {table.id: table for table in raw.tables}
+        table_story = {
+            table_id: story.id for story in raw.stories for table_id in story.table_ids
+        }
+        story_page = {
+            story.id: min(
+                (frame.page_index for frame in raw.frames if frame.parent_story_id == story.id),
+                default=10**9,
+            )
+            for story in raw.stories
+        }
         captions = by_role["caption"]
         graphic_blocks: list[FigureBlock | TableBlock] = []
-        asset_position = 0
+        graphic_review_reasons: list[str] = []
+        used_tables: set[str] = set()
+        used_assets: set[str] = set()
+        run_lookup = {run.id: run for item in raw.stories for run in item.runs}
+
+        def table_rows(table_id: str) -> tuple[tuple[RichText, ...], ...]:
+            table = raw_tables[table_id]
+            rows: list[tuple[RichText, ...]] = []
+            for row_index in range(table.row_count):
+                row: list[RichText] = []
+                for column_index in range(table.column_count):
+                    cell = next(
+                        (
+                            item
+                            for item in table.cells
+                            if item.row == row_index and item.column == column_index
+                        ),
+                        None,
+                    )
+                    value = (
+                        "".join(run_lookup[item].text for item in cell.text_run_ids)
+                        if cell
+                        else ""
+                    )
+                    row.append(
+                        RichText(
+                            plain=(
+                                _present(value, cell.evidence_ids, "idml-table-cell")
+                                if value.strip() and cell
+                                else _missing("empty-or-spanned-table-cell")
+                            )
+                        )
+                    )
+                rows.append(tuple(row))
+            return tuple(rows)
+
         for story, paragraph in captions:
             runs = {run.id: run for run in story.runs}
             caption_value = "".join(runs[item].text for item in paragraph.text_run_ids)
+            numbered = _NUMBERED_GRAPHIC.match(caption_value)
+            if numbered is None:
+                if caption_value.strip():
+                    graphic_review_reasons.append(f"unnumbered_graphic_caption:{paragraph.id}")
+                continue
+            kind, number_text = numbered.group(1).casefold(), numbered.group(2)
+            number = int(number_text)
             caption = (
                 self._rich_text(story, paragraph, character_names, article_id)
                 if caption_value.strip()
                 else RichText(plain=_missing("caption-style-contained-no-caption-text"))
             )
-            if story.table_ids:
-                for table_id in story.table_ids:
-                    table = raw_tables[table_id]
-                    run_lookup = {run.id: run for item in raw.stories for run in item.runs}
-                    rows: list[tuple[RichText, ...]] = []
-                    for row_index in range(table.row_count):
-                        row: list[RichText] = []
-                        for column_index in range(table.column_count):
-                            cell = next(
-                                (
-                                    item
-                                    for item in table.cells
-                                    if item.row == row_index and item.column == column_index
-                                ),
-                                None,
-                            )
-                            value = (
-                                "".join(run_lookup[item].text for item in cell.text_run_ids)
-                                if cell
-                                else ""
-                            )
-                            row.append(
-                                RichText(
-                                    plain=(
-                                        _present(value, cell.evidence_ids, "idml-table-cell")
-                                        if value.strip() and cell
-                                        else _missing("empty-or-spanned-table-cell")
-                                    )
-                                )
-                            )
-                        rows.append(tuple(row))
-                    graphic_blocks.append(
-                        TableBlock(
-                            id=stable_id(article_id, "canonical-table", table.id),
-                            label=_present(
-                                "Table "
-                                f"{sum(isinstance(x, TableBlock) for x in graphic_blocks) + 1}",
-                                paragraph.evidence_ids,
-                                "deterministic-sequence-label",
-                            ),
-                            caption=caption,
-                            rows=tuple(rows),
-                            evidence_ids=table.evidence_ids,
-                        )
-                    )
-            else:
-                if not caption_value.strip():
-                    continue
-                asset_id = (
-                    raw.assets[asset_position].id if asset_position < len(raw.assets) else None
+            if kind == "table":
+                candidate_tables = sorted(
+                    (
+                        table_id
+                        for table_id in raw_tables
+                        if table_id not in used_tables
+                        and story_page.get(table_story.get(table_id, ""), 10**9)
+                        == story_page.get(story.id, 10**9)
+                    ),
+                    key=lambda table_id: (
+                        raw.reading_order.index(table_story[table_id]),
+                        raw_tables[table_id].source_self_id,
+                    ),
                 )
-                asset_position += 1
+                if not candidate_tables:
+                    graphic_review_reasons.append(f"unmatched_table_caption:{number}")
+                    continue
+                table_id = candidate_tables[0]
+                used_tables.add(table_id)
+                table = raw_tables[table_id]
+                graphic_blocks.append(
+                    TableBlock(
+                        id=stable_id(article_id, "canonical-table", table.id),
+                        label=_present(
+                            f"Table {number}",
+                            paragraph.evidence_ids,
+                            "numbered-caption-label",
+                        ),
+                        caption=caption,
+                        rows=table_rows(table_id),
+                        evidence_ids=table.evidence_ids,
+                    )
+                )
+            else:
+                asset_pattern = re.compile(
+                    rf"(?:^|[^a-z])figure[\s_-]*0*{number}(?:[^0-9]|$)", re.I
+                )
+                asset = next(
+                    (
+                        item
+                        for item in raw.assets
+                        if item.id not in used_assets and asset_pattern.search(item.logical_path)
+                    ),
+                    None,
+                )
+                if asset is None:
+                    graphic_review_reasons.append(f"unmatched_figure_asset:{number}")
+                    asset_id = None
+                else:
+                    used_assets.add(asset.id)
+                    asset_id = asset.id
                 graphic_blocks.append(
                     FigureBlock(
                         id=stable_id(article_id, "figure", paragraph.id),
                         label=_present(
-                            f"Figure {sum(isinstance(x, FigureBlock) for x in graphic_blocks) + 1}",
+                            f"Figure {number}",
                             paragraph.evidence_ids,
-                            "deterministic-sequence-label",
+                            "numbered-caption-label",
                         ),
                         caption=caption,
                         asset_id=asset_id,
@@ -498,7 +551,12 @@ class CanonicalMapper:
                     "evidence_ids": (),
                 }
             )
-        return tuple(Section.model_validate(item) for item in sections)
+        for table_id in sorted(set(raw_tables) - used_tables):
+            graphic_review_reasons.append(f"unmatched_source_table:{table_id}")
+        return (
+            tuple(Section.model_validate(item) for item in sections),
+            tuple(graphic_review_reasons),
+        )
 
     def _references(
         self,

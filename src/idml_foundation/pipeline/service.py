@@ -29,8 +29,9 @@ class DeterministicPipeline:
     ) -> None:
         repository_root = Path(__file__).resolve().parents[3]
         self._parser = IdmlParser(settings)
-        self._mapper = CanonicalMapper(profile or load_profile())
-        self._builder = JatsBuilder()
+        selected_profile = profile or load_profile()
+        self._mapper = CanonicalMapper(selected_profile)
+        self._builder = JatsBuilder(sps_version=selected_profile.sps_version)
         self._validator = OfflineJatsValidator(
             vendor_directory or repository_root / "vendor" / "jats" / "1.3"
         )

@@ -59,3 +59,14 @@ systemctl status idml-development-backup.service
 4. preservar banco, volumes e logs;
 5. rollback de imagem por tag anterior; migrations destrutivas são proibidas sem plano expand/contract;
 6. testar restore em banco alternativo.
+
+## Fase 4 — validadores externos
+
+O runtime principal contém apenas validação offline e contratos da Fase 4. O
+Packtools/SPSValidator roda em ambiente isolado e nunca recebe corpus restrito na
+VPS. O XPM deve executar em Windows Worker; ausência do worker produz
+`VALIDATION_UNAVAILABLE`.
+
+Não copie IDML, PDF, XML real, assets, relatórios XPM ou ZIP candidato para
+`/opt/idml-platform`. Smoke tests na VPS usam apenas o IDML sintético dos testes.
+Rollback da aplicação permanece pela tag anterior (`phase3`).

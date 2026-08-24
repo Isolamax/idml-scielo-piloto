@@ -136,6 +136,16 @@ class _StoryResult:
     evidence: tuple[Evidence, ...]
 
 
+@dataclass(frozen=True)
+class _LayoutResult:
+    frames: tuple[RawTextFrame, ...]
+    spreads: tuple[RawSpread, ...]
+    objects: tuple[RawAnchoredObject, ...]
+    assets: tuple[RawAsset, ...]
+    links: tuple[RawLink, ...]
+    evidence: tuple[Evidence, ...]
+
+
 class IdmlParser:
     """Parse an untrusted IDML package into the loss-aware Raw Article model."""
 
@@ -162,7 +172,8 @@ class IdmlParser:
             for path, root in sorted(roots.items())
             if path.startswith("Stories/")
         ]
-        frames, spreads, layout_evidence = self._parse_layout(roots, article_key, artifact_sha)
+        layout = self._parse_layout(roots, article_key, artifact_sha)
+        frames, spreads = layout.frames, layout.spreads
         stories = tuple(result.story for result in story_results)
         known_story_ids = {story.id for story in stories}
         frames = tuple(frame for frame in frames if frame.parent_story_id in known_story_ids)
@@ -208,13 +219,15 @@ class IdmlParser:
             spreads=spreads,
             styles=styles,
             tables=tuple(table for result in story_results for table in result.tables),
-            anchored_objects=tuple(item for result in story_results for item in result.objects),
-            assets=tuple(asset for result in story_results for asset in result.assets),
-            links=tuple(link for result in story_results for link in result.links),
+            anchored_objects=tuple(item for result in story_results for item in result.objects)
+            + layout.objects,
+            assets=tuple(asset for result in story_results for asset in result.assets)
+            + layout.assets,
+            links=tuple(link for result in story_results for link in result.links) + layout.links,
             reading_order=order,
             reading_order_issues=issues,
             evidence=tuple(
-                [*style_evidence, *layout_evidence]
+                [*style_evidence, *layout.evidence]
                 + [item for result in story_results for item in result.evidence]
             ),
         )
@@ -502,9 +515,12 @@ class IdmlParser:
         roots: dict[str, etree._Element],
         article_key: str,
         artifact_sha: str,
-    ) -> tuple[tuple[RawTextFrame, ...], tuple[RawSpread, ...], tuple[Evidence, ...]]:
+    ) -> _LayoutResult:
         frames: list[RawTextFrame] = []
         spreads: list[RawSpread] = []
+        objects: list[RawAnchoredObject] = []
+        assets: list[RawAsset] = []
+        links: list[RawLink] = []
         evidence: list[Evidence] = []
         page_counter = 0
         for path, root in sorted(roots.items()):
@@ -570,6 +586,51 @@ class IdmlParser:
                 article_key, artifact_sha, path, spread_self, "IDML spread"
             )
             evidence.append(spread_evidence)
+            for link_position, link in enumerate(_elements(spread_element, "Link")):
+                link_self = link.get("Self", f"{spread_self}:link:{link_position}")
+                name = _sanitized_asset_name(link.get("LinkResourceURI", ""))
+                asset_id = stable_id(article_key, "layout-asset", link_self)
+                link_evidence = self._evidence(
+                    article_key,
+                    artifact_sha,
+                    path,
+                    link_self,
+                    "Sanitized spread asset link",
+                )
+                evidence.append(link_evidence)
+                media_type = _media_type(name, link.get("LinkResourceFormat"))
+                assets.append(
+                    RawAsset(
+                        id=asset_id,
+                        logical_path=name,
+                        media_type=media_type,
+                        external=True,
+                        evidence_ids=(link_evidence.id,),
+                    )
+                )
+                links.append(
+                    RawLink(
+                        id=stable_id(article_key, "layout-link", link_self),
+                        source_id=stable_id(article_key, "spread", spread_self),
+                        target=asset_id,
+                        relationship="external-layout-asset",
+                        evidence_ids=(link_evidence.id,),
+                    )
+                )
+                objects.append(
+                    RawAnchoredObject(
+                        id=stable_id(article_key, "layout-object", link_self),
+                        source_self_id=link_self,
+                        kind=(
+                            RawObjectKind.FORMULA
+                            if media_type == "application/pdf"
+                            else RawObjectKind.FIGURE
+                        ),
+                        asset_ids=(asset_id,),
+                        page_index=page_indices[0] if page_indices else None,
+                        evidence_ids=(link_evidence.id,),
+                    )
+                )
             spreads.append(
                 RawSpread(
                     id=stable_id(article_key, "spread", spread_self),
@@ -579,7 +640,14 @@ class IdmlParser:
                     evidence_ids=(spread_evidence.id,),
                 )
             )
-        return tuple(frames), tuple(spreads), tuple(evidence)
+        return _LayoutResult(
+            frames=tuple(frames),
+            spreads=tuple(spreads),
+            objects=tuple(objects),
+            assets=tuple(assets),
+            links=tuple(links),
+            evidence=tuple(evidence),
+        )
 
     def _reading_order(
         self,

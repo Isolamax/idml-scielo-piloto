@@ -2,8 +2,9 @@
 
 Monorepo da plataforma de conversão auditável de IDML para SciELO SPS/JATS.
 
-Estado atual: **Fase 3 concluída — Gate G3 aprovado**. O pipeline determinístico
-gera JATS 1.3 válido sem IA; a Fase 4 aguarda autorização.
+Estado atual: **Fase 4 implementada — Gate G4 bloqueado**. O pipeline gera JATS
+1.3/SPS 1.10 e pacote determinístico sem IA; SPS/editorial e XPM ainda impedem
+`READY_FOR_SCIELO`. A Fase 5 não está autorizada.
 
 ## Estrutura
 
@@ -42,8 +43,8 @@ idml-admin pipeline-convert --input artigo.idml --output artigo.xml \
   --report validation.json --raw raw.json --canonical canonical.json
 ```
 
-O XML gold não é parâmetro do conversor. Ele é aceito apenas pelo script de
-avaliação restrita `ops/gate_g3.py`.
+O XML gold não é parâmetro do conversor. Avaliações restritas usam somente gates
+locais; binários reais não entram em Git, CI, imagem ou VPS.
 
 Para o stack completo:
 
