@@ -1,7 +1,9 @@
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, status
 from redis import Redis
+from redis.exceptions import RedisError
 from sqlalchemy import select
 
 from idml_foundation.dependencies import (
@@ -16,6 +18,7 @@ from idml_foundation.schemas import JobCreate, JobRead
 from idml_foundation.services.jobs import create_job
 
 router = APIRouter(prefix="/v1/jobs", tags=["jobs"])
+logger = logging.getLogger(__name__)
 
 
 @router.post("", response_model=JobRead, status_code=status.HTTP_202_ACCEPTED)
@@ -36,7 +39,22 @@ def enqueue_job(
         actor_id=context.user.id,
     )
     if created:
-        Redis.from_url(settings.redis_url).lpush("idml:jobs", job.id)
+        # The database is the durable queue. Commit before sending the best-effort
+        # Redis wake-up so a fast worker can always observe the job.
+        db.commit()
+        db.refresh(job)
+        try:
+            Redis.from_url(settings.redis_url).lpush("idml:jobs", job.id)
+        except RedisError:
+            logger.warning(
+                "job persisted; Redis wake-up failed",
+                extra={
+                    "event": "job.redis_wakeup_failed",
+                    "job_id": job.id,
+                    "organization_id": context.organization_id,
+                    "correlation_id": correlation_id,
+                },
+            )
     return job
 
 

@@ -31,14 +31,22 @@ docker compose --env-file .env -f deploy/docker-compose.dev.yml logs --tail=100 
 ## Backup e restore
 
 ```bash
-set -a
-. ./.env
-set +a
 backup_dir=$(ops/backup.sh)
 ops/restore-test.sh "$backup_dir"
 ```
 
-Backups ficam fora dos volumes Docker, em `/opt/idml-platform/backups`, modo 600 e com SHA-256. Restore de produção exige janela, aprovação e destino novo; nunca sobrescrever banco ativo durante teste.
+Os scripts carregam `/opt/idml-platform/.env` sem imprimir seu conteúdo. Backups
+ficam fora dos volumes Docker, em `/opt/idml-platform/backups`, modo 600 e com
+SHA-256. Restore de produção exige janela, aprovação e destino novo; nunca
+sobrescrever banco ativo durante teste.
+
+O timer `idml-development-backup.timer` executa o backup diariamente às 04:40 no
+fuso `America/Sao_Paulo`, com atraso aleatório de até 10 minutos. Verifique com:
+
+```bash
+systemctl status idml-development-backup.timer
+systemctl status idml-development-backup.service
+```
 
 ## Incidentes
 
@@ -48,4 +56,3 @@ Backups ficam fora dos volumes Docker, em `/opt/idml-platform/backups`, modo 600
 4. preservar banco, volumes e logs;
 5. rollback de imagem por tag anterior; migrations destrutivas são proibidas sem plano expand/contract;
 6. testar restore em banco alternativo.
-

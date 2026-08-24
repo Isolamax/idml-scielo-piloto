@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from idml_foundation.cli import bootstrap
 from idml_foundation.models import Job, JobEffect, Membership, Organization, User
 from idml_foundation.services.jobs import create_job
-from idml_foundation.worker import process_job
+from idml_foundation.worker import find_queued_job, process_job
 
 
 def test_worker_completes_noop_once(db: Session, session_factory: sessionmaker[Session]) -> None:
@@ -59,6 +59,29 @@ def test_worker_quarantines_unsupported_kind(
     assert failed is not None
     assert failed.state == "failed_permanent"
     assert failed.error_code == "unsupported_job"
+
+
+def test_worker_recovers_durable_queued_job(
+    db: Session, session_factory: sessionmaker[Session]
+) -> None:
+    org = Organization(slug="recovery", name="Recovery")
+    db.add(org)
+    db.flush()
+    job, _ = create_job(
+        db,
+        organization_id=org.id,
+        kind="foundation.noop",
+        idempotency_key="recovery-noop-0001",
+        payload={},
+        correlation_id="worker-recovery",
+        actor_id="test-user",
+    )
+    job_id = job.id
+    db.commit()
+
+    assert find_queued_job(session_factory) == job_id
+    process_job(job_id, session_factory)
+    assert find_queued_job(session_factory) is None
 
 
 def test_bootstrap_is_idempotent(

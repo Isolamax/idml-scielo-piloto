@@ -8,6 +8,14 @@ timestamp=$(date -u +%Y%m%dT%H%M%SZ)
 destination="$backup_root/$timestamp"
 
 umask 077
+if [ -f "$project_dir/.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "$project_dir/.env"
+  set +a
+fi
+: "${IDML_POSTGRES_USER:?IDML_POSTGRES_USER is required}"
+: "${IDML_POSTGRES_DB:?IDML_POSTGRES_DB is required}"
 mkdir -p "$destination"
 cd "$project_dir"
 
@@ -22,4 +30,3 @@ docker run --rm --read-only \
 sha256sum "$destination/database.dump" "$destination/artifacts.tar.gz" > "$destination/SHA256SUMS"
 chmod 600 "$destination"/*
 printf '%s\n' "$destination"
-

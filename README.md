@@ -2,7 +2,7 @@
 
 Monorepo da plataforma de conversão auditável de IDML para SciELO SPS/JATS.
 
-Estado atual: **Fase 1 — Fundação técnica e segurança**.
+Estado atual: **Fase 1 concluída — Gate G1 aprovado**. A Fase 2 aguarda autorização.
 
 ## Estrutura
 

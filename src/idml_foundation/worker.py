@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from idml_foundation.database import SessionLocal, session_scope
 from idml_foundation.logging_config import configure_logging
-from idml_foundation.models import Job
+from idml_foundation.models import Job, utcnow
 from idml_foundation.services.jobs import record_effect_once, schedule_retry, transition_job
 from idml_foundation.settings import get_settings
 
@@ -70,6 +70,17 @@ def process_job(job_id: str, factory: sessionmaker[Session] = SessionLocal) -> N
             schedule_retry(db, job, correlation_id=correlation_id, delay_seconds=30)
 
 
+def find_queued_job(factory: sessionmaker[Session] = SessionLocal) -> str | None:
+    """Recover durable queued work when a Redis wake-up is lost."""
+    with session_scope(factory) as db:
+        return db.scalar(
+            select(Job.id)
+            .where(Job.state == "queued", Job.available_at <= utcnow())
+            .order_by(Job.available_at, Job.created_at)
+            .limit(1)
+        )
+
+
 def run() -> None:
     settings = get_settings()
     configure_logging(settings.log_level)
@@ -84,13 +95,20 @@ def run() -> None:
     signal.signal(signal.SIGINT, request_shutdown)
     logger.info("worker started", extra={"event": "worker.started"})
     while not shutdown.requested:
+        redis_failed = False
+        job_id: str | None = None
         try:
             item = cast(tuple[str, str] | None, redis.brpop(["idml:jobs"], timeout=2))
             if item:
                 _queue, job_id = item
-                process_job(job_id)
         except Exception:
             logger.exception("worker loop failure", extra={"event": "worker.loop_failure"})
+            redis_failed = True
+        if job_id is None:
+            job_id = find_queued_job()
+        if job_id is not None:
+            process_job(job_id)
+        elif redis_failed:
             time.sleep(2)
     logger.info("worker stopped", extra={"event": "worker.stopped"})
 

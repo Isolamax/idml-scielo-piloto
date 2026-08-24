@@ -4,7 +4,7 @@
 
 Este arquivo controla o planejamento e a execução futura do desenvolvimento da plataforma de conversão IDML para XML SciELO SPS/JATS.
 
-Este documento não autoriza implementação imediata. Cada fase somente poderá começar após aprovação explícita de seu gate de entrada e deverá terminar com evidências verificáveis.
+Este documento controla a autorização por fase. Cada fase somente poderá começar após autorização explícita e deverá terminar com evidências verificáveis.
 
 Documento arquitetural de referência:
 
@@ -15,12 +15,12 @@ PLANO_ANALISE_CODEX_SCIELO_IDML_OPENCLAW_SWARM.md
 ## 2. Estado geral
 
 ```text
-PROJECT_STATUS: PHASE_0_COMPLETE
-CURRENT_PHASE: FASE 0 concluída — FASE 1 aguardando autorização
-IMPLEMENTATION_AUTHORIZED: NO
+PROJECT_STATUS: PHASE_1_COMPLETE
+CURRENT_PHASE: FASE 1 concluída — FASE 2 aguardando autorização
+IMPLEMENTATION_AUTHORIZED: PHASE_1_COMPLETE — PHASE_2_NOT_AUTHORIZED
 PRODUCTION_DEPLOYMENT_AUTHORIZED: NO
 ARCHITECTURE_STATUS: APPROVED_WITH_CHANGES
-INFRASTRUCTURE_STATUS: GO_WITH_CONSTRAINTS
+INFRASTRUCTURE_STATUS: IN_USE_WITH_CONSTRAINTS
 ```
 
 ### Legenda de status
@@ -98,18 +98,18 @@ Antes de qualquer implantação futura na VPS:
 - [x] Criar baseline técnico completo.
 - [x] Confirmar backup e testar restauração do ambiente atual.
 - [x] Investigar ocupação de disco.
-- [ ] Criar usuário administrativo não-root.
-- [ ] Definir diretório e Docker Compose project exclusivos.
-- [ ] Definir networks, volumes, banco e Redis exclusivos.
-- [ ] Definir limites de CPU, RAM, disco e concorrência.
-- [ ] Garantir que nenhum serviço novo seja exposto diretamente à internet.
+- [x] Criar usuário administrativo não-root.
+- [x] Definir diretório e Docker Compose project exclusivos.
+- [x] Definir networks, volumes, banco e Redis exclusivos.
+- [x] Definir limites de CPU, RAM, disco e concorrência.
+- [x] Garantir que nenhum serviço novo seja exposto diretamente à internet.
 
 ## 5. Visão das macrofases
 
 | Fase | Nome | Resultado principal | Estado |
 |---|---|---|---|
 | 0 | Descoberta e viabilidade | Decisão formal GO/NO-GO | Concluída — `GO_WITH_CONSTRAINTS` |
-| 1 | Fundação técnica e segurança | Base isolada, persistente e auditável | Não iniciada |
+| 1 | Fundação técnica e segurança | Base isolada, persistente e auditável | Concluída — Gate G1 aprovado |
 | 2 | Corpus e modelo de domínio | Corpus piloto e modelo canônico estável | Não iniciada |
 | 3 | Pipeline determinístico mínimo | IDML → modelo → XML válido sem IA | Não iniciada |
 | 4 | Validação, fidelidade e pacote | Pacote validado e política de release | Não iniciada |
@@ -231,82 +231,82 @@ Criar a base de desenvolvimento isolada, persistente, segura, observável e test
 
 ## Pacote 1.1 — Repositório e qualidade
 
-- [ ] Criar monorepo e convenções de diretórios.
-- [ ] Definir branching, revisão e proteção de branch.
-- [ ] Configurar lockfiles e versões de runtime.
-- [ ] Configurar lint, format, type checking e testes.
-- [ ] Configurar CI sem acesso a dados de produção.
-- [ ] Criar templates de issue, ADR e pull request.
+- [x] Criar monorepo e convenções de diretórios.
+- [x] Definir branching, revisão e proteção de branch.
+- [x] Configurar lockfiles e versões de runtime.
+- [x] Configurar lint, format, type checking e testes.
+- [x] Configurar CI sem acesso a dados de produção.
+- [x] Criar templates de issue, ADR e pull request.
 
 ## Pacote 1.2 — Ambientes
 
-- [ ] Definir development, test, staging e production.
-- [ ] Criar Compose isolado para desenvolvimento.
-- [ ] Criar health checks.
-- [ ] Definir configuração por ambiente.
-- [ ] Definir feature flags.
-- [ ] Proibir uso de secrets reais em desenvolvimento.
+- [x] Definir development, test, staging e production.
+- [x] Criar Compose isolado para desenvolvimento.
+- [x] Criar health checks.
+- [x] Definir configuração por ambiente.
+- [x] Definir feature flags.
+- [x] Proibir uso de secrets reais em desenvolvimento.
 
 ## Pacote 1.3 — Persistência e artefatos
 
-- [ ] Definir PostgreSQL e migrations.
-- [ ] Definir object/file storage.
-- [ ] Definir hashes, imutabilidade e retenção de artefatos.
-- [ ] Definir transações e controle de concorrência.
-- [ ] Definir backup e restore.
-- [ ] Definir separação entre versão semântica, execução e tentativa.
+- [x] Definir PostgreSQL e migrations.
+- [x] Definir object/file storage.
+- [x] Definir hashes, imutabilidade e retenção de artefatos.
+- [x] Definir transações e controle de concorrência.
+- [x] Definir backup e restore.
+- [x] Definir separação entre versão semântica, execução e tentativa.
 
 ## Pacote 1.4 — Identidade e acesso
 
-- [ ] Definir Organization, User, Membership, Role e Permission.
-- [ ] Definir matriz RBAC com negação por padrão.
-- [ ] Definir autenticação local ou OIDC.
-- [ ] Definir login, logout, convite e recuperação.
-- [ ] Definir MFA e reautenticação sensível.
-- [ ] Definir sessões, expiração, rotação e revogação.
-- [ ] Definir service accounts.
-- [ ] Definir isolamento multiempresa no banco, cache, filas e storage.
-- [ ] Produzir `docs/IDENTITY_AND_ACCESS_MODEL.md`.
+- [x] Definir Organization, User, Membership, Role e Permission.
+- [x] Definir matriz RBAC com negação por padrão.
+- [x] Definir autenticação local ou OIDC.
+- [x] Definir login, logout, convite e recuperação.
+- [x] Definir MFA e reautenticação sensível.
+- [x] Definir sessões, expiração, rotação e revogação.
+- [x] Definir service accounts.
+- [x] Definir isolamento multiempresa no banco, cache, filas e storage.
+- [x] Produzir `docs/IDENTITY_AND_ACCESS_MODEL.md`.
 
 ## Pacote 1.5 — Estado, jobs e idempotência
 
-- [ ] Definir máquina de estados do artigo/job.
-- [ ] Definir estados retryable, permanent failure e quarantined.
-- [ ] Definir comandos, eventos e pré-condições de transição.
-- [ ] Definir idempotency keys.
-- [ ] Definir retry, backoff, timeout, cancellation e replay.
-- [ ] Definir retomada após restart.
+- [x] Definir máquina de estados do artigo/job.
+- [x] Definir estados retryable, permanent failure e quarantined.
+- [x] Definir comandos, eventos e pré-condições de transição.
+- [x] Definir idempotency keys.
+- [x] Definir retry, backoff, timeout, cancellation e replay.
+- [x] Definir retomada após restart.
 
 ## Pacote 1.6 — Segurança de ingestão
 
-- [ ] Definir limites de upload.
-- [ ] Proteger contra ZIP bomb e path traversal.
-- [ ] Impedir symlinks, hardlinks e nested archives não autorizados.
-- [ ] Configurar XML parser sem XXE e sem rede.
-- [ ] Validar MIME e conteúdo de assets.
-- [ ] Isolar parsing por job.
-- [ ] Definir antivírus/content scanning.
-- [ ] Definir quarentena.
+- [x] Definir limites de upload.
+- [x] Proteger contra ZIP bomb e path traversal.
+- [x] Impedir symlinks, hardlinks e nested archives não autorizados.
+- [x] Configurar XML parser sem XXE e sem rede.
+- [x] Validar MIME e conteúdo de assets.
+- [x] Isolar parsing por job.
+- [x] Definir antivírus/content scanning.
+- [x] Definir quarentena.
 
 ## Pacote 1.7 — Observabilidade e auditoria
 
-- [ ] Definir logs estruturados e correlation IDs.
-- [ ] Definir métricas de CPU, RAM, disco, fila, latência e custo.
-- [ ] Definir timeline de jobs.
-- [ ] Definir security events.
-- [ ] Impedir secrets e dados desnecessários em logs.
-- [ ] Definir alertas mínimos.
+- [x] Definir logs estruturados e correlation IDs.
+- [x] Definir métricas de CPU, RAM, disco, fila, latência e custo.
+- [x] Definir timeline de jobs.
+- [x] Definir security events.
+- [x] Impedir secrets e dados desnecessários em logs.
+- [x] Definir alertas mínimos.
 
 ## Gate de saída G1
 
-- [ ] Stack mínimo sobe com health checks.
-- [ ] Migrations são reproduzíveis.
-- [ ] Backup e restore foram testados.
-- [ ] Upload malicioso conhecido é bloqueado.
-- [ ] Retry não duplica efeitos.
-- [ ] Usuário não acessa recurso de outra empresa.
-- [ ] Nenhum serviço interno está exposto publicamente.
-- [ ] Logs e auditoria permitem reconstruir uma execução.
+- [x] Stack mínimo sobe com health checks.
+- [x] Migrations são reproduzíveis.
+- [x] Backup e restore foram testados.
+- [x] Upload malicioso conhecido é bloqueado.
+- [x] Retry não duplica efeitos.
+- [x] Usuário não acessa recurso de outra empresa.
+- [x] Nenhum serviço interno está exposto publicamente.
+- [x] Logs e auditoria permitem reconstruir uma execução.
 
 ---
 
@@ -733,14 +733,14 @@ Cada novo periódico deve possuir corpus, profile, style mapping, métricas, hom
 | R-02 | XPM não automatizável em Linux | Crítico | Worker Windows dedicado e adapter desacoplado | Mitigação definida |
 | R-03 | Regras SPS mudarem | Alto | SpsProfile versionado e testes de regressão | Aberto |
 | R-04 | Capacidade da VPS tornar-se insuficiente | Alto | Monitoramento, limites por serviço e upgrade de hardware sob demanda | Monitorado |
-| R-05 | Impacto no sistema atual | Crítico | Compose/network/volumes exclusivos e limites | Monitorado |
+| R-05 | Impacto no sistema atual | Crítico | Compose/network/volumes exclusivos e limites | Mitigado e monitorado |
 | R-06 | Prompt injection por artigo | Alto | Ferramentas tipadas, conteúdo não confiável e testes | Aberto |
-| R-07 | Vazamento entre empresas | Crítico | Escopo no backend, storage isolado e testes negativos | Aberto |
+| R-07 | Vazamento entre empresas | Crítico | Escopo no backend, storage isolado e testes negativos | Mitigado na fundação; monitorado |
 | R-08 | Modelo canônico insuficiente | Alto | Corpus antes do congelamento e migrations | Aberto |
 | R-09 | Confiança de IA mal calibrada | Alto | Evidência, agreement, métricas e revisão humana | Aberto |
 | R-10 | Custo ou latência excessivos | Médio/Alto | Model routing, cache seguro, limites e métricas | Aberto |
-| R-11 | Falha sem retomada idempotente | Alto | Máquina de estados, idempotency keys e replay | Aberto |
-| R-12 | Perda de dados ou histórico | Crítico | Imutabilidade, backups e restore testado | Aberto |
+| R-11 | Falha sem retomada idempotente | Alto | Máquina de estados, idempotency keys e recuperação pelo PostgreSQL | Mitigado na fundação; monitorado |
+| R-12 | Perda de dados ou histórico | Crítico | Imutabilidade, backups e restore testado | Mitigado na fundação; monitorado |
 
 # 8. Definition of Done global
 
@@ -791,10 +791,10 @@ ADRs iniciais esperados:
 - [x] ADR-001 — versão inicial SPS/JATS.
 - [x] ADR-002 — estratégia XPM.
 - [x] ADR-003 — ambiente de desenvolvimento e produção.
-- [ ] ADR — storage de artefatos.
-- [ ] ADR — fila e execução de jobs.
-- [ ] ADR — autenticação local ou OIDC.
-- [ ] ADR — RBAC e isolamento multiempresa.
+- [x] ADR-006 — storage de artefatos.
+- [x] ADR-007 — fila e execução de jobs.
+- [x] ADR-008 — autenticação local ou OIDC.
+- [x] ADR-009 — RBAC e isolamento multiempresa.
 - [ ] ADR — estrutura do Canonical Article Model.
 - [x] ADR-004 — estratégia de reading order.
 - [x] ADR-005 — abstração de orquestração e fallback.
@@ -806,3 +806,4 @@ ADRs iniciais esperados:
 |---|---|---|
 | 2026-08-24 | Criação do planejamento por fases; nenhuma implementação iniciada | Codex |
 | 2026-08-24 | Fase 0 concluída; Gate G0 aprovado como `GO_WITH_CONSTRAINTS`; nenhuma funcionalidade desenvolvida | Codex |
+| 2026-08-24 | Fase 1 concluída; Gate G1 aprovado com testes locais e validação ao vivo na VPS; Fase 2 não autorizada | Codex |

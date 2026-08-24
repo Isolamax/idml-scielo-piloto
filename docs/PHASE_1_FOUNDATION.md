@@ -61,6 +61,8 @@ queued -> quarantined | cancelled
 - cancelamento é persistido e verificado entre etapas;
 - replay cria nova execução/idempotency key e referencia a anterior;
 - restart não perde job: Redis só sinaliza e o banco mantém o estado;
+- o job é commitado antes do sinal Redis e o worker consulta `queued` como
+  recuperação automática quando o sinal não chega;
 - efeito externo exige `JobEffect` antes/depois conforme contrato e chave única.
 
 ## Ingestão segura
@@ -91,3 +93,5 @@ Alertas mínimos: readiness falho 5 min, container reiniciando, fila crescente, 
 - isolamento de tenant, ZIP malicioso, XXE e idempotência testados;
 - apenas API loopback; banco e Redis sem portas publicadas.
 
+As evidências e a decisão formal estão em `docs/PHASE_1_GATE_REVIEW.md`. A política
+de branches, revisão e CI está em `docs/REPOSITORY_GOVERNANCE.md`.

@@ -5,9 +5,8 @@
 
 ## Decisão
 
-PostgreSQL é a fonte de verdade para estado/timeline/idempotência; Redis apenas sinaliza IDs. Worker começa com concorrência 1 e efeitos possuem chave única.
+PostgreSQL é a fonte de verdade para estado/timeline/idempotência; Redis apenas sinaliza IDs. O commit durável ocorre antes do sinal. O worker começa com concorrência 1, consulta jobs `queued` como recuperação quando o sinal se perde e efeitos possuem chave única.
 
 ## Consequências
 
-Restart ou perda do Redis não perde estado. Um reconciliador futuro reenfileira jobs `queued`. Escala horizontal exigirá locks PostgreSQL e métricas de fila.
-
+Restart, corrida de commit ou perda do Redis não perdem estado nem deixam o job permanentemente preso. Escala horizontal usa lock PostgreSQL no processamento e exigirá métricas adicionais de fila antes de aumentar a concorrência.
