@@ -15,9 +15,9 @@ PLANO_ANALISE_CODEX_SCIELO_IDML_OPENCLAW_SWARM.md
 ## 2. Estado geral
 
 ```text
-PROJECT_STATUS: PHASE_1_COMPLETE
-CURRENT_PHASE: FASE 1 concluída — FASE 2 aguardando autorização
-IMPLEMENTATION_AUTHORIZED: PHASE_1_COMPLETE — PHASE_2_NOT_AUTHORIZED
+PROJECT_STATUS: PHASE_2_IN_PROGRESS
+CURRENT_PHASE: FASE 2 em validação — Gate G2 pendente
+IMPLEMENTATION_AUTHORIZED: PHASE_2_ONLY
 PRODUCTION_DEPLOYMENT_AUTHORIZED: NO
 ARCHITECTURE_STATUS: APPROVED_WITH_CHANGES
 INFRASTRUCTURE_STATUS: IN_USE_WITH_CONSTRAINTS
@@ -110,7 +110,7 @@ Antes de qualquer implantação futura na VPS:
 |---|---|---|---|
 | 0 | Descoberta e viabilidade | Decisão formal GO/NO-GO | Concluída — `GO_WITH_CONSTRAINTS` |
 | 1 | Fundação técnica e segurança | Base isolada, persistente e auditável | Concluída — Gate G1 aprovado |
-| 2 | Corpus e modelo de domínio | Corpus piloto e modelo canônico estável | Não iniciada |
+| 2 | Corpus e modelo de domínio | Corpus piloto e modelo canônico estável | Em validação |
 | 3 | Pipeline determinístico mínimo | IDML → modelo → XML válido sem IA | Não iniciada |
 | 4 | Validação, fidelidade e pacote | Pacote validado e política de release | Não iniciada |
 | 5 | Revisão humana e interface mínima | Correção humana auditável | Não iniciada |
@@ -318,43 +318,43 @@ Construir o corpus de referência e definir modelos independentes de IDML, IA e 
 
 ## Pacote 2.1 — Corpus gold standard
 
-- [ ] Definir licença, confidencialidade e retenção do corpus.
-- [ ] Anonimizar amostras quando necessário.
-- [ ] Versionar IDML, PDF, XML e assets.
-- [ ] Criar ficha de expectativas por artigo.
-- [ ] Incluir casos simples, limites e documentos problemáticos.
-- [ ] Definir conjunto de treino interno e conjunto de homologação separado.
+- [x] Definir licença, confidencialidade e retenção do corpus.
+- [x] Anonimizar amostras quando necessário.
+- [x] Versionar IDML, PDF, XML e assets.
+- [x] Criar ficha de expectativas por artigo.
+- [x] Incluir casos simples, limites e documentos problemáticos.
+- [x] Definir conjunto de treino interno e conjunto de homologação separado.
 
 ## Pacote 2.2 — Raw Article Model
 
-- [ ] Representar Stories, frames, threads e coordenadas.
-- [ ] Representar texto, whitespace, estilos e conteúdo inline.
-- [ ] Representar links, objetos ancorados, tabelas, notas e assets.
-- [ ] Preservar referências aos XMLs internos do IDML.
-- [ ] Definir serialização e compatibilidade de versões.
+- [x] Representar Stories, frames, threads e coordenadas.
+- [x] Representar texto, whitespace, estilos e conteúdo inline.
+- [x] Representar links, objetos ancorados, tabelas, notas e assets.
+- [x] Preservar referências aos XMLs internos do IDML.
+- [x] Definir serialização e compatibilidade de versões.
 
 ## Pacote 2.3 — Canonical Article Model
 
-- [ ] Modelar front, body e back.
-- [ ] Modelar contributors, affiliations e correspondência.
-- [ ] Modelar seções e conteúdo inline sem perda.
-- [ ] Modelar figuras, tabelas, equações, notas e referências.
-- [ ] Modelar cross-references e IDs estáveis.
-- [ ] Separar conteúdo, evidência, decisões e patches.
-- [ ] Definir estados missing, ambiguous e needs_review.
-- [ ] Definir migrations de schema.
-- [ ] Produzir `docs/CANONICAL_ARTICLE_MODEL.md`.
+- [x] Modelar front, body e back.
+- [x] Modelar contributors, affiliations e correspondência.
+- [x] Modelar seções e conteúdo inline sem perda.
+- [x] Modelar figuras, tabelas, equações, notas e referências.
+- [x] Modelar cross-references e IDs estáveis.
+- [x] Separar conteúdo, evidência, decisões e patches.
+- [x] Definir estados missing, ambiguous e needs_review.
+- [x] Definir migrations de schema.
+- [x] Produzir `docs/CANONICAL_ARTICLE_MODEL.md`.
 
 ## Pacote 2.4 — Métricas e critérios
 
-- [ ] Definir Text Fidelity.
-- [ ] Definir Metadata, Author e Affiliation Accuracy.
-- [ ] Definir Reference, Figure e Table Accuracy.
-- [ ] Definir CrossRef Accuracy.
-- [ ] Definir tolerâncias de Unicode, espaços e hifenização.
-- [ ] Definir warnings bloqueadores.
-- [ ] Definir `NEEDS_REVIEW` versus `FAILED`.
-- [ ] Definir metas do piloto e STP.
+- [x] Definir Text Fidelity.
+- [x] Definir Metadata, Author e Affiliation Accuracy.
+- [x] Definir Reference, Figure e Table Accuracy.
+- [x] Definir CrossRef Accuracy.
+- [x] Definir tolerâncias de Unicode, espaços e hifenização.
+- [x] Definir warnings bloqueadores.
+- [x] Definir `NEEDS_REVIEW` versus `FAILED`.
+- [x] Definir metas do piloto e STP.
 
 ## Gate de saída G2
 
@@ -795,6 +795,8 @@ ADRs iniciais esperados:
 - [x] ADR-007 — fila e execução de jobs.
 - [x] ADR-008 — autenticação local ou OIDC.
 - [x] ADR-009 — RBAC e isolamento multiempresa.
+- [x] ADR-010 — modelos de domínio versionados.
+- [x] ADR-011 — governança do corpus e holdout.
 - [ ] ADR — estrutura do Canonical Article Model.
 - [x] ADR-004 — estratégia de reading order.
 - [x] ADR-005 — abstração de orquestração e fallback.
@@ -807,3 +809,4 @@ ADRs iniciais esperados:
 | 2026-08-24 | Criação do planejamento por fases; nenhuma implementação iniciada | Codex |
 | 2026-08-24 | Fase 0 concluída; Gate G0 aprovado como `GO_WITH_CONSTRAINTS`; nenhuma funcionalidade desenvolvida | Codex |
 | 2026-08-24 | Fase 1 concluída; Gate G1 aprovado com testes locais e validação ao vivo na VPS; Fase 2 não autorizada | Codex |
+| 2026-08-24 | Fase 2 autorizada; corpus, modelos e métricas implementados; Gate G2 em validação | Codex |

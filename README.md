@@ -2,12 +2,14 @@
 
 Monorepo da plataforma de conversão auditável de IDML para SciELO SPS/JATS.
 
-Estado atual: **Fase 1 concluída — Gate G1 aprovado**. A Fase 2 aguarda autorização.
+Estado atual: **Fase 2 — corpus e modelo de domínio em validação**.
 
 ## Estrutura
 
 ```text
 src/idml_foundation/   API, domínio da fundação, segurança e worker
+corpus/                manifestos e expectativas; binários privados fora do Git
+schemas/               contratos JSON Schema versionados
 tests/                 testes unitários, integração e segurança
 migrations/            migrations Alembic
 deploy/                 imagens, Compose e configuração operacional

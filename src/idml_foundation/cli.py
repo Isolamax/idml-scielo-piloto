@@ -1,10 +1,12 @@
 import argparse
 import os
+from pathlib import Path
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from idml_foundation.database import SessionLocal, session_scope
+from idml_foundation.domain.corpus import load_manifest, verify_manifest
 from idml_foundation.models import Membership, Organization, User
 from idml_foundation.rbac import Role
 from idml_foundation.security import hash_password, normalize_email
@@ -55,9 +57,21 @@ def main() -> None:
     command.add_argument("--organization-slug", required=True)
     command.add_argument("--organization-name", required=True)
     command.add_argument("--email", required=True)
+    corpus = commands.add_parser("corpus-verify")
+    corpus.add_argument("--manifest", type=Path, required=True)
+    corpus.add_argument("--root", type=Path, required=True)
     args = parser.parse_args()
     if args.command == "bootstrap":
         bootstrap(args.organization_slug, args.organization_name, args.email)
+    elif args.command == "corpus-verify":
+        result = verify_manifest(load_manifest(args.manifest), args.root)
+        valid_count = sum(item.valid for item in result.artifacts)
+        print(
+            f"corpus={result.corpus_id} valid={str(result.valid).lower()} "
+            f"artifacts={valid_count}/{len(result.artifacts)}"
+        )
+        if not result.valid:
+            raise SystemExit(2)
 
 
 if __name__ == "__main__":

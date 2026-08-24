@@ -232,3 +232,40 @@ class AuditEvent(Base):
     outcome: Mapped[str] = mapped_column(String(40), nullable=False)
     details: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class DomainSnapshot(TimestampMixin, Base):
+    """Immutable, tenant-bound persisted Raw/Canonical model revision."""
+
+    __tablename__ = "domain_snapshots"
+    __table_args__ = (
+        UniqueConstraint(
+            "resource_id", "model_kind", "revision", name="uq_snapshot_resource_kind_revision"
+        ),
+        UniqueConstraint(
+            "resource_id",
+            "model_kind",
+            "content_sha256",
+            name="uq_snapshot_resource_kind_content",
+        ),
+        Index("ix_snapshot_org_kind_created", "organization_id", "model_kind", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    organization_id: Mapped[str] = mapped_column(
+        ForeignKey("organizations.id", ondelete="RESTRICT"), nullable=False
+    )
+    resource_id: Mapped[str] = mapped_column(
+        ForeignKey("resources.id", ondelete="RESTRICT"), nullable=False
+    )
+    source_artifact_id: Mapped[str | None] = mapped_column(
+        ForeignKey("artifacts.id", ondelete="RESTRICT")
+    )
+    parent_snapshot_id: Mapped[str | None] = mapped_column(
+        ForeignKey("domain_snapshots.id", ondelete="RESTRICT")
+    )
+    model_kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(30), nullable=False)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    content_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
