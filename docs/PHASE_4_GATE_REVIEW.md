@@ -73,3 +73,18 @@ Por não ter o SHA do candidato atual, não foi aceito pela Release Policy.
 4. executar XPM no Windows Worker sobre esse ZIP exato;
 5. anexar resultado autenticado com versão, tool hash, report hash e package hash.
 
+## Evidências na VPS
+
+A imagem `idml-foundation:phase4`, ID
+`sha256:f2a5fba2e25278d2efdc97f1ddfcf2618d1b34947c60c19070b8ffc99da4a8ca`,
+foi construída com locks hash-pinned. API e worker ficaram healthy; o smoke test
+sem rede/read-only converteu o IDML sintético, declarou `sps-1.10` e validou a
+DTD sem issues. A migration permaneceu em `8af62bb716cf`.
+
+PostgreSQL e Redis não foram recriados. O consumo observado foi: API 66,83 MiB,
+worker 50,83 MiB, PostgreSQL 12,21 MiB e Redis 1,30 MiB. A imagem `phase3`
+permanece disponível para rollback.
+
+OpenClaw permaneceu na imagem `2026.6.11`, healthy em
+`127.0.0.1:47716`; Mapalead permaneceu healthy. O timer de backup segue ativo.
+Nenhum artefato do corpus real foi enviado à VPS.
