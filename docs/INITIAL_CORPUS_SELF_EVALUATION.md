@@ -105,3 +105,18 @@ bloqueado e a Fase 7 não deve começar. Ordem recomendada de desenvolvimento:
 5. criar profile/style mapping RBEdu somente quando a expansão de template for autorizada;
 6. repetir o benchmark com corpus maior e baseline humano assim que revisores estiverem disponíveis.
 
+## Evidência de implantação na VPS
+
+O código e o relatório sanitizado foram implantados na imagem
+`idml-foundation:phase6-corpus-v1.1`, ID
+`sha256:e1d56c0de344a0210872fb55b639603dde66370418559f8f16543935a982e146`. API e
+worker ficaram healthy; PostgreSQL e Redis foram preservados. A migration permanece em
+`d5f6a7b8c9d0`, com zero `agent_runs` e zero `agent_proposals`. As flags
+`feature_openclaw` e `feature_ai_swarm` continuam `false` e os seis perfis de agente carregam.
+
+O backup `/opt/idml-platform/backups/20260826T205408Z` passou no restore isolado com 21 tabelas e
+um artefato. O código anterior está em
+`/opt/idml-platform/backups/source-phase6-pre-corpus-20260826T205412Z.tar.gz`; a imagem de rollback
+é `idml-foundation:phase6-pre-corpus`, ID
+`sha256:538fee6c33936b57db1fc926338753e0aea5f6d8a34a6a5c3b281bedf466e6df`. OpenClaw e
+os serviços Mapalead permaneceram healthy.

@@ -75,7 +75,8 @@ PostgreSQL 44,48 MiB e Redis 1,812 MiB.
 
 O backup pós-migration está em `/opt/idml-platform/backups/20260826T153535Z`; hashes e restore
 isolado passaram com 21 tabelas e um artefato sintético. O timer diário está ativo. A imagem
-`phase5` (`sha256:9ce77ba57e8270917f20e4691d02cac723b857af15c335f2e204ac672f1374b3`)
+`phase6-pre-corpus`
+(`sha256:538fee6c33936b57db1fc926338753e0aea5f6d8a34a6a5c3b281bedf466e6df`)
 permanece para rollback. OpenClaw 2026.6.11 e os serviços Mapalead continuaram healthy e não foram
 alterados. Nenhum artigo integral foi enviado; a avaliação posterior usou somente fragmentos
 restritos minimizados, armazenados em diretório privado modo 600.
@@ -94,3 +95,10 @@ inválida e outro violou o hash de evidência. O custo monetário permaneceu ind
 essa evidência reforça — em vez de remover — o bloqueio do G6. Detalhes em
 `docs/INITIAL_CORPUS_SELF_EVALUATION.md` e métricas sanitizadas em
 `benchmarks/agents/reports/initial-corpus-v1.1-report.json`.
+
+A atualização foi implantada na imagem `idml-foundation:phase6-corpus-v1.1`, ID
+`sha256:e1d56c0de344a0210872fb55b639603dde66370418559f8f16543935a982e146`. API,
+worker, PostgreSQL e Redis ficaram healthy; migration `d5f6a7b8c9d0`; flags de IA desligadas; zero
+`agent_runs` e `agent_proposals`. O backup `/opt/idml-platform/backups/20260826T205408Z` passou no
+restore isolado e o snapshot do código anterior está em
+`/opt/idml-platform/backups/source-phase6-pre-corpus-20260826T205412Z.tar.gz`.
