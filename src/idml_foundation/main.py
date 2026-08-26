@@ -10,7 +10,18 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from idml_foundation.ingest.safe_zip import UnsafeArchiveError
 from idml_foundation.logging_config import configure_logging
-from idml_foundation.routers import artifacts, auth, health, jobs, resources
+from idml_foundation.routers import (
+    artifacts,
+    audit,
+    auth,
+    health,
+    jobs,
+    organizations,
+    releases,
+    resources,
+    reviews,
+    ui,
+)
 from idml_foundation.settings import get_settings
 
 REQUESTS = Counter("idml_http_requests_total", "HTTP requests", ["method", "route", "status"])
@@ -37,7 +48,13 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer"
         response.headers["Cache-Control"] = "no-store"
-        response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; script-src 'self'; style-src 'self'; "
+            "img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; "
+            "base-uri 'none'; form-action 'self'"
+            if request.url.path.startswith("/app")
+            else "default-src 'none'; frame-ancestors 'none'"
+        )
         return response
 
 
@@ -56,6 +73,11 @@ def create_app() -> FastAPI:
     application.include_router(resources.router)
     application.include_router(jobs.router)
     application.include_router(artifacts.router)
+    application.include_router(organizations.router)
+    application.include_router(reviews.router)
+    application.include_router(releases.router)
+    application.include_router(audit.router)
+    application.include_router(ui.router)
 
     @application.exception_handler(UnsafeArchiveError)
     async def unsafe_archive_handler(request: Request, exc: UnsafeArchiveError) -> JSONResponse:

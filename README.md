@@ -2,9 +2,10 @@
 
 Monorepo da plataforma de conversão auditável de IDML para SciELO SPS/JATS.
 
-Estado atual: **Fase 4 implementada — Gate G4 bloqueado**. O pipeline gera JATS
-1.3/SPS 1.10 e pacote determinístico sem IA; SPS/editorial e XPM ainda impedem
-`READY_FOR_SCIELO`. A Fase 5 não está autorizada.
+Estado atual: **Fase 5 concluída — Gate G5 aprovado**. O pipeline gera JATS
+1.3/SPS 1.10 e pacote determinístico sem IA, e agora possui revisão humana
+auditável, interface mínima, MFA e dupla aprovação editorial. O Gate G4 continua
+bloqueado por SPS/XPM, portanto `READY_FOR_SCIELO` segue corretamente negado.
 
 ## Estrutura
 
@@ -60,6 +61,8 @@ Use apenas credenciais locais geradas para desenvolvimento. Nunca copie secrets 
 - isolamento por organização é obrigatório no backend;
 - autorização possui negação por padrão;
 - sessões são opacas e revogáveis;
+- MFA TOTP, códigos de recuperação e reautenticação protegem ações sensíveis;
+- revisão e aprovação editorial usam papéis distintos e histórico append-only;
 - artefatos são imutáveis e endereçados por SHA-256;
 - arquivos IDML são inspecionados antes de persistência;
 - XML externo é processado sem entidades e sem rede;

@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://127.0.0.1:6379/0"
     artifact_root: Path = Path("./artifacts")
     session_pepper: SecretStr = SecretStr("development-only-change-this-pepper")
+    mfa_encryption_key: SecretStr = SecretStr("development-only-mfa-encryption-key")
     log_level: str = "INFO"
     upload_max_bytes: int = Field(default=100 * 1024 * 1024, ge=1)
     zip_max_entries: int = Field(default=5_000, ge=1)
@@ -36,6 +37,9 @@ class Settings(BaseSettings):
             pepper = self.session_pepper.get_secret_value()
             if "change" in pepper.lower() or len(pepper) < 32:
                 raise ValueError("IDML_SESSION_PEPPER must be a strong environment secret")
+            mfa_key = self.mfa_encryption_key.get_secret_value()
+            if "development" in mfa_key.lower() or len(mfa_key) < 32:
+                raise ValueError("IDML_MFA_ENCRYPTION_KEY must be a strong environment secret")
             if self.database_url.startswith("sqlite"):
                 raise ValueError("SQLite is not allowed outside development/test")
         return self

@@ -484,40 +484,40 @@ Permitir que pessoas autorizadas resolvam ambiguidades no modelo canônico com e
 
 ## Pacote 5.1 — Fluxo de revisão
 
-- [ ] Criar ReviewItem e estados.
-- [ ] Mostrar evidências de IDML e PDF.
-- [ ] Mostrar regra, validação e alternativas.
-- [ ] Aplicar decisão humana como patch.
-- [ ] Implementar controle de concorrência.
-- [ ] Reconstruir e revalidar automaticamente.
+- [x] Criar ReviewItem e estados.
+- [x] Mostrar evidências de IDML e PDF.
+- [x] Mostrar regra, validação e alternativas.
+- [x] Aplicar decisão humana como patch.
+- [x] Implementar controle de concorrência.
+- [x] Reconstruir e revalidar automaticamente.
 
 ## Pacote 5.2 — Interface mínima
 
-- [ ] Login, logout, recuperação e MFA.
-- [ ] Seleção e administração de empresa.
-- [ ] Usuários, convites, papéis e sessões.
-- [ ] Dashboard de jobs.
-- [ ] Upload seguro de artigo e assets.
-- [ ] Timeline de processamento.
-- [ ] Review Queue.
-- [ ] Visualização de modelo, XML e validações.
-- [ ] Diff entre versões.
-- [ ] Auditoria e download controlado.
+- [x] Login, logout, recuperação e MFA.
+- [x] Seleção e administração de empresa.
+- [x] Usuários, convites, papéis e sessões.
+- [x] Dashboard de jobs.
+- [x] Upload seguro de artigo e assets.
+- [x] Timeline de processamento.
+- [x] Review Queue.
+- [x] Visualização de modelo, XML e validações.
+- [x] Diff entre versões.
+- [x] Auditoria e download controlado.
 
 ## Pacote 5.3 — Aprovação editorial
 
-- [ ] Separar permissão de revisão e release.
-- [ ] Definir ações que exigem MFA/reautenticação.
-- [ ] Avaliar dupla aprovação.
-- [ ] Registrar identidade e empresa em todas as decisões.
+- [x] Separar permissão de revisão e release.
+- [x] Definir ações que exigem MFA/reautenticação.
+- [x] Avaliar dupla aprovação.
+- [x] Registrar identidade e empresa em todas as decisões.
 
 ## Gate de saída G5
 
-- [ ] Usuário autorizado corrige uma pendência sem editar XML.
-- [ ] Usuário não autorizado é bloqueado no backend.
-- [ ] Patch humano gera nova versão e revalidação.
-- [ ] Histórico anterior permanece íntegro.
-- [ ] Auditor consegue reconstruir quem alterou o quê.
+- [x] Usuário autorizado corrige uma pendência sem editar XML.
+- [x] Usuário não autorizado é bloqueado no backend.
+- [x] Patch humano gera nova versão e revalidação.
+- [x] Histórico anterior permanece íntegro.
+- [x] Auditor consegue reconstruir quem alterou o quê.
 
 ---
 
@@ -814,3 +814,4 @@ ADRs iniciais esperados:
 | 2026-08-24 | Fase 2 concluída; Gate G2 aprovado localmente e na VPS; Fase 3 não autorizada | Codex |
 | 2026-08-24 | Fase 3 autorizada e concluída; parser, profile ESA, builder JATS 1.3 e validação offline implementados; Gate G3 aprovado; Fase 4 não autorizada | Codex |
 | 2026-08-24 | Fase 4 implementada; validação/fidelidade/pacote/policy concluídos; Gate G4 bloqueado por erros SPS/editoriais e ausência do XPM do candidato; Fase 5 não autorizada | Codex |
+| 2026-08-26 | Fase 5 concluída; revisão humana, interface, identidade/MFA, RBAC e dupla aprovação editorial implementados; Gate G5 aprovado; Gate G4 continua bloqueando release | Codex |

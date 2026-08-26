@@ -1,7 +1,7 @@
 from typing import Literal, cast
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy import event, select
+from sqlalchemy.orm import Mapper, Session
 
 from idml_foundation.domain.canonical import CanonicalArticle
 from idml_foundation.domain.common import content_digest
@@ -11,6 +11,15 @@ from idml_foundation.models import Artifact, DomainSnapshot, Resource
 
 SnapshotKind = Literal["raw", "canonical"]
 DomainDocument = RawArticle | CanonicalArticle
+
+
+@event.listens_for(DomainSnapshot, "before_update")
+@event.listens_for(DomainSnapshot, "before_delete")
+def _prevent_snapshot_mutation(
+    mapper: Mapper[DomainSnapshot], connection: object, target: DomainSnapshot
+) -> None:
+    del mapper, connection, target
+    raise ValueError("domain snapshots are append-only")
 
 
 def store_snapshot(

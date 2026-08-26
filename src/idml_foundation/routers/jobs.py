@@ -12,13 +12,28 @@ from idml_foundation.dependencies import (
     Database,
     require_permission,
 )
-from idml_foundation.models import Job
+from idml_foundation.models import Job, JobEvent
 from idml_foundation.rbac import Permission, TenantContext
-from idml_foundation.schemas import JobCreate, JobRead
+from idml_foundation.schemas import JobCreate, JobEventRead, JobRead
 from idml_foundation.services.jobs import create_job
 
 router = APIRouter(prefix="/v1/jobs", tags=["jobs"])
 logger = logging.getLogger(__name__)
+
+
+@router.get("", response_model=list[JobRead])
+def list_jobs(
+    db: Database,
+    context: Annotated[TenantContext, require_permission(Permission.JOB_READ)],
+) -> list[Job]:
+    return list(
+        db.scalars(
+            select(Job)
+            .where(Job.organization_id == context.organization_id)
+            .order_by(Job.created_at.desc())
+            .limit(200)
+        )
+    )
 
 
 @router.post("", response_model=JobRead, status_code=status.HTTP_202_ACCEPTED)
@@ -70,3 +85,29 @@ def get_job(
     if job is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not found")
     return job
+
+
+@router.get("/{job_id}/events", response_model=list[JobEventRead])
+def get_job_events(
+    job_id: str,
+    db: Database,
+    context: Annotated[TenantContext, require_permission(Permission.JOB_READ)],
+) -> list[JobEvent]:
+    job = db.scalar(
+        select(Job.id).where(
+            Job.id == job_id,
+            Job.organization_id == context.organization_id,
+        )
+    )
+    if job is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not found")
+    return list(
+        db.scalars(
+            select(JobEvent)
+            .where(
+                JobEvent.job_id == job_id,
+                JobEvent.organization_id == context.organization_id,
+            )
+            .order_by(JobEvent.sequence)
+        )
+    )

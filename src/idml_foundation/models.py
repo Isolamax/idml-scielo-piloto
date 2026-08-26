@@ -53,6 +53,10 @@ class User(TimestampMixin, Base):
     is_platform_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     token_version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     mfa_required: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    mfa_secret_ciphertext: Mapped[str | None] = mapped_column(Text)
+    mfa_enabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    mfa_last_counter: Mapped[int | None] = mapped_column(BigInteger)
+    mfa_recovery_codes: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
@@ -117,6 +121,8 @@ class SessionToken(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    authenticated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    mfa_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ip_hash: Mapped[str | None] = mapped_column(String(64))
     user_agent_hash: Mapped[str | None] = mapped_column(String(64))
 
@@ -269,3 +275,136 @@ class DomainSnapshot(TimestampMixin, Base):
     revision: Mapped[int] = mapped_column(Integer, nullable=False)
     content_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+
+
+class ReviewItem(TimestampMixin, Base):
+    __tablename__ = "review_items"
+    __table_args__ = (
+        Index("ix_review_org_state_created", "organization_id", "state", "created_at"),
+        Index("ix_review_resource_state", "resource_id", "state"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    organization_id: Mapped[str] = mapped_column(
+        ForeignKey("organizations.id", ondelete="RESTRICT"), nullable=False
+    )
+    resource_id: Mapped[str] = mapped_column(
+        ForeignKey("resources.id", ondelete="RESTRICT"), nullable=False
+    )
+    base_snapshot_id: Mapped[str] = mapped_column(
+        ForeignKey("domain_snapshots.id", ondelete="RESTRICT"), nullable=False
+    )
+    job_id: Mapped[str | None] = mapped_column(ForeignKey("jobs.id", ondelete="SET NULL"))
+    state: Mapped[str] = mapped_column(String(40), nullable=False, default="open")
+    category: Mapped[str] = mapped_column(String(40), nullable=False)
+    rule_code: Mapped[str] = mapped_column(String(200), nullable=False)
+    field_path: Mapped[str] = mapped_column(String(500), nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list, nullable=False)
+    alternatives: Mapped[list[Any]] = mapped_column(JSON, default=list, nullable=False)
+    assigned_user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    priority: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
+    version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ReviewDecision(Base):
+    __tablename__ = "review_decisions"
+    __table_args__ = (Index("ix_review_decision_item_created", "review_item_id", "created_at"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    organization_id: Mapped[str] = mapped_column(
+        ForeignKey("organizations.id", ondelete="RESTRICT"), nullable=False
+    )
+    review_item_id: Mapped[str] = mapped_column(
+        ForeignKey("review_items.id", ondelete="RESTRICT"), nullable=False
+    )
+    actor_user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    base_snapshot_id: Mapped[str] = mapped_column(
+        ForeignKey("domain_snapshots.id", ondelete="RESTRICT"), nullable=False
+    )
+    result_snapshot_id: Mapped[str | None] = mapped_column(
+        ForeignKey("domain_snapshots.id", ondelete="RESTRICT")
+    )
+    action: Mapped[str] = mapped_column(String(40), nullable=False)
+    patch: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list, nullable=False)
+    justification: Mapped[str] = mapped_column(Text, nullable=False)
+    expected_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    patch_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ReviewBuild(Base):
+    __tablename__ = "review_builds"
+    __table_args__ = (
+        UniqueConstraint("review_decision_id", name="uq_review_build_decision"),
+        Index("ix_review_build_org_created", "organization_id", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    organization_id: Mapped[str] = mapped_column(
+        ForeignKey("organizations.id", ondelete="RESTRICT"), nullable=False
+    )
+    review_decision_id: Mapped[str] = mapped_column(
+        ForeignKey("review_decisions.id", ondelete="RESTRICT"), nullable=False
+    )
+    snapshot_id: Mapped[str] = mapped_column(
+        ForeignKey("domain_snapshots.id", ondelete="RESTRICT"), nullable=False
+    )
+    xml_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    xml_content: Mapped[str] = mapped_column(Text, nullable=False)
+    validation: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    validation_valid: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ReleaseRequest(TimestampMixin, Base):
+    __tablename__ = "release_requests"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "package_sha256", name="uq_release_org_package"),
+        Index("ix_release_org_state_created", "organization_id", "state", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    organization_id: Mapped[str] = mapped_column(
+        ForeignKey("organizations.id", ondelete="RESTRICT"), nullable=False
+    )
+    resource_id: Mapped[str] = mapped_column(
+        ForeignKey("resources.id", ondelete="RESTRICT"), nullable=False
+    )
+    snapshot_id: Mapped[str] = mapped_column(
+        ForeignKey("domain_snapshots.id", ondelete="RESTRICT"), nullable=False
+    )
+    package_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    state: Mapped[str] = mapped_column(String(40), nullable=False, default="pending")
+    required_approvals: Mapped[int] = mapped_column(Integer, nullable=False, default=2)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    requested_by_user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ReleaseApproval(Base):
+    __tablename__ = "release_approvals"
+    __table_args__ = (
+        UniqueConstraint("release_request_id", "approver_user_id", name="uq_release_approval_user"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    organization_id: Mapped[str] = mapped_column(
+        ForeignKey("organizations.id", ondelete="RESTRICT"), nullable=False
+    )
+    release_request_id: Mapped[str] = mapped_column(
+        ForeignKey("release_requests.id", ondelete="RESTRICT"), nullable=False
+    )
+    approver_user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    justification: Mapped[str] = mapped_column(Text, nullable=False)
+    evidence_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
