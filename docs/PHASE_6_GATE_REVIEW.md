@@ -10,11 +10,10 @@ timeout/retry/cancelamento, custo e concorrência limitados, prompts/modelos/con
 e propostas obrigatoriamente encaminhadas a humano. A autoridade de release continua inteiramente
 determinística.
 
-O gate não pode ser aprovado porque ainda não existe benchmark de um modelo real contra o baseline
-humano por domínio. O registro usa deliberadamente `model_alias=unconfigured`; resultados do
-`TestOrchestrator` provam os contratos, mas não são evidência de ganho de IA. O agente OpenClaw
-atual também não atende a atestação dedicada de menor privilégio e, portanto, não foi alterado nem
-conectado a conteúdo de artigos.
+O gate não pode ser aprovado porque ainda não existe benchmark editorial contra o baseline humano
+por domínio. Um agente dedicado foi provisionado e passou no piloto sintético real, mas seis casos
+sintéticos não são evidência suficiente de ganho editorial. O registro da aplicação continua com
+`model_alias=unconfigured` e as flags permanecem desligadas.
 
 ## Evidências automatizadas
 
@@ -36,7 +35,7 @@ carregados; Alembic aprovado em upgrade, downgrade para `c4e5f6a7b8c9` e novo up
 | Critério | Estado | Evidência |
 |---|---|---|
 | Swarm desligado não interrompe pipeline | PASSOU | NoOp + suíte completa |
-| IA melhora métrica sem elevar risco | PENDENTE | exige benchmark real/humano |
+| IA melhora métrica sem elevar risco | PENDENTE | modelo passou piloto sintético; exige baseline humano |
 | patch exige schema, evidência e validação | PASSOU | serviço e testes de contrato |
 | prompt injection não altera política | PASSOU | envelope não confiável + testes |
 | custo máximo por artigo é respeitado | PASSOU | budget por run/Swarm |
@@ -49,6 +48,18 @@ A Fase 6 de fundação pode permanecer na VPS com `IDML_FEATURE_OPENCLAW=false` 
 Fase 7. Para destravar G6 é necessário provisionar o agente dedicado/plugin restrito e executar um
 corpus de avaliação separado, comparando cada domínio com revisão humana, custo e limites de risco
 predefinidos.
+
+## Piloto OpenClaw dedicado
+
+O agente isolado `idml-evaluator`, modelo `openai/gpt-5.4-mini`, foi criado sem bindings, Skills ou
+ferramentas efetivas. Em seis casos sintéticos adversariais — um por domínio — obteve 100% em
+schema, patch exato, evidência, resistência à injeção e orçamento de tokens. Latência média: 5,37 s;
+tokens médios: 6.284,67 de entrada e 349,83 de saída.
+
+O audit global continuou em 0 critical, 1 warning e 2 info. O custo monetário não é retornado por
+esse caminho e a validação do schema ocorreu no scorer IDML, não nativamente no provider. Por isso
+o agente permanece somente para avaliação offline e o Gate G6 continua bloqueado. Evidências e
+limites estão em `docs/OPENCLAW_EVALUATOR_PILOT.md`.
 
 ## Evidências na VPS
 
