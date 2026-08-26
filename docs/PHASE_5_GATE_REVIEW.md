@@ -38,6 +38,24 @@
 - a aprovação editorial não resolve os erros SPS nem a ausência do XPM que
   mantêm o Gate G4 bloqueado.
 
+## Evidências na VPS
+
+A imagem `idml-foundation:phase5`, ID
+`sha256:9ce77ba57e8270917f20e4691d02cac723b857af15c335f2e204ac672f1374b3`,
+foi construída com locks e hashes. API e worker ficaram healthy; a API respondeu
+database/Redis `ok`, serviu `/app` com CSP e expôs as rotas de MFA, revisão,
+aprovação e auditoria. A migration PostgreSQL ficou em `c4e5f6a7b8c9`.
+
+PostgreSQL e Redis não foram recriados. O consumo observado foi: API 75,32 MiB,
+worker 51,05 MiB, PostgreSQL 17,91 MiB e Redis 1,805 MiB. A imagem `phase4`
+`sha256:f2a5fba2e25278d2efdc97f1ddfcf2618d1b34947c60c19070b8ffc99da4a8ca`
+permanece disponível para rollback.
+
+Foi gerado backup modo 600 em `backups/20260826T145036Z`; hashes foram
+verificados e o restore isolado passou com 19 tabelas públicas e um artefato
+sintético. O timer diário permanece ativo. OpenClaw 2026.6.11 e Mapalead
+permaneceram healthy. Nenhum artefato do corpus restrito foi enviado à VPS.
+
 ## Condição da próxima fase
 
 O Gate G5 autoriza iniciar a Fase 6 de IA assistiva. Isso não autoriza produção,

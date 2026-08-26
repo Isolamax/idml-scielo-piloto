@@ -70,3 +70,20 @@ VPS. O XPM deve executar em Windows Worker; ausência do worker produz
 Não copie IDML, PDF, XML real, assets, relatórios XPM ou ZIP candidato para
 `/opt/idml-platform`. Smoke tests na VPS usam apenas o IDML sintético dos testes.
 Rollback da aplicação permanece pela tag anterior (`phase3`).
+
+## Fase 5 — identidade e revisão humana
+
+`IDML_MFA_ENCRYPTION_KEY` é obrigatório no Compose, deve conter segredo aleatório
+independente do session pepper e permanecer modo 600 em `.env`. Não imprimir a
+chave em verificações; validar somente presença/comprimento. A rotação exige
+procedimento próprio porque os segredos TOTP persistidos dependem dela.
+
+A UI permanece acessível somente pelo bind loopback da API. Antes de exposição
+pública, adicionar proxy TLS e rate limiting distribuído. A aprovação de duas
+pessoas resulta em `editorially_approved` e não substitui a Release Policy nem
+concede `READY_FOR_SCIELO`.
+
+Na atualização da Fase 5, preservar a tag `phase4`, executar backup/restore test,
+aplicar a migration `c4e5f6a7b8c9` e recriar somente `api` e `worker`. A migration
+é aditiva e a imagem anterior pode ser usada para rollback da aplicação enquanto
+se investiga um incidente.

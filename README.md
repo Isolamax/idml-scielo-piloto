@@ -68,4 +68,6 @@ Use apenas credenciais locais geradas para desenvolvimento. Nunca copie secrets 
 - XML externo é processado sem entidades e sem rede;
 - logs não devem conter tokens, senhas ou conteúdo integral de artigos.
 
-Consulte [docs/PHASE_1_FOUNDATION.md](docs/PHASE_1_FOUNDATION.md) e o [plano por fases](PLANO_DESENVOLVIMENTO_POR_FASES.md).
+Consulte [docs/PHASE_5_HUMAN_REVIEW.md](docs/PHASE_5_HUMAN_REVIEW.md), a
+[revisão do Gate G5](docs/PHASE_5_GATE_REVIEW.md) e o
+[plano por fases](PLANO_DESENVOLVIMENTO_POR_FASES.md).
