@@ -68,7 +68,10 @@ VPS. O XPM deve executar em Windows Worker; ausência do worker produz
 `VALIDATION_UNAVAILABLE`.
 
 Não copie IDML, PDF, XML real, assets, relatórios XPM ou ZIP candidato para
-`/opt/idml-platform`. Smoke tests na VPS usam apenas o IDML sintético dos testes.
+`/opt/idml-platform`. Smoke tests na VPS usam apenas o IDML sintético dos testes. Benchmarks
+explicitamente autorizados podem usar somente fragmentos minimizados em
+`benchmarks/private`, modo 600; respostas brutas permanecem privadas e apenas métricas
+sanitizadas podem ser versionadas.
 Rollback da aplicação permanece pela tag anterior (`phase3`).
 
 ## Fase 5 — identidade e revisão humana
@@ -91,9 +94,10 @@ se investiga um incidente.
 ## Fase 6 — IA assistiva desativada
 
 A fundação da Fase 6 deve operar com `IDML_FEATURE_OPENCLAW=false` e
-`IDML_FEATURE_AI_SWARM=false`. Não conectar o agente pessoal existente ao conteúdo de artigos. Uma
-ativação futura exige agente dedicado, plugin de ferramentas tenant-bound, atestação completa e
-benchmark real aprovado no Gate G6.
+`IDML_FEATURE_AI_SWARM=false`. Não conectar o agente pessoal existente ao conteúdo de artigos. O
+agente dedicado `idml-evaluator` é exclusivo para avaliação offline, sem bindings, Skills ou
+ferramentas efetivas. Uma ativação futura exige plugin de ferramentas tenant-bound, atestação
+completa, custo observável e benchmark real aprovado no Gate G6.
 
 Em deploy, validar dentro da imagem que `load_registry()` encontra seis perfis e que todos os
 prompts carregam. Executar backup/restore, aplicar a migration `d5f6a7b8c9d0` e recriar somente API
