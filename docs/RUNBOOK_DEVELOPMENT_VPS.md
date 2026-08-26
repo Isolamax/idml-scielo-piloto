@@ -87,3 +87,16 @@ Na atualização da Fase 5, preservar a tag `phase4`, executar backup/restore te
 aplicar a migration `c4e5f6a7b8c9` e recriar somente `api` e `worker`. A migration
 é aditiva e a imagem anterior pode ser usada para rollback da aplicação enquanto
 se investiga um incidente.
+
+## Fase 6 — IA assistiva desativada
+
+A fundação da Fase 6 deve operar com `IDML_FEATURE_OPENCLAW=false` e
+`IDML_FEATURE_AI_SWARM=false`. Não conectar o agente pessoal existente ao conteúdo de artigos. Uma
+ativação futura exige agente dedicado, plugin de ferramentas tenant-bound, atestação completa e
+benchmark real aprovado no Gate G6.
+
+Em deploy, validar dentro da imagem que `load_registry()` encontra seis perfis e que todos os
+prompts carregam. Executar backup/restore, aplicar a migration `d5f6a7b8c9d0` e recriar somente API
+e worker. Preservar `phase5` como rollback da aplicação; a migration é aditiva e pode permanecer
+enquanto um incidente é investigado. Confirmar zero `agent_runs`/`agent_proposals` enquanto as
+features estiverem desabilitadas.

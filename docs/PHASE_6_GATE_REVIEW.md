@@ -28,6 +28,9 @@ conectado a conteúdo de artigos.
 - `AgentRun` e `AgentProposal` são append-only e tenant-bound;
 - API expõe `auto_apply=false` e `release_authority=false`.
 
+Verificações locais: Ruff e Mypy aprovados; 66 testes aprovados; cobertura 85,48%; schemas JSON
+carregados; Alembic aprovado em upgrade, downgrade para `c4e5f6a7b8c9` e novo upgrade.
+
 ## Gate G6
 
 | Critério | Estado | Evidência |
@@ -46,3 +49,21 @@ A Fase 6 de fundação pode permanecer na VPS com `IDML_FEATURE_OPENCLAW=false` 
 Fase 7. Para destravar G6 é necessário provisionar o agente dedicado/plugin restrito e executar um
 corpus de avaliação separado, comparando cada domínio com revisão humana, custo e limites de risco
 predefinidos.
+
+## Evidências na VPS
+
+A imagem `idml-foundation:phase6`, ID
+`sha256:538fee6c33936b57db1fc926338753e0aea5f6d8a34a6a5c3b281bedf466e6df`, foi
+construída com o registro, prompts, schemas e bundle versionado. O smoke interno carregou os seis
+perfis/prompts com rede desabilitada e confirmou ambas as feature flags em `false`.
+
+A migration PostgreSQL chegou a `d5f6a7b8c9d0`; há 21 tabelas públicas e zero runs/propostas de
+agente. Apenas API e worker foram recriados, ambos healthy. PostgreSQL e Redis foram preservados e
+a readiness respondeu database/Redis `ok`. Consumo observado: API 73,85 MiB, worker 51,62 MiB,
+PostgreSQL 44,48 MiB e Redis 1,812 MiB.
+
+O backup pós-migration está em `/opt/idml-platform/backups/20260826T153535Z`; hashes e restore
+isolado passaram com 21 tabelas e um artefato sintético. O timer diário está ativo. A imagem
+`phase5` (`sha256:9ce77ba57e8270917f20e4691d02cac723b857af15c335f2e204ac672f1374b3`)
+permanece para rollback. OpenClaw 2026.6.11 e os serviços Mapalead continuaram healthy e não foram
+alterados. Nenhum corpus restrito foi enviado.
