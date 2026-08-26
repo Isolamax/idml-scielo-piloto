@@ -50,7 +50,7 @@ class XpmReportParser:
         report: bytes,
         *,
         candidate_package_sha256: str,
-        tool_sha256: str,
+        tool_sha256: str | None,
     ) -> XpmResult:
         decoded = report.decode("utf-8", errors="strict")
         document = html.fromstring(decoded)

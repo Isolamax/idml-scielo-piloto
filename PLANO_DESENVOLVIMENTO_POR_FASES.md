@@ -15,9 +15,9 @@ PLANO_ANALISE_CODEX_SCIELO_IDML_OPENCLAW_SWARM.md
 ## 2. Estado geral
 
 ```text
-PROJECT_STATUS: PHASE_3_COMPLETE
-CURRENT_PHASE: FASE 3 concluída — FASE 4 aguardando autorização
-IMPLEMENTATION_AUTHORIZED: PHASE_3_COMPLETE — PHASE_4_NOT_AUTHORIZED
+PROJECT_STATUS: PHASE_6_TECHNICAL_EVALUATION_BLOCKED
+CURRENT_PHASE: FASE 6 com fundação concluída — Gate G6 bloqueado em avaliação offline
+IMPLEMENTATION_AUTHORIZED: PHASE_6_AUTHORIZED — PHASE_7_NOT_AUTHORIZED
 PRODUCTION_DEPLOYMENT_AUTHORIZED: NO
 ARCHITECTURE_STATUS: APPROVED_WITH_CHANGES
 INFRASTRUCTURE_STATUS: IN_USE_WITH_CONSTRAINTS
@@ -112,10 +112,10 @@ Antes de qualquer implantação futura na VPS:
 | 1 | Fundação técnica e segurança | Base isolada, persistente e auditável | Concluída — Gate G1 aprovado |
 | 2 | Corpus e modelo de domínio | Corpus piloto e modelo canônico estável | Concluída — Gate G2 aprovado |
 | 3 | Pipeline determinístico mínimo | IDML → modelo → XML válido sem IA | Concluída — Gate G3 aprovado |
-| 4 | Validação, fidelidade e pacote | Pacote validado e política de release | Não iniciada |
-| 5 | Revisão humana e interface mínima | Correção humana auditável | Não iniciada |
-| 6 | IA assistiva e OpenClaw | Assistência semântica controlada | Não iniciada |
-| 7 | Homologação e piloto | Qualidade comprovada no periódico piloto | Não iniciada |
+| 4 | Validação, fidelidade e pacote | Pacote validado e política de release | Implementada — Gate G4 bloqueado por validadores externos/crossrefs |
+| 5 | Revisão humana e interface mínima | Correção humana auditável | Concluída — Gate G5 aprovado |
+| 6 | IA assistiva e OpenClaw | Assistência semântica controlada | Fundação concluída — Gate G6 bloqueado por qualidade/custo/baseline |
+| 7 | Homologação e piloto | Qualidade comprovada no periódico piloto | Não iniciada — não autorizada |
 | 8 | Produção e operação | Operação segura e recuperável | Não iniciada |
 | 9 | Expansão controlada | Novos periódicos e casos complexos | Não iniciada |
 
@@ -561,6 +561,7 @@ Adicionar IA somente onde houver ganho mensurável sobre o pipeline determiníst
 - [x] Figures e tables.
 - [x] Math e notes, somente se o piloto exigir (contrato pronto; recurso inativo).
 - [ ] Medir cada domínio contra baseline humano.
+- [x] Executar proxy técnico provisório no corpus autorizado sem substituir baseline humano.
 
 ## Pacote 6.5 — Segurança e avaliação de agentes
 
@@ -569,7 +570,7 @@ Adicionar IA somente onde houver ganho mensurável sobre o pipeline determiníst
 - [x] Testar indisponibilidade OpenAI/OpenClaw.
 - [x] Testar patches conflitantes ou atrasados.
 - [x] Versionar prompts, Skills, modelos e configurações.
-- [x] Registrar tokens, custo e latência sem raciocínio privado.
+- [~] Registrar tokens e latência sem raciocínio privado; custo monetário não é exposto pelo caminho atual.
 
 ## Pacote 6.6 — QA e repair assistidos
 
@@ -584,7 +585,7 @@ Adicionar IA somente onde houver ganho mensurável sobre o pipeline determiníst
 - [ ] IA melhora métrica definida sem elevar risco além do limite.
 - [x] Nenhum patch é aplicado sem schema, evidência e validação.
 - [x] Prompt injection não altera ferramentas ou políticas.
-- [x] Custo máximo por artigo é respeitado.
+- [!] Orçamento de tokens é respeitado; custo monetário por artigo ainda não é observável.
 - [x] Release continua sendo determinístico.
 
 ---
@@ -742,6 +743,8 @@ Cada novo periódico deve possuir corpus, profile, style mapping, métricas, hom
 | R-11 | Falha sem retomada idempotente | Alto | Máquina de estados, idempotency keys e recuperação pelo PostgreSQL | Mitigado na fundação; monitorado |
 | R-12 | Perda de dados ou histórico | Crítico | Imutabilidade, backups e restore testado | Mitigado na fundação; monitorado |
 | R-13 | Vazamento ou contaminação do corpus | Alto | Manifestos sem conteúdo, acesso restrito e holdout separado | Mitigado; monitorado |
+| R-14 | Referências sem `xref` bibliográfico | Alto | Detecção offline, CrossRef Accuracy e resolver determinístico de citações | Aberto — 52 ocorrências no XML gerado ESA |
+| R-15 | Patch escalar quebrar invariantes de `RichText` | Alto | Patch atômico de `plain` + `inlines` e validação prévia | Detectado; benchmark v1.1 exclui caminhos inseguros |
 
 # 8. Definition of Done global
 
@@ -815,3 +818,4 @@ ADRs iniciais esperados:
 | 2026-08-24 | Fase 3 autorizada e concluída; parser, profile ESA, builder JATS 1.3 e validação offline implementados; Gate G3 aprovado; Fase 4 não autorizada | Codex |
 | 2026-08-24 | Fase 4 implementada; validação/fidelidade/pacote/policy concluídos; Gate G4 bloqueado por erros SPS/editoriais e ausência do XPM do candidato; Fase 5 não autorizada | Codex |
 | 2026-08-26 | Fase 5 concluída; revisão humana, interface, identidade/MFA, RBAC e dupla aprovação editorial implementados; Gate G5 aprovado; Gate G4 continua bloqueando release | Codex |
+| 2026-08-26 | Fundação da Fase 6 implantada com flags desligadas; agente OpenClaw isolado e benchmark real v1.1 executado; G6 permanece bloqueado por baixa qualidade, custo não observável e ausência de baseline humano | Codex |

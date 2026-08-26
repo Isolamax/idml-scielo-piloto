@@ -25,6 +25,30 @@ def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def resolve_artifact(source_root: Path, artifact: dict[str, object]) -> Path:
+    """Resolve a manifest artifact relocated inside one restricted bundle by exact hash."""
+    resolved_root = source_root.resolve(strict=True)
+    logical_path = str(artifact["logical_path"])
+    expected_digest = str(artifact["sha256"])
+    expected_size = int(artifact["size_bytes"])
+    direct = (resolved_root / logical_path).resolve()
+    candidates = [direct] if direct.is_relative_to(resolved_root) and direct.is_file() else []
+    if not candidates:
+        candidates = [
+            path.resolve()
+            for path in resolved_root.rglob(Path(logical_path).name)
+            if path.is_file() and not path.is_symlink()
+        ]
+    matches = [
+        path
+        for path in candidates
+        if path.stat().st_size == expected_size and digest(path.read_bytes()) == expected_digest
+    ]
+    if len(matches) != 1:
+        raise ValueError(f"artifact must resolve uniquely by manifest hash: {logical_path}")
+    return matches[0]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source-root", type=Path, required=True)
@@ -40,8 +64,10 @@ def main() -> int:
 
     manifest = json.loads(arguments.manifest.read_text(encoding="utf-8"))
     artifact_by_role = {item["role"]: item for item in manifest["artifacts"]}
-    source_path = arguments.source_root / artifact_by_role["source_idml"]["logical_path"]
-    pdf_path = arguments.source_root / artifact_by_role["approved_pdf_reference"]["logical_path"]
+    source_path = resolve_artifact(arguments.source_root, artifact_by_role["source_idml"])
+    pdf_path = resolve_artifact(
+        arguments.source_root, artifact_by_role["approved_pdf_reference"]
+    )
     source = source_path.read_bytes()
     pdf = pdf_path.read_bytes()
     if digest(source) != artifact_by_role["source_idml"]["sha256"]:
@@ -69,7 +95,7 @@ def main() -> int:
     for block, artifact in zip(figure_blocks, figure_artifacts, strict=True):
         if block.asset_id is None:
             raise ValueError("canonical figure has no source asset binding")
-        asset_data = (arguments.source_root / artifact["logical_path"]).read_bytes()
+        asset_data = resolve_artifact(arguments.source_root, artifact).read_bytes()
         if digest(asset_data) != artifact["sha256"]:
             raise ValueError("figure asset hash differs from manifest")
         payloads.append(

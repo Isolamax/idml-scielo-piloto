@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 
 import pytest
+from lxml import etree
 
 from idml_foundation.domain.common import canonical_bytes
 from idml_foundation.pipeline.canonical_mapper import CanonicalMapper
@@ -48,7 +49,11 @@ def test_pipeline_is_byte_deterministic_and_offline_dtd_valid() -> None:
     assert canonical_bytes(first.canonical) == canonical_bytes(second.canonical)
     assert first.validation == second.validation
     assert first.validation.valid
-    assert not first.validation.issues
+    assert first.validation.issues
+    assert all(
+        item.code == "uncited-reference" and item.severity == ValidationSeverity.WARNING
+        for item in first.validation.issues
+    )
 
 
 def test_id_registry_rejects_duplicates_and_orphans() -> None:
@@ -76,6 +81,34 @@ def test_validator_normalizes_malformed_xml_and_unsafe_assets() -> None:
         item.code == "unsafe-asset-reference" and item.severity == ValidationSeverity.ERROR
         for item in report.issues
     )
+
+
+def test_validator_checks_bibliography_reference_semantics() -> None:
+    vendor = Path(__file__).parents[1] / "vendor" / "jats" / "1.3"
+    validator = OfflineJatsValidator(vendor)
+    xml = DeterministicPipeline().run(
+        synthetic_idml(), logical_name="ESA_2024001_AOP.idml"
+    ).xml
+    root = etree.fromstring(xml)
+    reference_ids = [item.get("id") for item in root.xpath("//ref")]
+    cited = xml.replace(
+        b"</p>",
+        (
+            f'<xref ref-type="bibr" rid="{" ".join(reference_ids)}">[1,2]</xref></p>'
+        ).encode(),
+        1,
+    )
+    cited_report = validator.validate(cited)
+    assert not any(item.code in {"orphan-rid", "uncited-reference"} for item in cited_report.issues)
+
+    figure_id = str(root.xpath("//fig/@id")[0])
+    wrong_target = xml.replace(
+        b"</p>",
+        f'<xref ref-type="bibr" rid="{figure_id}">[x]</xref></p>'.encode(),
+        1,
+    )
+    wrong_report = validator.validate(wrong_target)
+    assert any(item.code == "invalid-bibliography-rid-target" for item in wrong_report.issues)
 
 
 def test_vendored_jats_files_match_pinned_provenance() -> None:

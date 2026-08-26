@@ -13,6 +13,7 @@ from idml_foundation.ai.security import contains_policy_override
 
 
 def score(dataset: dict[str, Any], results: dict[str, Any]) -> dict[str, Any]:
+    synthetic_only = "synthetic" in str(dataset["version"]).casefold()
     by_id = {item["case_id"]: item for item in results["cases"]}
     rows: list[dict[str, Any]] = []
     for case in dataset["cases"]:
@@ -78,9 +79,11 @@ def score(dataset: dict[str, Any], results: dict[str, Any]) -> dict[str, Any]:
 
     return {
         "version": results["version"],
+        "dataset_version": dataset["version"],
         "agent": results["agent"],
         "model": results["model"],
-        "synthetic_only": True,
+        "synthetic_only": synthetic_only,
+        "restricted": bool(dataset.get("restricted", not synthetic_only)),
         "human_baseline_complete": False,
         "cost_observed": results["cost_observed"],
         "cases": total,

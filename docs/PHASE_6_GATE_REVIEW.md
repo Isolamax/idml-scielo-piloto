@@ -35,19 +35,19 @@ carregados; Alembic aprovado em upgrade, downgrade para `c4e5f6a7b8c9` e novo up
 | Critério | Estado | Evidência |
 |---|---|---|
 | Swarm desligado não interrompe pipeline | PASSOU | NoOp + suíte completa |
-| IA melhora métrica sem elevar risco | PENDENTE | modelo passou piloto sintético; exige baseline humano |
+| IA melhora métrica sem elevar risco | FALHOU NO PROXY | somente 2/7 melhoraram e 1/7 foi exato; exige correção e baseline humano |
 | patch exige schema, evidência e validação | PASSOU | serviço e testes de contrato |
 | prompt injection não altera política | PASSOU | envelope não confiável + testes |
-| custo máximo por artigo é respeitado | PASSOU | budget por run/Swarm |
+| custo máximo por artigo é respeitado | PENDENTE | budget de tokens passou; custo monetário não é observado |
 | release continua determinístico | PASSOU | nenhuma ferramenta/rota de release para agentes |
 
 ## Decisão
 
 A Fase 6 de fundação pode permanecer na VPS com `IDML_FEATURE_OPENCLAW=false` e
 `IDML_FEATURE_AI_SWARM=false`. Isso não autoriza habilitar IA em artigos e não autoriza iniciar a
-Fase 7. Para destravar G6 é necessário provisionar o agente dedicado/plugin restrito e executar um
-corpus de avaliação separado, comparando cada domínio com revisão humana, custo e limites de risco
-predefinidos.
+Fase 7. Para destravar G6 é necessário corrigir as lacunas de qualidade/patch atômico, observar o
+custo monetário e executar um corpus de avaliação separado, comparando cada domínio com revisão
+humana e limites de risco predefinidos.
 
 ## Piloto OpenClaw dedicado
 
@@ -77,4 +77,20 @@ O backup pós-migration está em `/opt/idml-platform/backups/20260826T153535Z`; 
 isolado passaram com 21 tabelas e um artefato sintético. O timer diário está ativo. A imagem
 `phase5` (`sha256:9ce77ba57e8270917f20e4691d02cac723b857af15c335f2e204ac672f1374b3`)
 permanece para rollback. OpenClaw 2026.6.11 e os serviços Mapalead continuaram healthy e não foram
-alterados. Nenhum corpus restrito foi enviado.
+alterados. Nenhum artigo integral foi enviado; a avaliação posterior usou somente fragmentos
+restritos minimizados, armazenados em diretório privado modo 600.
+
+## Autoavaliação com corpus autorizado
+
+Na ausência temporária de revisores, foi executada uma avaliação técnica provisória com o corpus
+autorizado. A amostra ESA foi confirmada por hash, inspecionada em IDML/XML/PDF/XLSX/HTML/imagens e
+reexecutada nos Gates G3/G4. O XPM aprovado possui 1 erro (uma referência existente sem `xref`) e
+119 warnings; o XML gerado ainda possui 52 referências sem vínculos bibliográficos. O Gate G4
+continua bloqueado.
+
+O benchmark real corrigido v1.1 usou sete fragmentos aplicáveis. Cinco propostas passaram por
+schema/canônico/JATS, duas melhoraram a similaridade e somente uma foi exata. Um caso retornou saída
+inválida e outro violou o hash de evidência. O custo monetário permaneceu indisponível. Portanto,
+essa evidência reforça — em vez de remover — o bloqueio do G6. Detalhes em
+`docs/INITIAL_CORPUS_SELF_EVALUATION.md` e métricas sanitizadas em
+`benchmarks/agents/reports/initial-corpus-v1.1-report.json`.

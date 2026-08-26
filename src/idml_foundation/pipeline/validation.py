@@ -138,8 +138,11 @@ class OfflineJatsValidator:
             "missing-article-title",
             "primary article title is required",
         )
-        ids = [element.get("id", "") for element in root.iter() if element.get("id")]
-        if len(ids) != len(set(ids)):
+        id_values = [element.get("id", "") for element in root.iter() if element.get("id")]
+        elements_by_id = {
+            element.get("id", ""): element for element in root.iter() if element.get("id")
+        }
+        if len(id_values) != len(set(id_values)):
             issues.append(
                 ValidationIssue(
                     stage=ValidationStage.SPS_BASELINE,
@@ -148,16 +151,43 @@ class OfflineJatsValidator:
                     message="XML IDs must be unique",
                 )
             )
+        bibliography_rids: set[str] = set()
         for xref in (element for element in root.iter() if element.get("rid")):
-            rid = xref.get("rid")
-            if rid not in ids:
+            rid_values = str(xref.get("rid")).split()
+            if xref.get("ref-type") == "bibr":
+                bibliography_rids.update(rid_values)
+            for rid in rid_values:
+                target = elements_by_id.get(rid)
+                if target is None:
+                    issues.append(
+                        ValidationIssue(
+                            stage=ValidationStage.SPS_BASELINE,
+                            severity=ValidationSeverity.ERROR,
+                            code="orphan-rid",
+                            message="cross-reference RID does not resolve",
+                            element_id=xref.get("id"),
+                        )
+                    )
+                elif xref.get("ref-type") == "bibr" and target.tag != "ref":
+                    issues.append(
+                        ValidationIssue(
+                            stage=ValidationStage.SPS_BASELINE,
+                            severity=ValidationSeverity.ERROR,
+                            code="invalid-bibliography-rid-target",
+                            message="bibliographic RID must target a ref element",
+                            element_id=xref.get("id"),
+                        )
+                    )
+        for reference in root.iter("ref"):
+            reference_id = reference.get("id")
+            if reference_id and reference_id not in bibliography_rids:
                 issues.append(
                     ValidationIssue(
                         stage=ValidationStage.SPS_BASELINE,
-                        severity=ValidationSeverity.ERROR,
-                        code="orphan-rid",
-                        message="cross-reference RID does not resolve",
-                        element_id=xref.get("id"),
+                        severity=ValidationSeverity.WARNING,
+                        code="uncited-reference",
+                        message="reference is not targeted by a bibliographic cross-reference",
+                        element_id=reference_id,
                     )
                 )
         for graphic in (element for element in root.iter() if element.tag == "graphic"):
