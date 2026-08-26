@@ -30,6 +30,15 @@ python ops/gate_g3.py --idml <ESA_IDML_RESTRITO> --gold-xml <ESA_XML_GOLD_RESTRI
 O gold é lido somente pelo gate para hashes e contagens. Não entra no pipeline.
 Nenhum conteúdo ou binário restrito foi copiado para Git, imagem ou VPS.
 
+## Evidência posterior — citações bibliográficas
+
+Em 2026-08-26, o Gate G3 passou a medir também os alvos bibliográficos. O resolvedor offline gerou
+81 `xref` para os 52 alvos, com XML válido e zero issue local. Contra os 78 vínculos aprovados, a
+comparação bruta obteve precisão 0,925926, recall 0,961538 e F1 0,943396, mantendo a submétrica em
+`needs_review`. As seis divergências foram registradas sem conteúdo restrito em
+`benchmarks/agents/reports/esa-crossrefs-v1-report.json`; o XML aprovado permanece exclusivamente
+oráculo do gate e não é consultado em runtime.
+
 ## Checklist G3
 
 | Critério | Evidência | Resultado |

@@ -355,7 +355,13 @@ class JatsBuilder:
                 attributes["ext-link-type"] = "uri"
             elif inline.kind == InlineKind.CROSS_REFERENCE and inline.target_id:
                 attributes["rid"] = registry.resolve(inline.target_id)
-                attributes["ref-type"] = "other"
+                ref_type = inline.attributes.get("ref-type", "other")
+                attributes["ref-type"] = (
+                    ref_type
+                    if ref_type
+                    in {"bibr", "fig", "table", "disp-formula", "fn", "sec", "other"}
+                    else "other"
+                )
             elif inline.kind == InlineKind.NAMED_CONTENT and inline.name:
                 attributes["content-type"] = inline.name
             previous = _add(parent, tag, inline.text, **attributes)

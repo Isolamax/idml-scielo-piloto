@@ -86,7 +86,9 @@ restritos minimizados, armazenados em diretório privado modo 600.
 Na ausência temporária de revisores, foi executada uma avaliação técnica provisória com o corpus
 autorizado. A amostra ESA foi confirmada por hash, inspecionada em IDML/XML/PDF/XLSX/HTML/imagens e
 reexecutada nos Gates G3/G4. O XPM aprovado possui 1 erro (uma referência existente sem `xref`) e
-119 warnings; o XML gerado ainda possui 52 referências sem vínculos bibliográficos. O Gate G4
+119 warnings. O incremento determinístico posterior passou a gerar 81 vínculos bibliográficos
+para as 52 referências, sem `uncited-reference`; a comparação bruta com o aprovado permanece
+`needs_review` (precisão 0,925926; recall 0,961538) por seis divergências documentadas. O Gate G4
 continua bloqueado.
 
 O benchmark real corrigido v1.1 usou sete fragmentos aplicáveis. Cinco propostas passaram por

@@ -34,6 +34,7 @@ from idml_foundation.domain.common import (
     stable_id,
 )
 from idml_foundation.domain.raw import RawArticle, RawParagraph, RawStory
+from idml_foundation.pipeline.citation_resolver import resolve_citations
 from idml_foundation.pipeline.idml_parser import style_prefix
 from idml_foundation.pipeline.profile import JournalProfile
 
@@ -166,14 +167,15 @@ class CanonicalMapper:
                     )
                 )
 
-        sections, graphic_review_reasons = self._sections(
+        references = self._references(paragraphs_by_role, text_for, article_id)
+        sections, section_review_reasons = self._sections(
             raw,
             paragraphs_by_role,
             style_names,
             character_names,
             article_id,
+            references,
         )
-        references = self._references(paragraphs_by_role, text_for, article_id)
         assets = tuple(
             Asset(
                 id=item.id,
@@ -192,7 +194,7 @@ class CanonicalMapper:
         )
         if any(item.external for item in raw.assets):
             review_reasons.append("external_assets_require_package_resolution")
-        review_reasons.extend(graphic_review_reasons)
+        review_reasons.extend(section_review_reasons)
 
         return CanonicalArticle(
             article_id=article_id,
@@ -365,6 +367,7 @@ class CanonicalMapper:
         style_names: dict[str, str],
         character_names: dict[str, str],
         article_id: str,
+        references: tuple[Reference, ...],
     ) -> tuple[tuple[Section, ...], tuple[str, ...]]:
         body_items = [
             (*item, role)
@@ -373,6 +376,7 @@ class CanonicalMapper:
         ]
         body_items.sort(key=lambda item: (raw.reading_order.index(item[0].id), item[1].position))
         sections: list[dict[str, object]] = []
+        citation_review_reasons: list[str] = []
         current: dict[str, object] | None = None
         for story, paragraph, role in body_items:
             runs = {run.id: run for run in story.runs}
@@ -401,13 +405,22 @@ class CanonicalMapper:
                     sections.append(current)
                 blocks = current["blocks"]
                 assert isinstance(blocks, list)
+                paragraph_id = stable_id(article_id, "paragraph", paragraph.id)
+                citation_resolution = resolve_citations(
+                    self._rich_text(story, paragraph, character_names, article_id),
+                    references,
+                    article_id=article_id,
+                    paragraph_id=paragraph_id,
+                )
                 blocks.append(
                     Paragraph(
-                        id=stable_id(article_id, "paragraph", paragraph.id),
-                        content=self._rich_text(story, paragraph, character_names, article_id),
+                        id=paragraph_id,
+                        content=citation_resolution.content,
+                        cross_references=citation_resolution.cross_references,
                         evidence_ids=paragraph.evidence_ids,
                     )
                 )
+                citation_review_reasons.extend(citation_resolution.review_reasons)
 
         raw_tables = {table.id: table for table in raw.tables}
         table_story = {
@@ -422,7 +435,7 @@ class CanonicalMapper:
         }
         captions = by_role["caption"]
         graphic_blocks: list[FigureBlock | TableBlock] = []
-        graphic_review_reasons: list[str] = []
+        graphic_review_reasons: list[str] = list(citation_review_reasons)
         used_tables: set[str] = set()
         used_assets: set[str] = set()
         run_lookup = {run.id: run for item in raw.stories for run in item.runs}
@@ -446,15 +459,27 @@ class CanonicalMapper:
                         if cell
                         else ""
                     )
-                    row.append(
-                        RichText(
-                            plain=(
-                                _present(value, cell.evidence_ids, "idml-table-cell")
-                                if value.strip() and cell
-                                else _missing("empty-or-spanned-table-cell")
-                            )
+                    cell_rich = RichText(
+                        plain=(
+                            _present(value, cell.evidence_ids, "idml-table-cell")
+                            if value.strip() and cell
+                            else _missing("empty-or-spanned-table-cell")
                         )
                     )
+                    if value.strip() and cell:
+                        cell_resolution = resolve_citations(
+                            cell_rich,
+                            references,
+                            article_id=article_id,
+                            paragraph_id=stable_id(
+                                article_id,
+                                "table-cell",
+                                f"{table_id}:{row_index}:{column_index}",
+                            ),
+                        )
+                        cell_rich = cell_resolution.content
+                        graphic_review_reasons.extend(cell_resolution.review_reasons)
+                    row.append(cell_rich)
                 rows.append(tuple(row))
             return tuple(rows)
 
@@ -468,11 +493,21 @@ class CanonicalMapper:
                 continue
             kind, number_text = numbered.group(1).casefold(), numbered.group(2)
             number = int(number_text)
-            caption = (
+            caption_source = (
                 self._rich_text(story, paragraph, character_names, article_id)
                 if caption_value.strip()
                 else RichText(plain=_missing("caption-style-contained-no-caption-text"))
             )
+            caption = caption_source
+            if caption_value.strip():
+                caption_resolution = resolve_citations(
+                    caption_source,
+                    references,
+                    article_id=article_id,
+                    paragraph_id=stable_id(article_id, "caption", paragraph.id),
+                )
+                caption = caption_resolution.content
+                graphic_review_reasons.extend(caption_resolution.review_reasons)
             if kind == "table":
                 candidate_tables = sorted(
                     (

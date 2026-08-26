@@ -334,7 +334,19 @@ class IdmlParser:
         evidence: list[Evidence] = [story_evidence]
         runs: list[RawTextRun] = []
         paragraphs: list[RawParagraph] = []
-        run_ids_by_cell: defaultdict[int, list[str]] = defaultdict(list)
+        run_ids_by_cell: defaultdict[str, list[str]] = defaultdict(list)
+
+        def cell_key(cell: etree._Element) -> str:
+            table = next(
+                (
+                    ancestor
+                    for ancestor in cell.iterancestors()
+                    if _local_name(ancestor) == "Table"
+                ),
+                None,
+            )
+            table_self = table.get("Self", "table") if table is not None else "table"
+            return f"{table_self}:{cell.get('Name', 'cell')}"
 
         paragraph_ranges = _elements(story_element, "ParagraphStyleRange")
         for paragraph_position, paragraph_range in enumerate(paragraph_ranges):
@@ -382,13 +394,13 @@ class IdmlParser:
                 )
                 paragraph_run_ids.append(run_id)
                 if cell is not None:
-                    run_ids_by_cell[id(cell)].append(run_id)
+                    run_ids_by_cell[cell_key(cell)].append(run_id)
             paragraph_id = stable_id(article_key, "paragraph", paragraph_locator)
             cell_id = (
                 stable_id(
                     article_key,
                     "cell",
-                    f"{source_self}:{cell.get('Name', str(id(cell)))}",
+                    f"{source_self}:{cell_key(cell)}",
                 )
                 if cell is not None
                 else None
@@ -426,7 +438,7 @@ class IdmlParser:
                         column=column,
                         row_span=row_span,
                         column_span=column_span,
-                        text_run_ids=tuple(run_ids_by_cell[id(cell)]),
+                        text_run_ids=tuple(run_ids_by_cell[cell_key(cell)]),
                         evidence_ids=(table_evidence.id,),
                     )
                 )

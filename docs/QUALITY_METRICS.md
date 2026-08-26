@@ -14,7 +14,8 @@ sequência normalizada; o relatório deve manter contagens/diffs explicáveis.
 - Author e Affiliation Accuracy: entidades e vínculos exatos;
 - Reference Accuracy: referências estruturadas correspondentes;
 - Figure e Table Accuracy: objetos, captions, labels e assets correspondentes;
-- CrossRef Accuracy: `xref` com tipo e alvo corretos;
+- CrossRef Accuracy: `xref` com tipo e alvo corretos; ocorrências repetidas são comparadas como
+  multiconjunto por alvo, sem confundir realocação estrutural de tabelas com erro de vínculo;
 - precisão/recall/F1: usados quando há conjuntos previstos versus observados;
 - STP: artigos liberáveis sem revisão / artigos processados;
 - Human Review Rate: artigos com pendência / artigos processados.

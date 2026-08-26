@@ -743,7 +743,7 @@ Cada novo periódico deve possuir corpus, profile, style mapping, métricas, hom
 | R-11 | Falha sem retomada idempotente | Alto | Máquina de estados, idempotency keys e recuperação pelo PostgreSQL | Mitigado na fundação; monitorado |
 | R-12 | Perda de dados ou histórico | Crítico | Imutabilidade, backups e restore testado | Mitigado na fundação; monitorado |
 | R-13 | Vazamento ou contaminação do corpus | Alto | Manifestos sem conteúdo, acesso restrito e holdout separado | Mitigado; monitorado |
-| R-14 | Referências sem `xref` bibliográfico | Alto | Detecção offline, CrossRef Accuracy e resolver determinístico de citações | Aberto — 52 ocorrências no XML gerado ESA |
+| R-14 | Referências sem `xref` bibliográfico | Alto | Detecção offline, CrossRef Accuracy e resolver determinístico de citações | Mitigado tecnicamente — 81 vínculos/52 alvos; seis divergências com o aprovado aguardam adjudicação |
 | R-15 | Patch escalar quebrar invariantes de `RichText` | Alto | Patch atômico de `plain` + `inlines` e validação prévia | Detectado; benchmark v1.1 exclui caminhos inseguros |
 
 # 8. Definition of Done global
@@ -819,3 +819,4 @@ ADRs iniciais esperados:
 | 2026-08-24 | Fase 4 implementada; validação/fidelidade/pacote/policy concluídos; Gate G4 bloqueado por erros SPS/editoriais e ausência do XPM do candidato; Fase 5 não autorizada | Codex |
 | 2026-08-26 | Fase 5 concluída; revisão humana, interface, identidade/MFA, RBAC e dupla aprovação editorial implementados; Gate G5 aprovado; Gate G4 continua bloqueando release | Codex |
 | 2026-08-26 | Fundação da Fase 6 implantada com flags desligadas; agente OpenClaw isolado e benchmark real v1.1 executado; G6 permanece bloqueado por baixa qualidade, custo não observável e ausência de baseline humano | Codex |
+| 2026-08-26 | Resolvedor determinístico ESA concluído; 81 vínculos bibliográficos gerados, parser de células corrigido e CrossRef Accuracy incorporada ao G3; seis divergências com o XML aprovado aguardam adjudicação humana | Codex |

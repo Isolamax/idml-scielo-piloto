@@ -44,14 +44,23 @@ subpasta, construiu pacote byte-determinístico e obteve fidelidade aprovada:
 |---|---:|---:|
 | Títulos | 1,000000 | 1,000000 |
 | Autores | 1,000000 | 1,000000 |
-| Corpo | 0,989725 | 0,996881 |
+| Corpo | 0,989725 | 0,998165 |
 | Referências | 0,999454 | 1,000000 |
 | Figuras e tabelas | 1,000000 | 1,000000 |
 
 O release continua bloqueado porque SPSValidator e XPM não foram executados contra o pacote novo.
-Além disso, o XML gerado contém 52 referências, mas nenhum `xref` bibliográfico. Essa é a maior
-lacuna determinística descoberta pela amostra. O XML aprovado possui 51 referências citadas e uma
-não citada.
+O incremento posterior de citações passou a gerar 81 `xref` bibliográficos, cobrindo as 52
+referências, inclusive citações presentes em tabelas. O XML permanece válido offline e sem warning
+`uncited-reference`. O XML aprovado possui 78 vínculos, 51 referências citadas e uma não citada.
+
+A comparação bruta de alvos contra o XML aprovado obteve precisão 0,925926, recall 0,961538 e F1
+0,943396, portanto continua `needs_review` diante do target de 100%. As seis diferenças estão
+concentradas em dois casos verificáveis: três citações autor-ano de Boyd, Torrans e Tucker (2018)
+apontam no aprovado para as referências 10/11, mas o resolvedor aponta para a referência 13; e três
+citações de P. et al. (2018) apontam para a referência 37, que existe no aprovado, mas não recebeu
+nenhum `xref` e originou o erro XPM já registrado. Sem revisor humano, essas correções permanecem
+candidatas técnicas e não substituem o baseline aprovado. A evidência sanitizada está em
+`benchmarks/agents/reports/esa-crossrefs-v1-report.json`.
 
 A comparação textual exata contra o XML aprovado deve ser tratada como proxy técnico, não como
 qualidade semântica: text fidelity foi 0,94218; autores tiveram F1 1,0; estrutura F1 0,88; as demais
@@ -98,12 +107,16 @@ dominado por um único acerto e não comprova ganho editorial generalizável.
 Os resultados mantêm `IDML_FEATURE_OPENCLAW=false` e `IDML_FEATURE_AI_SWARM=false`. G6 permanece
 bloqueado e a Fase 7 não deve começar. Ordem recomendada de desenvolvimento:
 
-1. extrair e resolver citações bibliográficas no mapeamento ESA, com CrossRef Accuracy explícita;
+1. adjudicar com revisores as seis divergências bibliográficas quando houver disponibilidade;
 2. definir patch atômico para `RichText`, preservando ou reconstruindo `plain` e `inlines` juntos;
 3. reforçar structured output/evidence binding e reduzir o prompt de aproximadamente 9 mil tokens;
 4. implementar observação de custo monetário por chamada;
 5. criar profile/style mapping RBEdu somente quando a expansão de template for autorizada;
 6. repetir o benchmark com corpus maior e baseline humano assim que revisores estiverem disponíveis.
+
+O resolvedor bibliográfico determinístico e a correção da associação das células de tabela foram
+concluídos sem IA e sem dependência do XML aprovado em runtime. O gold é carregado somente pelo
+Gate G3 para avaliação.
 
 ## Evidência de implantação na VPS
 

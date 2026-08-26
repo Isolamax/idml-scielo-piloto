@@ -8,6 +8,7 @@ from pathlib import Path
 from lxml import etree
 
 from idml_foundation.domain.common import canonical_bytes
+from idml_foundation.pipeline.crossref_evaluation import evaluate_cross_references
 from idml_foundation.pipeline.service import DeterministicPipeline
 
 EXPECTED_IDML_SHA256 = "8ce185f5dd03f5403a36ca7b60d9d708b95e2b334e731327dd0b568b0cd44d2c"
@@ -84,6 +85,7 @@ def main() -> None:
         raise SystemExit("deterministic core structure differs from the approved corpus facts")
     if not first.canonical.review_reasons:
         raise SystemExit("known ambiguities were not classified for review")
+    cross_references = evaluate_cross_references(gold, generated)
 
     report = {
         "gate": "G3",
@@ -105,6 +107,7 @@ def main() -> None:
             "blocking_issues": len(blocking_thread_issues),
         },
         "canonical": generated_counts,
+        "cross_references": cross_references.model_dump(mode="json"),
         "validation": {
             "valid": first.validation.valid,
             "issues": len(first.validation.issues),

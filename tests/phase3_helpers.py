@@ -2,7 +2,7 @@ from io import BytesIO
 from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 
 
-def synthetic_idml() -> bytes:
+def synthetic_idml(*, include_table: bool = False) -> bytes:
     design = b"""<?xml version="1.0" encoding="UTF-8"?>
 <Document Self="doc" DOMVersion="20.3" StoryList="u1 u2 u3 u4"/>"""
     styles = b"""<?xml version="1.0" encoding="UTF-8"?>
@@ -34,6 +34,18 @@ def synthetic_idml() -> bytes:
             f"<Content>{text}</Content></CharacterStyleRange></ParagraphStyleRange>"
         )
 
+    table = (
+        '<Table Self="table-1" BodyRowCount="1" ColumnCount="2">'
+        '<Cell Name="0:0"><ParagraphStyleRange AppliedParagraphStyle="ParagraphStyle/05.0.text">'
+        '<CharacterStyleRange AppliedCharacterStyle="CharacterStyle/none">'
+        '<Content>Alpha</Content></CharacterStyleRange></ParagraphStyleRange></Cell>'
+        '<Cell Name="1:0"><ParagraphStyleRange AppliedParagraphStyle="ParagraphStyle/05.0.text">'
+        '<CharacterStyleRange AppliedCharacterStyle="CharacterStyle/none">'
+        '<Content>Beta</Content></CharacterStyleRange></ParagraphStyleRange></Cell>'
+        "</Table>"
+        if include_table
+        else ""
+    )
     stories = {
         "Stories/Story_u1.xml": story(
             "u1",
@@ -45,6 +57,7 @@ def synthetic_idml() -> bytes:
             paragraph("04.0.section", "Introduction")
             + paragraph("05.0.text", "Plain ")
             + paragraph("05.0.text", "emphasis", "italico"),
+            table,
         ),
         "Stories/Story_u3.xml": story(
             "u3",
