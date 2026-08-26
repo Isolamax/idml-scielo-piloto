@@ -7,6 +7,7 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -407,4 +408,86 @@ class ReleaseApproval(Base):
     )
     justification: Mapped[str] = mapped_column(Text, nullable=False)
     evidence_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AgentRun(Base):
+    """Immutable accounting and policy record for one assistive invocation."""
+
+    __tablename__ = "agent_runs"
+    __table_args__ = (
+        UniqueConstraint(
+            "organization_id", "idempotency_key", name="uq_agent_run_org_idempotency"
+        ),
+        Index("ix_agent_run_org_created", "organization_id", "created_at"),
+        Index("ix_agent_run_review_created", "review_item_id", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    organization_id: Mapped[str] = mapped_column(
+        ForeignKey("organizations.id", ondelete="RESTRICT"), nullable=False
+    )
+    job_id: Mapped[str | None] = mapped_column(ForeignKey("jobs.id", ondelete="SET NULL"))
+    resource_id: Mapped[str] = mapped_column(
+        ForeignKey("resources.id", ondelete="RESTRICT"), nullable=False
+    )
+    review_item_id: Mapped[str] = mapped_column(
+        ForeignKey("review_items.id", ondelete="RESTRICT"), nullable=False
+    )
+    base_snapshot_id: Mapped[str] = mapped_column(
+        ForeignKey("domain_snapshots.id", ondelete="RESTRICT"), nullable=False
+    )
+    idempotency_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    task_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    domain: Mapped[str] = mapped_column(String(40), nullable=False)
+    orchestrator: Mapped[str] = mapped_column(String(80), nullable=False)
+    status: Mapped[str] = mapped_column(String(40), nullable=False)
+    provider: Mapped[str] = mapped_column(String(80), nullable=False)
+    model: Mapped[str] = mapped_column(String(120), nullable=False)
+    prompt_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    output_schema_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    config_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    input_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    output_sha256: Mapped[str | None] = mapped_column(String(64))
+    input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cost_microusd: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    latency_ms: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    budget: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    error_code: Mapped[str | None] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AgentProposal(Base):
+    """Immutable, never auto-applied proposal produced by an AgentRun."""
+
+    __tablename__ = "agent_proposals"
+    __table_args__ = (
+        UniqueConstraint("agent_run_id", name="uq_agent_proposal_run"),
+        Index("ix_agent_proposal_org_created", "organization_id", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    organization_id: Mapped[str] = mapped_column(
+        ForeignKey("organizations.id", ondelete="RESTRICT"), nullable=False
+    )
+    agent_run_id: Mapped[str] = mapped_column(
+        ForeignKey("agent_runs.id", ondelete="RESTRICT"), nullable=False
+    )
+    review_item_id: Mapped[str] = mapped_column(
+        ForeignKey("review_items.id", ondelete="RESTRICT"), nullable=False
+    )
+    base_snapshot_id: Mapped[str] = mapped_column(
+        ForeignKey("domain_snapshots.id", ondelete="RESTRICT"), nullable=False
+    )
+    domain: Mapped[str] = mapped_column(String(40), nullable=False)
+    patch: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    evidence: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False)
+    alternatives: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    needs_human: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    proposal_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    validation: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

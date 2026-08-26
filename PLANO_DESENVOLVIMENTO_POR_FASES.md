@@ -529,63 +529,63 @@ Adicionar IA somente onde houver ganho mensurável sobre o pipeline determiníst
 
 ## Pacote 6.1 — Contratos de ferramentas
 
-- [ ] Definir ferramentas de leitura com menor privilégio.
-- [ ] Definir `propose_patch` e `validate_patch`.
-- [ ] Proibir shell, filesystem global e SQL livre.
-- [ ] Aplicar escopo de job e empresa em todas as ferramentas.
-- [ ] Produzir `docs/OPENCLAW_TOOL_CONTRACTS.md`.
+- [x] Definir ferramentas de leitura com menor privilégio.
+- [x] Definir `propose_patch` e `validate_patch`.
+- [x] Proibir shell, filesystem global e SQL livre.
+- [x] Aplicar escopo de job e empresa em todas as ferramentas.
+- [x] Produzir `docs/OPENCLAW_TOOL_CONTRACTS.md`.
 
 ## Pacote 6.2 — Schemas de saída
 
-- [ ] Criar JSON Schemas por domínio.
-- [ ] Validar saídas antes de qualquer aplicação.
-- [ ] Definir confidence, evidence, alternatives e reason.
-- [ ] Rejeitar saída inválida ou sem evidência.
-- [ ] Produzir `docs/AGENT_OUTPUT_SCHEMAS.md`.
+- [x] Criar JSON Schemas por domínio.
+- [x] Validar saídas antes de qualquer aplicação.
+- [x] Definir confidence, evidence, alternatives e reason.
+- [x] Rejeitar saída inválida ou sem evidência.
+- [x] Produzir `docs/AGENT_OUTPUT_SCHEMAS.md`.
 
 ## Pacote 6.3 — Orquestração substituível
 
-- [ ] Implementar contrato `Orchestrator`.
-- [ ] Implementar SequentialOrchestrator.
-- [ ] Implementar TestOrchestrator.
-- [ ] Implementar SwarmOrchestrator atrás de feature flag.
-- [ ] Definir timeout, retry, custo, cancelamento e concorrência.
-- [ ] Impedir workers de criar novos Swarms.
+- [x] Implementar contrato `Orchestrator`.
+- [x] Implementar SequentialOrchestrator.
+- [x] Implementar TestOrchestrator.
+- [x] Implementar SwarmOrchestrator atrás de feature flag.
+- [x] Definir timeout, retry, custo, cancelamento e concorrência.
+- [x] Impedir workers de criar novos Swarms.
 
 ## Pacote 6.4 — Domínios assistidos incrementalmente
 
-- [ ] Metadata.
-- [ ] Contributors e affiliations.
-- [ ] Structure.
-- [ ] References.
-- [ ] Figures e tables.
-- [ ] Math e notes, somente se o piloto exigir.
+- [x] Metadata.
+- [x] Contributors e affiliations.
+- [x] Structure.
+- [x] References.
+- [x] Figures e tables.
+- [x] Math e notes, somente se o piloto exigir (contrato pronto; recurso inativo).
 - [ ] Medir cada domínio contra baseline humano.
 
 ## Pacote 6.5 — Segurança e avaliação de agentes
 
-- [ ] Testar prompt injection proveniente de IDML/PDF.
-- [ ] Testar saída inválida, timeout e worker crash.
-- [ ] Testar indisponibilidade OpenAI/OpenClaw.
-- [ ] Testar patches conflitantes ou atrasados.
-- [ ] Versionar prompts, Skills, modelos e configurações.
-- [ ] Registrar tokens, custo e latência sem raciocínio privado.
+- [x] Testar prompt injection proveniente de IDML/PDF.
+- [x] Testar saída inválida, timeout e worker crash.
+- [x] Testar indisponibilidade OpenAI/OpenClaw.
+- [x] Testar patches conflitantes ou atrasados.
+- [x] Versionar prompts, Skills, modelos e configurações.
+- [x] Registrar tokens, custo e latência sem raciocínio privado.
 
 ## Pacote 6.6 — QA e repair assistidos
 
 - [ ] Adicionar auditoria assistida somente após baseline.
 - [ ] Adicionar repair semântico com limite de ciclos.
-- [ ] Manter Release Judge apenas consultivo.
-- [ ] Encaminhar baixa confiança para humano.
+- [x] Manter Release Judge apenas consultivo.
+- [x] Encaminhar baixa confiança para humano.
 
 ## Gate de saída G6
 
-- [ ] Desativar Swarm não interrompe o pipeline principal.
+- [x] Desativar Swarm não interrompe o pipeline principal.
 - [ ] IA melhora métrica definida sem elevar risco além do limite.
-- [ ] Nenhum patch é aplicado sem schema, evidência e validação.
-- [ ] Prompt injection não altera ferramentas ou políticas.
-- [ ] Custo máximo por artigo é respeitado.
-- [ ] Release continua sendo determinístico.
+- [x] Nenhum patch é aplicado sem schema, evidência e validação.
+- [x] Prompt injection não altera ferramentas ou políticas.
+- [x] Custo máximo por artigo é respeitado.
+- [x] Release continua sendo determinístico.
 
 ---
 

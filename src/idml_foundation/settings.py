@@ -27,6 +27,15 @@ class Settings(BaseSettings):
     zip_max_ratio: int = Field(default=100, ge=1)
     session_ttl_seconds: int = Field(default=8 * 60 * 60, ge=300, le=7 * 24 * 60 * 60)
     feature_openclaw: bool = False
+    feature_ai_swarm: bool = False
+    ai_timeout_seconds: int = Field(default=45, ge=1, le=300)
+    ai_max_attempts: int = Field(default=2, ge=1, le=2)
+    ai_max_input_tokens: int = Field(default=12_000, ge=1)
+    ai_max_output_tokens: int = Field(default=2_000, ge=1)
+    ai_max_cost_microusd: int = Field(default=50_000, ge=1)
+    ai_max_concurrency: int = Field(default=1, ge=1, le=1)
+    ai_confidence_threshold: float = Field(default=0.85, ge=0.0, le=1.0)
+    ai_max_repair_cycles: int = Field(default=2, ge=0, le=2)
     feature_clamav: bool = False
     clamav_host: str = "clamav"
     clamav_port: int = 3310

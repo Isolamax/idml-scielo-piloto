@@ -8,7 +8,7 @@ from sqlalchemy import event, func, select, update
 from sqlalchemy.orm import Mapper, Session
 
 from idml_foundation.domain.canonical import CanonicalArticle
-from idml_foundation.domain.common import canonical_bytes
+from idml_foundation.domain.common import canonical_bytes, content_digest
 from idml_foundation.models import (
     DomainSnapshot,
     ReleaseApproval,
@@ -321,3 +321,73 @@ def snapshot_diff(before: Any, after: Any, path: str = "") -> list[dict[str, Any
                 changes.extend(snapshot_diff(before[index], after[index], child))
         return changes
     return [{"path": path or "/", "before": before, "after": after}]
+
+
+def validate_proposed_patch(
+    db: Session,
+    *,
+    organization_id: str,
+    item_id: str,
+    expected_version: int,
+    patch: tuple[JsonPatchOperation, ...],
+    profile: JournalProfile,
+    validator: OfflineJatsValidator,
+) -> dict[str, Any]:
+    """Validate an assistive patch without persisting or applying it."""
+    item = db.scalar(
+        select(ReviewItem).where(
+            ReviewItem.id == item_id,
+            ReviewItem.organization_id == organization_id,
+        )
+    )
+    if item is None:
+        raise LookupError("review item not found")
+    if item.state not in {"open", "claimed"} or item.version != expected_version:
+        raise RuntimeError("review item version conflict")
+    if not patch:
+        raise ValueError("proposal requires at least one operation")
+    for operation in patch:
+        validate_review_path(operation.path)
+        if not _path_is_scoped(operation.path, item.field_path):
+            raise ValueError("patch path is outside the review item scope")
+    snapshot = db.scalar(
+        select(DomainSnapshot).where(
+            DomainSnapshot.id == item.base_snapshot_id,
+            DomainSnapshot.organization_id == organization_id,
+            DomainSnapshot.resource_id == item.resource_id,
+            DomainSnapshot.model_kind == "canonical",
+        )
+    )
+    if snapshot is None:
+        raise ValueError("review base snapshot is unavailable")
+    latest_snapshot_id = db.scalar(
+        select(DomainSnapshot.id)
+        .where(
+            DomainSnapshot.organization_id == organization_id,
+            DomainSnapshot.resource_id == item.resource_id,
+            DomainSnapshot.model_kind == "canonical",
+        )
+        .order_by(DomainSnapshot.revision.desc())
+        .limit(1)
+    )
+    if latest_snapshot_id != snapshot.id:
+        raise RuntimeError("review base snapshot is stale")
+    updated_payload = copy.deepcopy(snapshot.payload)
+    for operation in patch:
+        _replace_pointer(updated_payload, operation)
+    updated_document = CanonicalArticle.model_validate(updated_payload)
+    base_document = load_snapshot(snapshot)
+    if updated_document == base_document:
+        raise ValueError("proposal does not change the canonical model")
+    xml = JatsBuilder(sps_version=profile.sps_version).build(updated_document)
+    validation = validator.validate(
+        xml, asset_names={asset.logical_name for asset in updated_document.assets}
+    )
+    return {
+        "accepted": True,
+        "base_snapshot_id": snapshot.id,
+        "candidate_content_sha256": content_digest(updated_document),
+        "xml_sha256": hashlib.sha256(xml).hexdigest(),
+        "validation_valid": validation.valid,
+        "validation": validation.model_dump(mode="json"),
+    }

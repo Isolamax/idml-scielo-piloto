@@ -335,3 +335,59 @@ class ReleaseApprovalHistoryRead(BaseModel):
     justification: str
     evidence_sha256: str
     created_at: datetime
+
+
+class AgentCapabilitiesRead(BaseModel):
+    enabled: bool
+    swarm_enabled: bool
+    auto_apply: Literal[False] = False
+    release_authority: Literal[False] = False
+    domains: list[str]
+    tools: list[str]
+    max_cost_microusd: int
+    max_concurrency: int
+
+
+class AgentRunRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    review_item_id: str
+    base_snapshot_id: str
+    task_type: str
+    domain: str
+    orchestrator: str
+    status: str
+    provider: str
+    model: str
+    prompt_version: str
+    output_schema_version: str
+    config_version: str
+    input_sha256: str
+    output_sha256: str | None
+    input_tokens: int
+    output_tokens: int
+    cost_microusd: int
+    latency_ms: int
+    attempts: int
+    error_code: str | None
+    created_at: datetime
+
+
+class AgentProposalRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    agent_run_id: str
+    review_item_id: str
+    base_snapshot_id: str
+    domain: str
+    patch: list[dict[str, Any]]
+    confidence: float
+    evidence: list[dict[str, Any]]
+    alternatives: list[str]
+    reason: str
+    needs_human: bool
+    proposal_sha256: str
+    validation: dict[str, Any]
+    created_at: datetime

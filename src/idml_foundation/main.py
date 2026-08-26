@@ -12,6 +12,7 @@ from idml_foundation.ingest.safe_zip import UnsafeArchiveError
 from idml_foundation.logging_config import configure_logging
 from idml_foundation.routers import (
     artifacts,
+    assistants,
     audit,
     auth,
     health,
@@ -77,6 +78,7 @@ def create_app() -> FastAPI:
     application.include_router(reviews.router)
     application.include_router(releases.router)
     application.include_router(audit.router)
+    application.include_router(assistants.router)
     application.include_router(ui.router)
 
     @application.exception_handler(UnsafeArchiveError)
