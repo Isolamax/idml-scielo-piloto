@@ -113,3 +113,14 @@ rollback é `idml-foundation:phase6-pre-crossrefs`, ID
 O backup `/opt/idml-platform/backups/20260826T212034Z` passou no restore isolado com 21 tabelas e
 um artefato. API, worker, PostgreSQL, Redis, OpenClaw e Mapalead ficaram healthy; a migration e as
 flags permaneceram inalteradas, com zero execuções/propostas de agentes.
+
+## Incremento pós-gate — patch atômico `RichText`
+
+Em 2026-08-27 foi concluída localmente a lacuna R-15. Propostas e decisões que atingem
+`RichText` agora devem substituir `plain.value` e o array completo `inlines` na mesma transação;
+alteração escalar, parcial ou duplicada é rejeitada antes de construir o candidato. O envelope
+assistivo entrega somente o contexto acoplado necessário, e os prompts foram versionados como
+`1.1`. O benchmark v1.2 foi preparado para reincorporar as oito legendas antes excluídas.
+
+Este incremento não executou agentes e não altera a decisão do Gate G6: custo monetário e ganho
+de qualidade contra baseline continuam pendentes, com as duas flags de IA mantidas desligadas.

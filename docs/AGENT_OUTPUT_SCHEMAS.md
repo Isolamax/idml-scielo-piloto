@@ -12,7 +12,7 @@ Propriedades adicionais são rejeitadas.
 |---|---|
 | `schema_version` | valor exato `agent-proposal-1.0` |
 | `domain` | um dos seis domínios configurados e igual à tarefa |
-| `patch` | 1–5 operações `replace`; caminho JSON Pointer existente e escopado |
+| `patch` | 1–5 operações `replace`; caminho JSON Pointer existente, escopado e sem duplicação |
 | `confidence` | número entre 0 e 1 |
 | `evidence` | 1–20 referências existentes no item |
 | `alternatives` | 1–10 alternativas explícitas |
@@ -36,6 +36,11 @@ ser válido: os quatro valores são comparados com a evidência tenant-bound ent
 O prefixo do domínio é uma primeira barreira. A operação também precisa estar no campo do
 `ReviewItem`, atingir um caminho existente, produzir mudança real, preservar o modelo canônico e
 passar pelo build e validação JATS determinísticos.
+
+Para `RichText`, `plain.value` e `inlines` formam um único valor semântico. Se o fragmento trouxer
+`atomic_rich_text`, a proposta deve conter as duas operações indicadas: uma substitui o texto
+simples e a outra substitui o array completo de inlines. A concatenação de `inline.text` deve ser
+exatamente igual a `plain.value`; não é permitido alterar somente um inline individual.
 
 ## Rejeição
 

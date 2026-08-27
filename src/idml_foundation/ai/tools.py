@@ -46,6 +46,25 @@ def _pointer_value(payload: Any, path: str) -> Any:
     return current
 
 
+def _atomic_rich_text_context(payload: dict[str, Any], path: str) -> dict[str, Any] | None:
+    suffix = "/plain/value"
+    if not path.endswith(suffix):
+        return None
+    root_path = path[: -len(suffix)]
+    rich_text = _pointer_value(payload, root_path)
+    if not (
+        isinstance(rich_text, dict)
+        and isinstance(rich_text.get("plain"), dict)
+        and isinstance(rich_text.get("inlines"), list)
+    ):
+        return None
+    return {
+        "root_path": root_path,
+        "value": sanitize_untrusted(rich_text),
+        "required_patch_paths": [path, f"{root_path}/inlines"],
+    }
+
+
 def _source_kind(value: Any) -> str:
     normalized = str(value or "canonical").casefold().replace("_", "-")
     if normalized in {"idml", "pdf", "validation", "canonical"}:
@@ -131,13 +150,17 @@ class AgentToolService:
         if path != self.item.field_path and not path.startswith(f"{self.item.field_path}/"):
             raise PermissionError("canonical path is outside the review scope")
         value = _pointer_value(self.snapshot.payload, path)
+        atomic_context = _atomic_rich_text_context(self.snapshot.payload, path)
+        payload: dict[str, Any] = {
+            "snapshot_id": self.snapshot.id,
+            "path": path,
+            "value": sanitize_untrusted(value),
+        }
+        if atomic_context is not None:
+            payload["atomic_rich_text"] = atomic_context
         return self._result(
             "idml_read_canonical_fragment",
-            {
-                "snapshot_id": self.snapshot.id,
-                "path": path,
-                "value": sanitize_untrusted(value),
-            },
+            payload,
         )
 
     def read_evidence(self) -> ToolResult:

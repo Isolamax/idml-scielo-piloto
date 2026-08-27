@@ -102,13 +102,26 @@ caso de referência foi corrigido exatamente e outro melhorou apenas 0,00118 de 
 os cinco casos comparáveis, a similaridade média subiu de 0,68071 para 0,74210, mas o resultado é
 dominado por um único acerto e não comprova ganho editorial generalizável.
 
+## Preparação do benchmark v1.2 — sem execução de agentes
+
+O contrato de patch atômico foi implementado após a medição v1.1. O backend agora entrega o
+contexto `RichText` mínimo, exige a substituição conjunta de `plain.value` e do array completo
+`inlines`, rejeita caminhos duplicados ou alterações parciais e valida o canônico/JATS em memória.
+Os prompts versionados passaram a `1.1`, e o construtor, runner, scorer e validador do benchmark
+foram preparados para o dataset `idml-agent-initial-corpus-eval-1.2`. As oito legendas antes
+excluídas podem voltar a compor a avaliação.
+
+Nenhum agente foi executado e nenhuma nova métrica de qualidade foi produzida neste incremento.
+As flags de OpenClaw e Swarm permanecem desligadas; o v1.2 será executado somente na etapa futura
+de testes com agentes autorizada pelo responsável do projeto.
+
 ## Decisão e próximos incrementos
 
 Os resultados mantêm `IDML_FEATURE_OPENCLAW=false` e `IDML_FEATURE_AI_SWARM=false`. G6 permanece
 bloqueado e a Fase 7 não deve começar. Ordem recomendada de desenvolvimento:
 
 1. adjudicar com revisores as seis divergências bibliográficas quando houver disponibilidade;
-2. definir patch atômico para `RichText`, preservando ou reconstruindo `plain` e `inlines` juntos;
+2. [concluído] definir patch atômico para `RichText`, preservando `plain` e `inlines` juntos;
 3. reforçar structured output/evidence binding e reduzir o prompt de aproximadamente 9 mil tokens;
 4. implementar observação de custo monetário por chamada;
 5. criar profile/style mapping RBEdu somente quando a expansão de template for autorizada;

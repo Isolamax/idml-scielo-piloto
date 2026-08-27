@@ -65,6 +65,21 @@ def validate_review_path(path: str) -> None:
         raise ValueError("review path is outside editable canonical content")
 
 
+def _pointer_value(document: Any, path: str) -> Any:
+    current = document
+    for segment in _segments(path):
+        if isinstance(current, list):
+            try:
+                current = current[int(segment)]
+            except (ValueError, IndexError) as exc:
+                raise ValueError("patch path contains an invalid list index") from exc
+        elif isinstance(current, dict) and segment in current:
+            current = current[segment]
+        else:
+            raise ValueError("patch path does not exist")
+    return current
+
+
 def _replace_pointer(document: Any, operation: JsonPatchOperation) -> None:
     segments = _segments(operation.path)
     current = document
@@ -93,6 +108,82 @@ def _replace_pointer(document: Any, operation: JsonPatchOperation) -> None:
 
 def _path_is_scoped(operation_path: str, item_path: str) -> bool:
     return operation_path == item_path or operation_path.startswith(f"{item_path}/")
+
+
+def _rich_text_root(path: str) -> str | None:
+    """Return the RichText root for one of its coupled scalar/inline paths."""
+    plain_suffix = "/plain/value"
+    if path.endswith(plain_suffix):
+        return path[: -len(plain_suffix)]
+    marker = "/inlines"
+    if marker in path:
+        root, remainder = path.split(marker, maxsplit=1)
+        if not remainder or remainder.startswith("/"):
+            return root
+    return None
+
+
+def _atomic_rich_text_paths(root: str) -> tuple[str, str]:
+    return f"{root}/plain/value", f"{root}/inlines"
+
+
+def validate_patch_scope_and_atomicity(
+    document: dict[str, Any],
+    patch: tuple[JsonPatchOperation, ...],
+    item_path: str,
+) -> None:
+    """Validate scope and coupled RichText changes before mutating a candidate.
+
+    `plain.value` and `inlines` are one semantic value. Replacing only one side can
+    create an invalid or misleading canonical article, so both operations must be
+    present in the same transaction. The companion sibling is allowed even when
+    the review item points at the scalar `plain.value` path.
+    """
+    paths = [operation.path for operation in patch]
+    if len(paths) != len(set(paths)):
+        raise ValueError("patch contains duplicate paths")
+
+    item_rich_root = _rich_text_root(item_path)
+    item_atomic_paths = (
+        set(_atomic_rich_text_paths(item_rich_root)) if item_rich_root is not None else set()
+    )
+    touched_roots: set[str] = set()
+    for operation in patch:
+        validate_review_path(operation.path)
+        if not _path_is_scoped(operation.path, item_path):
+            if operation.path not in item_atomic_paths:
+                raise ValueError("patch path is outside the review item scope")
+        root = _rich_text_root(operation.path)
+        if root is not None:
+            try:
+                candidate = _pointer_value(document, root)
+            except ValueError:
+                candidate = None
+            if (
+                isinstance(candidate, dict)
+                and isinstance(candidate.get("plain"), dict)
+                and "value" in candidate["plain"]
+                and isinstance(candidate.get("inlines"), list)
+            ):
+                touched_roots.add(root)
+
+    path_set = set(paths)
+    for root in touched_roots:
+        plain_path, inlines_path = _atomic_rich_text_paths(root)
+        if any(path.startswith(f"{inlines_path}/") for path in path_set):
+            raise ValueError(
+                f"RichText patches must replace the complete {inlines_path} array"
+            )
+        relevant = {
+            path
+            for path in path_set
+            if path == plain_path or path == inlines_path or path.startswith(f"{inlines_path}/")
+        }
+        if relevant and {plain_path, inlines_path} - path_set:
+            raise ValueError(
+                "RichText changes require an atomic patch replacing both "
+                f"{plain_path} and {inlines_path}"
+            )
 
 
 def claim_review_item(
@@ -193,10 +284,6 @@ def apply_review_decision(
         return item, decision, None
     if not payload.patch:
         raise ValueError("apply_patch decision requires at least one operation")
-    for operation in payload.patch:
-        validate_review_path(operation.path)
-        if not _path_is_scoped(operation.path, item.field_path):
-            raise ValueError("patch path is outside the review item scope")
 
     base_snapshot = db.scalar(
         select(DomainSnapshot).where(
@@ -224,6 +311,7 @@ def apply_review_decision(
     if not isinstance(base_document, CanonicalArticle):
         raise ValueError("review base is not canonical")
     updated_payload = copy.deepcopy(base_snapshot.payload)
+    validate_patch_scope_and_atomicity(updated_payload, payload.patch, item.field_path)
     for operation in payload.patch:
         _replace_pointer(updated_payload, operation)
     reasons = updated_payload.get("review_reasons", [])
@@ -346,10 +434,6 @@ def validate_proposed_patch(
         raise RuntimeError("review item version conflict")
     if not patch:
         raise ValueError("proposal requires at least one operation")
-    for operation in patch:
-        validate_review_path(operation.path)
-        if not _path_is_scoped(operation.path, item.field_path):
-            raise ValueError("patch path is outside the review item scope")
     snapshot = db.scalar(
         select(DomainSnapshot).where(
             DomainSnapshot.id == item.base_snapshot_id,
@@ -373,6 +457,7 @@ def validate_proposed_patch(
     if latest_snapshot_id != snapshot.id:
         raise RuntimeError("review base snapshot is stale")
     updated_payload = copy.deepcopy(snapshot.payload)
+    validate_patch_scope_and_atomicity(updated_payload, patch, item.field_path)
     for operation in patch:
         _replace_pointer(updated_payload, operation)
     updated_document = CanonicalArticle.model_validate(updated_payload)

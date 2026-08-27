@@ -21,7 +21,10 @@ from idml_foundation.pipeline.profile import load_profile
 from idml_foundation.pipeline.service import DeterministicPipeline
 from idml_foundation.pipeline.validation import OfflineJatsValidator
 from idml_foundation.schemas import JsonPatchOperation
-from idml_foundation.services.reviews import _replace_pointer, validate_review_path
+from idml_foundation.services.reviews import (
+    _replace_pointer,
+    validate_patch_scope_and_atomicity,
+)
 
 
 def _pointer_value(document: Any, path: str) -> Any:
@@ -93,13 +96,9 @@ def main() -> int:
                 JsonPatchOperation.model_validate(operation.model_dump(mode="json"))
                 for operation in proposal.patch
             )
-            for operation in operations:
-                validate_review_path(operation.path)
-                if not (
-                    operation.path == case["field_path"]
-                    or operation.path.startswith(f"{case['field_path']}/")
-                ):
-                    raise ValueError("patch path outside review-item scope")
+            validate_patch_scope_and_atomicity(
+                base_payload, operations, case["field_path"]
+            )
             row["scope_valid"] = True
             candidate_payload = copy.deepcopy(base_payload)
             for operation in operations:

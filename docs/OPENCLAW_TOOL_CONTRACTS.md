@@ -36,7 +36,7 @@ escopo.
 | Ferramenta | Acesso | Efeito |
 |---|---|---|
 | `idml_read_review_item` | item exato | leitura sanitizada |
-| `idml_read_canonical_fragment` | campo do item e descendentes | leitura sanitizada |
+| `idml_read_canonical_fragment` | campo do item; contexto `RichText` acoplado quando aplicável | leitura sanitizada |
 | `idml_read_evidence` | evidência do item | leitura, locator e hash |
 | `idml_read_validation_issues` | evidência de validação do item | leitura |
 | `idml_propose_patch` | saída fechada do domínio | proposta, sem gravação canônica |
@@ -53,9 +53,11 @@ com `enabled=false` e nenhuma Skill carregada.
 3. A saída é validada novamente pelo backend.
 4. Cada referência de evidência deve coincidir em ID, tipo, locator e hash.
 5. O patch deve ficar no domínio e no campo do item de revisão.
-6. O snapshot deve continuar sendo a ponta atual da linhagem.
-7. O JATS candidato é construído e validado sem persistir a alteração.
-8. Uma `AgentProposal` imutável é encaminhada para revisão humana.
+6. Uma alteração em `RichText` deve substituir `plain.value` e o array completo `inlines` na mesma
+   proposta; patch escalar, parcial ou com caminhos duplicados é rejeitado antes do build.
+7. O snapshot deve continuar sendo a ponta atual da linhagem.
+8. O JATS candidato é construído e validado sem persistir a alteração.
+9. Uma `AgentProposal` imutável é encaminhada para revisão humana.
 
 Não existe ferramenta de aplicar patch ou aprovar release. O endpoint público desta fase é
 consultivo: capacidades, runs e leitura tenant-bound de propostas. A CLI oficial também expõe

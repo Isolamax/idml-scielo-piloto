@@ -94,7 +94,6 @@ def _canonical_fields(article: Any) -> dict[str, list[tuple[str, str]]]:
                 if (
                     isinstance(block, (FigureBlock, TableBlock))
                     and block.caption.plain.value
-                    and not block.caption.inlines
                 ):
                     fields["figures_tables"].append(
                         (f"{block_path}/caption/plain/value", block.caption.plain.value)
@@ -106,7 +105,6 @@ def _canonical_fields(article: Any) -> dict[str, list[tuple[str, str]]]:
                 if (
                     isinstance(block, NoteBlock)
                     and block.content.plain.value
-                    and not block.content.inlines
                 ):
                     fields["math_notes"].append(
                         (f"{block_path}/content/plain/value", block.content.plain.value)
@@ -130,28 +128,25 @@ def _canonical_fields(article: Any) -> dict[str, list[tuple[str, str]]]:
     return fields
 
 
-def _coupled_rich_text_exclusions(article: Any) -> dict[str, int]:
-    excluded = {"figures_tables": 0, "math_notes": 0}
-
-    def walk(sections: Any) -> None:
-        for section in sections:
-            for block in section.blocks:
-                if (
-                    isinstance(block, (FigureBlock, TableBlock))
-                    and block.caption.plain.value
-                    and block.caption.inlines
-                ):
-                    excluded["figures_tables"] += 1
-                if (
-                    isinstance(block, NoteBlock)
-                    and block.content.plain.value
-                    and block.content.inlines
-                ):
-                    excluded["math_notes"] += 1
-            walk(section.children)
-
-    walk(article.body)
-    return excluded
+def _atomic_rich_text_context(article: Any, path: str) -> dict[str, Any] | None:
+    suffix = "/plain/value"
+    if not path.endswith(suffix):
+        return None
+    root_path = path[: -len(suffix)]
+    current: Any = article.model_dump(mode="json")
+    for segment in root_path.removeprefix("/").split("/"):
+        current = current[int(segment)] if isinstance(current, list) else current[segment]
+    if not (
+        isinstance(current, dict)
+        and isinstance(current.get("plain"), dict)
+        and isinstance(current.get("inlines"), list)
+    ):
+        return None
+    return {
+        "root_path": root_path,
+        "current_inlines": current["inlines"],
+        "required_patch_paths": [path, f"{root_path}/inlines"],
+    }
 
 
 def _gold_values(root: Any) -> dict[str, list[str]]:
@@ -207,25 +202,27 @@ def _cases(article: Any, gold: Any, *, limit: int) -> list[dict[str, Any]]:
                 continue
             case_id = f"esa-{domain}-{emitted + 1:03d}"
             evidence_id = f"gold-{domain}-{emitted + 1:03d}"
-            cases.append(
-                {
-                    "case_id": case_id,
-                    "domain": domain,
-                    "field_path": path,
-                    "current_value": current,
-                    "expected_value": expected,
-                    "baseline_similarity": similarity,
-                    "evidence": {
-                        "evidence_id": evidence_id,
-                        "source_kind": "canonical",
-                        "locator": f"approved_xml:{domain}:{emitted + 1}",
-                        "excerpt": expected[:500],
-                        "excerpt_sha256": payload_digest(expected[:500]),
-                    },
-                    "alternatives": [expected, current],
-                    "injected_text": injection,
-                }
-            )
+            case = {
+                "case_id": case_id,
+                "domain": domain,
+                "field_path": path,
+                "current_value": current,
+                "expected_value": expected,
+                "baseline_similarity": similarity,
+                "evidence": {
+                    "evidence_id": evidence_id,
+                    "source_kind": "canonical",
+                    "locator": f"approved_xml:{domain}:{emitted + 1}",
+                    "excerpt": expected[:500],
+                    "excerpt_sha256": payload_digest(expected[:500]),
+                },
+                "alternatives": [expected, current],
+                "injected_text": injection,
+            }
+            atomic_context = _atomic_rich_text_context(article, path)
+            if atomic_context is not None:
+                case["atomic_rich_text"] = atomic_context
+            cases.append(case)
             emitted += 1
     return cases
 
@@ -301,7 +298,7 @@ def main() -> int:
     gold_body = normalize_text(" ".join(gold.xpath("body//text()")))
     generated_body = normalize_text(" ".join(generated.xpath("body//text()")))
     cases = _cases(esa_result.canonical, gold, limit=args.cases_per_domain)
-    metrics = {
+    metrics: dict[str, Any] = {
         "version": "initial-corpus-technical-baseline-1.0",
         "restricted": True,
         "gold_proxy": "approved_xml_reference",
@@ -311,9 +308,7 @@ def main() -> int:
             "text_fidelity": text_fidelity(gold_body, generated_body),
             "domain_set_scores": scores,
             "eligible_agent_cases": len(cases),
-            "excluded_coupled_rich_text": _coupled_rich_text_exclusions(
-                esa_result.canonical
-            ),
+            "atomic_rich_text_cases": sum("atomic_rich_text" in case for case in cases),
             "eligible_by_domain": {
                 domain: sum(case["domain"] == domain for case in cases)
                 for domain in _canonical_fields(esa_result.canonical)
@@ -326,11 +321,11 @@ def main() -> int:
     args.cases_output.write_text(
         json.dumps(
             {
-                "version": "idml-agent-initial-corpus-eval-1.1",
+                "version": "idml-agent-initial-corpus-eval-1.2",
                 "description": "Restricted minimized cases; do not commit or redistribute.",
                 "restricted": True,
-                "excluded_coupled_rich_text": _coupled_rich_text_exclusions(
-                    esa_result.canonical
+                "atomic_rich_text_cases": sum(
+                    "atomic_rich_text" in case for case in cases
                 ),
                 "cases": cases,
             },

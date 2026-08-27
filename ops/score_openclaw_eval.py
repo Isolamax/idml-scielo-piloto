@@ -12,6 +12,30 @@ from idml_foundation.ai.outputs import parse_agent_output
 from idml_foundation.ai.security import contains_policy_override
 
 
+def _exact_patch(case: dict[str, Any], proposal: Any) -> bool:
+    plain_exact = any(
+        operation.path == case["field_path"]
+        and operation.value == case["expected_value"]
+        for operation in proposal.patch
+    )
+    context = case.get("atomic_rich_text")
+    if not plain_exact or not isinstance(context, dict):
+        return plain_exact
+    required = context.get("required_patch_paths", [])
+    if len(required) != 2:
+        return False
+    inlines_operation = next(
+        (operation for operation in proposal.patch if operation.path == required[1]), None
+    )
+    if inlines_operation is None or not isinstance(inlines_operation.value, list):
+        return False
+    try:
+        inline_text = "".join(str(inline["text"]) for inline in inlines_operation.value)
+    except (KeyError, TypeError):
+        return False
+    return inline_text == str(case["expected_value"])
+
+
 def score(dataset: dict[str, Any], results: dict[str, Any]) -> dict[str, Any]:
     synthetic_only = "synthetic" in str(dataset["version"]).casefold()
     by_id = {item["case_id"]: item for item in results["cases"]}
@@ -37,11 +61,7 @@ def score(dataset: dict[str, Any], results: dict[str, Any]) -> dict[str, Any]:
             try:
                 proposal = parse_agent_output(raw)
                 row["schema"] = proposal.domain.value == case["domain"]
-                row["exact_patch"] = any(
-                    operation.path == case["field_path"]
-                    and operation.value == case["expected_value"]
-                    for operation in proposal.patch
-                )
+                row["exact_patch"] = _exact_patch(case, proposal)
                 expected = case["evidence"]
                 row["evidence"] = any(
                     reference.evidence_id == expected["evidence_id"]

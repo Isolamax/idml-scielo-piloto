@@ -16,7 +16,7 @@ PLANO_ANALISE_CODEX_SCIELO_IDML_OPENCLAW_SWARM.md
 
 ```text
 PROJECT_STATUS: PHASE_6_TECHNICAL_EVALUATION_BLOCKED
-CURRENT_PHASE: FASE 6 com fundação concluída — Gate G6 bloqueado em avaliação offline
+CURRENT_PHASE: FASE 6 com patch atômico concluído — Gate G6 bloqueado em custo e avaliação futura
 IMPLEMENTATION_AUTHORIZED: PHASE_6_AUTHORIZED — PHASE_7_NOT_AUTHORIZED
 PRODUCTION_DEPLOYMENT_AUTHORIZED: NO
 ARCHITECTURE_STATUS: APPROVED_WITH_CHANGES
@@ -541,6 +541,7 @@ Adicionar IA somente onde houver ganho mensurável sobre o pipeline determiníst
 - [x] Validar saídas antes de qualquer aplicação.
 - [x] Definir confidence, evidence, alternatives e reason.
 - [x] Rejeitar saída inválida ou sem evidência.
+- [x] Exigir patch atômico de `RichText` para `plain.value` e `inlines`.
 - [x] Produzir `docs/AGENT_OUTPUT_SCHEMAS.md`.
 
 ## Pacote 6.3 — Orquestração substituível
@@ -744,7 +745,7 @@ Cada novo periódico deve possuir corpus, profile, style mapping, métricas, hom
 | R-12 | Perda de dados ou histórico | Crítico | Imutabilidade, backups e restore testado | Mitigado na fundação; monitorado |
 | R-13 | Vazamento ou contaminação do corpus | Alto | Manifestos sem conteúdo, acesso restrito e holdout separado | Mitigado; monitorado |
 | R-14 | Referências sem `xref` bibliográfico | Alto | Detecção offline, CrossRef Accuracy e resolver determinístico de citações | Mitigado tecnicamente — 81 vínculos/52 alvos; seis divergências com o aprovado aguardam adjudicação |
-| R-15 | Patch escalar quebrar invariantes de `RichText` | Alto | Patch atômico de `plain` + `inlines` e validação prévia | Detectado; benchmark v1.1 exclui caminhos inseguros |
+| R-15 | Patch escalar quebrar invariantes de `RichText` | Alto | Patch atômico de `plain` + `inlines` e validação prévia | Mitigado; benchmark v1.2 preparado sem execução de agentes |
 
 # 8. Definition of Done global
 
@@ -821,3 +822,4 @@ ADRs iniciais esperados:
 | 2026-08-26 | Fundação da Fase 6 implantada com flags desligadas; agente OpenClaw isolado e benchmark real v1.1 executado; G6 permanece bloqueado por baixa qualidade, custo não observável e ausência de baseline humano | Codex |
 | 2026-08-26 | Resolvedor determinístico ESA concluído; 81 vínculos bibliográficos gerados, parser de células corrigido e CrossRef Accuracy incorporada ao G3; seis divergências com o XML aprovado aguardam adjudicação humana | Codex |
 | 2026-08-27 | Resolvedor bibliográfico implantado na VPS com backup/restore e rollback; serviços saudáveis e flags de IA mantidas desligadas | Codex |
+| 2026-08-27 | Patch atômico de RichText concluído localmente; prompts 1.1 e benchmark v1.2 preparados; nenhum agente executado e flags mantidas desligadas | Codex |

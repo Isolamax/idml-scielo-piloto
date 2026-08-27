@@ -28,6 +28,7 @@ from idml_foundation.ai.outputs import AgentDomain, output_json_schema, parse_ag
 from idml_foundation.ai.registry import load_registry
 from idml_foundation.ai.security import payload_digest, untrusted_envelope
 from idml_foundation.ai.service import run_assistance
+from idml_foundation.ai.tools import AgentToolService
 from idml_foundation.models import (
     AgentProposal,
     Membership,
@@ -132,6 +133,96 @@ def _scoped_review(db: Session) -> tuple[ToolScope, ReviewItem]:
     )
 
 
+def _rich_text_review(db: Session) -> tuple[ToolScope, ReviewItem]:
+    org = Organization(slug="phase6-rich-text", name="Phase 6 RichText")
+    db.add(org)
+    db.flush()
+    resource = Resource(organization_id=org.id, title="RichText article")
+    db.add(resource)
+    db.flush()
+    snapshot, _ = store_snapshot(
+        db,
+        organization_id=org.id,
+        resource_id=resource.id,
+        document=canonical_article(),
+        revision=1,
+    )
+    item = ReviewItem(
+        organization_id=org.id,
+        resource_id=resource.id,
+        base_snapshot_id=snapshot.id,
+        category="figures_tables",
+        rule_code="FIGURE_CAPTION_AMBIGUOUS",
+        field_path="/body/0/blocks/1/caption/plain/value",
+        message="Figure caption requires an atomic evidence-backed correction",
+        evidence=[
+            {
+                "evidence_id": "ev-caption-1",
+                "source_kind": "idml",
+                "locator": "Stories/Story_u1.xml#caption",
+                "excerpt": "Corrected figure",
+            }
+        ],
+        alternatives=["Corrected figure", "Synthetic figure"],
+    )
+    db.add(item)
+    db.flush()
+    return (
+        ToolScope(
+            organization_id=org.id,
+            job_id=None,
+            resource_id=resource.id,
+            review_item_id=item.id,
+            base_snapshot_id=snapshot.id,
+            expected_review_version=1,
+            domain=AgentDomain.FIGURES_TABLES,
+        ),
+        item,
+    )
+
+
+def _rich_text_proposal(*, atomic: bool) -> dict[str, Any]:
+    patch: list[dict[str, Any]] = [
+        {
+            "op": "replace",
+            "path": "/body/0/blocks/1/caption/plain/value",
+            "value": "Corrected figure",
+        }
+    ]
+    if atomic:
+        patch.append(
+            {
+                "op": "replace",
+                "path": "/body/0/blocks/1/caption/inlines",
+                "value": [
+                    {
+                        "id": "inline-16-Synt",
+                        "kind": "text",
+                        "text": "Corrected figure",
+                        "evidence_ids": ["evidence-source-1"],
+                    }
+                ],
+            }
+        )
+    return {
+        "schema_version": "agent-proposal-1.0",
+        "domain": "figures_tables",
+        "patch": patch,
+        "confidence": 0.93,
+        "evidence": [
+            {
+                "evidence_id": "ev-caption-1",
+                "source_kind": "idml",
+                "locator": "Stories/Story_u1.xml#caption",
+                "excerpt_sha256": payload_digest("Corrected figure"),
+            }
+        ],
+        "alternatives": ["Keep the current caption"],
+        "reason": "The exact scoped evidence corrects the complete figure caption text.",
+        "needs_human": True,
+    }
+
+
 def test_closed_schema_rejects_invalid_or_unsupported_output() -> None:
     digest = payload_digest("Corrected title")
     valid = _proposal(evidence_sha=digest)
@@ -145,6 +236,29 @@ def test_closed_schema_rejects_invalid_or_unsupported_output() -> None:
     low_confidence = dict(valid, confidence=0.2, needs_human=False)
     with pytest.raises(ValidationError):
         parse_agent_output(low_confidence)
+
+
+def test_rich_text_patch_requires_atomic_plain_and_inlines(db: Session) -> None:
+    scope, item = _rich_text_review(db)
+    tools = AgentToolService(db, scope)
+    fragment = tools.read_canonical_fragment(item.field_path).payload
+    assert fragment["atomic_rich_text"]["root_path"] == "/body/0/blocks/1/caption"
+    assert fragment["atomic_rich_text"]["required_patch_paths"] == [
+        "/body/0/blocks/1/caption/plain/value",
+        "/body/0/blocks/1/caption/inlines",
+    ]
+
+    scalar_only = parse_agent_output(_rich_text_proposal(atomic=False))
+    with pytest.raises(ValueError, match="atomic patch"):
+        tools.validate_proposal(scalar_only)
+
+    atomic = parse_agent_output(_rich_text_proposal(atomic=True))
+    result = tools.validate_proposal(atomic).payload
+    assert result["accepted"] is True
+    assert result["candidate_content_sha256"]
+    assert result["xml_sha256"]
+    assert item.state == "open"
+    assert item.version == 1
 
 
 def test_disabled_swarm_and_noop_do_not_fail_pipeline() -> None:

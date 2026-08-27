@@ -53,3 +53,50 @@ def test_score_distinguishes_restricted_real_corpus_from_synthetic() -> None:
     assert real["synthetic_only"] is False
     assert synthetic["restricted"] is False
     assert synthetic["synthetic_only"] is True
+
+
+def test_score_requires_both_sides_of_atomic_rich_text_patch() -> None:
+    dataset, results = _payloads("idml-agent-initial-corpus-eval-1.2")
+    case = dataset["cases"][0]
+    case["domain"] = "figures_tables"
+    case["field_path"] = "/body/0/blocks/1/caption/plain/value"
+    case["atomic_rich_text"] = {
+        "root_path": "/body/0/blocks/1/caption",
+        "current_inlines": [],
+        "required_patch_paths": [
+            "/body/0/blocks/1/caption/plain/value",
+            "/body/0/blocks/1/caption/inlines",
+        ],
+    }
+    result = results["cases"][0]
+    result.update(
+        status="succeeded",
+        tools_exposed=0,
+        skills_exposed=0,
+        output={
+            "schema_version": "agent-proposal-1.0",
+            "domain": "figures_tables",
+            "patch": [
+                {
+                    "op": "replace",
+                    "path": case["field_path"],
+                    "value": "Expected",
+                }
+            ],
+            "confidence": 0.9,
+            "evidence": [case["evidence"]],
+            "alternatives": ["Keep current"],
+            "reason": "The supplied evidence supports the corrected complete caption.",
+            "needs_human": True,
+        },
+    )
+    assert score(dataset, results)["metrics"]["exact_patch_accuracy"] == 0
+
+    result["output"]["patch"].append(
+        {
+            "op": "replace",
+            "path": case["atomic_rich_text"]["required_patch_paths"][1],
+            "value": [{"id": "inline-1", "kind": "text", "text": "Expected"}],
+        }
+    )
+    assert score(dataset, results)["metrics"]["exact_patch_accuracy"] == 1
