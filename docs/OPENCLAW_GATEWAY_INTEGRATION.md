@@ -1,6 +1,6 @@
 # Integração da aplicação com o gateway OpenClaw
 
-Data: 2026-08-27. Estado: implementada e desativada.
+Data: 2026-08-27. Estado: implementada, implantada e desativada.
 
 ## Contrato escolhido
 
@@ -53,3 +53,18 @@ Antes de habilitar `IDML_FEATURE_OPENCLAW`, escolher e validar uma destas opçõ
 Até essa fronteira existir, não configurar o token na aplicação, não conectar redes Docker e manter
 as duas flags de IA falsas. O OpenClaw e o Mapalead atuais não devem ser reiniciados ou alterados
 por este incremento.
+
+## Evidência de implantação
+
+A imagem `idml-foundation:phase6-gateway-v1`, ID
+`sha256:1bcd5223601bdbedc655aa113903adb87aabf0e8ed98c1be5c3655e2931847bd`, foi implantada com
+API/worker healthy e migration `f7b8c9d0e1f2`. O smoke confirmou `agent-config-1.2`,
+`agent-pricing-1.1`, modelo único `openai/gpt-5.4-mini`, preflight 18.000 micro-USD, token ausente,
+flags falsas e zero runs/propostas. API e worker permaneceram apenas nas redes internas do IDML;
+OpenResponses ficou desativado/ausente no gateway compartilhado.
+
+O rollback é `idml-foundation:phase6-pre-gateway`, ID
+`sha256:c6e0ef73c9e2ce9374381155460c4c04fd72246930295120c404cd880045d775`. O backup
+`/opt/idml-platform/backups/20260827T204747Z` passou no restore isolado; o snapshot anterior está em
+`/opt/idml-platform/backups/source-phase6-pre-gateway-20260827T204747Z.tar.gz`. OpenClaw e Mapalead
+continuaram healthy, a interface respondeu HTTP 200 e o volume raiz permaneceu em 79%.

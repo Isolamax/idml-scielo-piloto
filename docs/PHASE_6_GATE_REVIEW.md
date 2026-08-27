@@ -206,3 +206,16 @@ O endpoint OpenResponses do OpenClaw compartilhado continuou desativado. A auten
 compartilhado restaura autoridade completa de operador; por isso, a aplicação não foi conectada às
 redes do Mapalead/OpenClaw e nenhum token foi configurado. Uma instância dedicada ao IDML é a
 fronteira recomendada antes da ativação. Nenhum agente foi executado neste incremento.
+
+Localmente, 88 testes passaram com cobertura de 85,69%, além de Ruff e Mypy. A migration passou em
+upgrade, downgrade para `e6a7b8c9d0e1` e novo upgrade. Na VPS, a imagem
+`idml-foundation:phase6-gateway-v1`, ID
+`sha256:1bcd5223601bdbedc655aa113903adb87aabf0e8ed98c1be5c3655e2931847bd`, deixou API e
+worker healthy, interface HTTP 200, migration `f7b8c9d0e1f2`, flags falsas, token ausente e zero
+runs/propostas. PostgreSQL/Redis foram preservados; OpenClaw/Mapalead permaneceram healthy.
+
+O rollback é `idml-foundation:phase6-pre-gateway`, ID
+`sha256:c6e0ef73c9e2ce9374381155460c4c04fd72246930295120c404cd880045d775`. O backup
+`/opt/idml-platform/backups/20260827T204747Z` passou no restore com 21 tabelas e um artefato; o
+snapshot anterior está em
+`/opt/idml-platform/backups/source-phase6-pre-gateway-20260827T204747Z.tar.gz`.

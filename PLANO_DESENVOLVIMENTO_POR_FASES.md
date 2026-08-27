@@ -832,4 +832,4 @@ ADRs iniciais esperados:
 | 2026-08-27 | Patch atômico de RichText implantado com backup/restore e rollback; prompts 1.1 e benchmark v1.2 preparados; nenhum agente executado e flags mantidas desligadas | Codex |
 | 2026-08-27 | Vínculo operação-evidência e envelope compacto implantados; schema 1.1, prompts 1.2 e benchmark v1.3 preparados; nenhum agente executado e flags mantidas desligadas | Codex |
 | 2026-08-27 | Política monetária fail-closed implementada e implantada: custo do provider ou tarifa exata versionada, auditoria de proveniência e bloqueio `COST_UNAVAILABLE`; alias real permanece sem preço oficial verificado e flags desligadas | Codex |
-| 2026-08-27 | Tarifa oficial do `gpt-5.4-mini` fixada; cache, preflight, teto agregado por artigo e cliente OpenResponses restrito implementados; integração continua desligada até existir gateway dedicado ao IDML | Codex |
+| 2026-08-27 | Tarifa oficial do `gpt-5.4-mini` fixada; cache, preflight, teto agregado por artigo e cliente OpenResponses restrito implementados e implantados; integração continua desligada até existir gateway dedicado ao IDML | Codex |
