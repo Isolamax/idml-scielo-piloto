@@ -116,7 +116,7 @@ flags permaneceram inalteradas, com zero execuções/propostas de agentes.
 
 ## Incremento pós-gate — patch atômico `RichText`
 
-Em 2026-08-27 foi concluída localmente a lacuna R-15. Propostas e decisões que atingem
+Em 2026-08-27 foi concluída e implantada a lacuna R-15. Propostas e decisões que atingem
 `RichText` agora devem substituir `plain.value` e o array completo `inlines` na mesma transação;
 alteração escalar, parcial ou duplicada é rejeitada antes de construir o candidato. O envelope
 assistivo entrega somente o contexto acoplado necessário, e os prompts foram versionados como
@@ -124,3 +124,13 @@ assistivo entrega somente o contexto acoplado necessário, e os prompts foram ve
 
 Este incremento não executou agentes e não altera a decisão do Gate G6: custo monetário e ganho
 de qualidade contra baseline continuam pendentes, com as duas flags de IA mantidas desligadas.
+Localmente, 77 testes passaram com cobertura de 86,36%, além de Ruff e Mypy. Na VPS, a imagem
+`idml-foundation:phase6-richtext-v1`
+(`sha256:7c16c04730fdb11b734ac630c229bacaa1c96615146b4ae5b1fbc780d6bce307`) deixou API e worker
+healthy; PostgreSQL e Redis foram preservados; migration `d5f6a7b8c9d0`; seis prompts 1.1; zero
+`agent_runs` e `agent_proposals`. O rollback é `idml-foundation:phase6-pre-richtext`
+(`sha256:667c5faff1f8406659f1deddae03680eb1d0edab56e13e25398040d57ad6e893`). O backup
+`/opt/idml-platform/backups/20260827T124755Z` passou no restore isolado, e o snapshot anterior do
+código está em
+`/opt/idml-platform/backups/source-phase6-pre-richtext-20260827T124757Z.tar.gz`. OpenClaw e
+Mapalead permaneceram healthy e inalterados.
