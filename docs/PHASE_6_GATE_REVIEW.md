@@ -175,3 +175,16 @@ continuam falsas e o G6 permanece bloqueado pela fonte monetária real e pelo ba
 Localmente, 80 testes passaram com cobertura de 86,00%, além de Ruff e Mypy. A migration
 `e6a7b8c9d0e1` passou em upgrade, downgrade e novo upgrade. Nenhum agente foi executado neste
 incremento. Detalhes da regra estão em `docs/AGENT_COST_POLICY.md`.
+
+Na VPS, a imagem `idml-foundation:phase6-cost-v1`, ID
+`sha256:c6e0ef73c9e2ce9374381155460c4c04fd72246930295120c404cd880045d775`, deixou API e
+worker healthy; PostgreSQL e Redis foram preservados e a readiness confirmou ambos. A migration
+chegou a `e6a7b8c9d0e1`, com as três colunas de proveniência presentes, flags falsas,
+`priced_models=[]` e zero `agent_runs`/`agent_proposals`. A interface respondeu HTTP 200.
+
+O rollback é `idml-foundation:phase6-pre-cost`, ID
+`sha256:9eedfdbe2191ea0a4afbfec7e6a54f122458eb2b9b719d23769c65aa1dca9506`. O backup
+`/opt/idml-platform/backups/20260827T133753Z` passou no restore isolado com 21 tabelas e um
+artefato; o snapshot anterior está em
+`/opt/idml-platform/backups/source-phase6-pre-cost-20260827T133753Z.tar.gz`. OpenClaw 2026.6.11 e
+Mapalead permaneceram healthy e inalterados. O volume raiz ficou em 79%, com 21 GiB livres.
