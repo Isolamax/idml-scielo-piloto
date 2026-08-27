@@ -141,7 +141,8 @@ bloqueado e a Fase 7 não deve começar. Ordem recomendada de desenvolvimento:
 2. [concluído] definir patch atômico para `RichText`, preservando `plain` e `inlines` juntos;
 3. [concluído no envelope da aplicação] reforçar structured output/evidence binding e reduzir
    conteúdo redundante; medir o overhead total do OpenClaw somente nos testes futuros;
-4. implementar observação de custo monetário por chamada;
+4. [parcialmente concluído] observar/bloquear custo informado ou estimado por tarifa exata; obter
+   a fonte monetária oficial do alias real antes de retomar os agentes;
 5. criar profile/style mapping RBEdu somente quando a expansão de template for autorizada;
 6. repetir o benchmark com corpus maior e baseline humano assim que revisores estiverem disponíveis.
 

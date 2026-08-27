@@ -136,6 +136,9 @@ async def run_assistance(
         input_tokens=result.input_tokens,
         output_tokens=result.output_tokens,
         cost_microusd=result.cost_microusd,
+        cost_source=result.cost_source,
+        pricing_version=result.pricing_version,
+        pricing_model_key=result.pricing_model_key,
         latency_ms=result.latency_ms,
         attempts=result.attempts,
         budget={

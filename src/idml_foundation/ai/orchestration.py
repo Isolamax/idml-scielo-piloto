@@ -7,6 +7,13 @@ from typing import Any, Protocol
 
 from idml_foundation.ai.contracts import ALLOWED_TOOLS, enforce_tool_allowlist
 from idml_foundation.ai.outputs import parse_agent_output
+from idml_foundation.ai.pricing import (
+    CostUnavailable,
+    PricingCatalog,
+    ResolvedCost,
+    load_pricing_catalog,
+    normalize_model_key,
+)
 
 
 @dataclass(frozen=True)
@@ -59,7 +66,7 @@ class ProviderResponse:
     model: str
     input_tokens: int
     output_tokens: int
-    cost_microusd: int
+    cost_microusd: int | None = None
 
 
 @dataclass(frozen=True)
@@ -74,6 +81,9 @@ class OrchestrationResult:
     latency_ms: int
     attempts: int
     error_code: str | None = None
+    cost_source: str = "unavailable"
+    pricing_version: str | None = None
+    pricing_model_key: str | None = None
 
 
 class ProviderUnavailable(RuntimeError):
@@ -92,24 +102,44 @@ class Orchestrator(Protocol):
     async def run(self, request: OrchestrationRequest) -> OrchestrationResult: ...
 
 
-def _enforce_usage(response: ProviderResponse, budget: AgentBudget) -> None:
+def _enforce_tokens(response: ProviderResponse, budget: AgentBudget) -> None:
     if response.input_tokens > budget.max_input_tokens:
         raise RuntimeError("agent input token budget exceeded")
     if response.output_tokens > budget.max_output_tokens:
         raise RuntimeError("agent output token budget exceeded")
-    if response.cost_microusd > budget.max_cost_microusd:
+
+
+def _enforce_cost(cost: ResolvedCost, budget: AgentBudget) -> None:
+    if cost.microusd > budget.max_cost_microusd:
         raise RuntimeError("agent cost budget exceeded")
+
+
+def _model_key_or_none(response: ProviderResponse | None) -> str | None:
+    if response is None:
+        return None
+    try:
+        return normalize_model_key(response.provider, response.model)
+    except ValueError:
+        return None
 
 
 class SequentialOrchestrator:
     name = "sequential-v1"
 
-    def __init__(self, provider: AgentProvider) -> None:
+    def __init__(
+        self,
+        provider: AgentProvider,
+        *,
+        pricing_catalog: PricingCatalog | None = None,
+    ) -> None:
         self.provider = provider
+        self.pricing_catalog = pricing_catalog or load_pricing_catalog()
 
     async def run(self, request: OrchestrationRequest) -> OrchestrationResult:
         started = time.monotonic()
         attempts = 0
+        response: ProviderResponse | None = None
+        resolved_cost: ResolvedCost | None = None
         try:
             while attempts < request.budget.max_attempts:
                 attempts += 1
@@ -118,7 +148,15 @@ class SequentialOrchestrator:
                         self.provider.complete(request),
                         timeout=request.budget.timeout_seconds,
                     )
-                    _enforce_usage(response, request.budget)
+                    _enforce_tokens(response, request.budget)
+                    resolved_cost = self.pricing_catalog.resolve(
+                        provider=response.provider,
+                        model=response.model,
+                        input_tokens=response.input_tokens,
+                        output_tokens=response.output_tokens,
+                        provider_cost_microusd=response.cost_microusd,
+                    )
+                    _enforce_cost(resolved_cost, request.budget)
                     return OrchestrationResult(
                         status="succeeded",
                         payload=response.payload,
@@ -126,9 +164,12 @@ class SequentialOrchestrator:
                         model=response.model,
                         input_tokens=response.input_tokens,
                         output_tokens=response.output_tokens,
-                        cost_microusd=response.cost_microusd,
+                        cost_microusd=resolved_cost.microusd,
                         latency_ms=int((time.monotonic() - started) * 1000),
                         attempts=attempts,
+                        cost_source=resolved_cost.source,
+                        pricing_version=resolved_cost.pricing_version,
+                        pricing_model_key=resolved_cost.model_key,
                     )
                 except ProviderUnavailable:
                     if attempts >= request.budget.max_attempts:
@@ -138,6 +179,8 @@ class SequentialOrchestrator:
             error_code = "AGENT_TIMEOUT"
         except ProviderUnavailable:
             error_code = "PROVIDER_UNAVAILABLE"
+        except CostUnavailable:
+            error_code = "COST_UNAVAILABLE"
         except RuntimeError as exc:
             error_code = (
                 "BUDGET_EXCEEDED" if "budget exceeded" in str(exc) else "AGENT_POLICY_ERROR"
@@ -147,14 +190,23 @@ class SequentialOrchestrator:
         return OrchestrationResult(
             status="failed",
             payload=None,
-            provider=self.provider.name,
-            model="unavailable",
-            input_tokens=0,
-            output_tokens=0,
-            cost_microusd=0,
+            provider=response.provider if response is not None else self.provider.name,
+            model=response.model if response is not None else "unavailable",
+            input_tokens=response.input_tokens if response is not None else 0,
+            output_tokens=response.output_tokens if response is not None else 0,
+            cost_microusd=resolved_cost.microusd if resolved_cost is not None else 0,
             latency_ms=int((time.monotonic() - started) * 1000),
             attempts=attempts,
             error_code=error_code,
+            cost_source=resolved_cost.source if resolved_cost is not None else "unavailable",
+            pricing_version=(
+                resolved_cost.pricing_version if resolved_cost is not None else None
+            ),
+            pricing_model_key=(
+                resolved_cost.model_key
+                if resolved_cost is not None
+                else _model_key_or_none(response)
+            ),
         )
 
 
@@ -174,14 +226,21 @@ class NoOpOrchestrator:
             latency_ms=0,
             attempts=0,
             error_code="AI_DISABLED",
+            cost_source="not_applicable",
         )
 
 
 class TestOrchestrator:
     name = "test-v1"
 
-    def __init__(self, responses: dict[str, ProviderResponse]) -> None:
+    def __init__(
+        self,
+        responses: dict[str, ProviderResponse],
+        *,
+        pricing_catalog: PricingCatalog | None = None,
+    ) -> None:
         self.responses = responses
+        self.pricing_catalog = pricing_catalog or load_pricing_catalog()
 
     async def run(self, request: OrchestrationRequest) -> OrchestrationResult:
         response = self.responses.get(request.idempotency_key)
@@ -197,8 +256,17 @@ class TestOrchestrator:
                 latency_ms=0,
                 attempts=1,
                 error_code="FIXTURE_NOT_FOUND",
+                cost_source="not_applicable",
             )
-        _enforce_usage(response, request.budget)
+        _enforce_tokens(response, request.budget)
+        resolved_cost = self.pricing_catalog.resolve(
+            provider=response.provider,
+            model=response.model,
+            input_tokens=response.input_tokens,
+            output_tokens=response.output_tokens,
+            provider_cost_microusd=response.cost_microusd,
+        )
+        _enforce_cost(resolved_cost, request.budget)
         return OrchestrationResult(
             status="succeeded",
             payload=response.payload,
@@ -206,9 +274,12 @@ class TestOrchestrator:
             model=response.model,
             input_tokens=response.input_tokens,
             output_tokens=response.output_tokens,
-            cost_microusd=response.cost_microusd,
+            cost_microusd=resolved_cost.microusd,
             latency_ms=0,
             attempts=1,
+            cost_source=resolved_cost.source,
+            pricing_version=resolved_cost.pricing_version,
+            pricing_model_key=resolved_cost.model_key,
         )
 
 
@@ -243,6 +314,8 @@ class SwarmOrchestrator:
                 latency_ms=sum(item.latency_ms for item in results),
                 attempts=sum(item.attempts for item in results),
                 error_code="SWARM_NO_VALID_RESULT",
+                cost_source="aggregate",
+                pricing_model_key="swarm/consensus",
             )
         parsed = []
         for item in succeeded:
@@ -263,6 +336,8 @@ class SwarmOrchestrator:
                 latency_ms=sum(item.latency_ms for item in results),
                 attempts=sum(item.attempts for item in results),
                 error_code="SWARM_NO_VALID_RESULT",
+                cost_source="aggregate",
+                pricing_model_key="swarm/consensus",
             )
         parsed.sort(key=lambda pair: pair[0].confidence, reverse=True)
         selected = parsed[0][1]
@@ -284,7 +359,19 @@ class SwarmOrchestrator:
             cost_microusd=total_cost,
             latency_ms=sum(item.latency_ms for item in results),
             attempts=sum(item.attempts for item in results),
+            cost_source="aggregate",
+            pricing_version=_aggregate_pricing_version(results),
+            pricing_model_key="swarm/consensus",
         )
+
+
+def _aggregate_pricing_version(results: list[OrchestrationResult]) -> str | None:
+    versions = {item.pricing_version for item in results if item.pricing_version is not None}
+    if not versions:
+        return None
+    if len(versions) == 1:
+        return versions.pop()
+    return "mixed"
 
 
 @dataclass(frozen=True)

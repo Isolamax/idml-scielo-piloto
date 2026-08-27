@@ -346,6 +346,9 @@ class AgentCapabilitiesRead(BaseModel):
     tools: list[str]
     max_cost_microusd: int
     max_concurrency: int
+    cost_policy: str
+    pricing_version: str
+    priced_models: list[str]
 
 
 class AgentRunRead(BaseModel):
@@ -368,6 +371,9 @@ class AgentRunRead(BaseModel):
     input_tokens: int
     output_tokens: int
     cost_microusd: int
+    cost_source: str
+    pricing_version: str | None
+    pricing_model_key: str | None
     latency_ms: int
     attempts: int
     error_code: str | None

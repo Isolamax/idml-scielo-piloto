@@ -5,6 +5,7 @@ from sqlalchemy import select
 
 from idml_foundation.ai.contracts import ALLOWED_TOOLS
 from idml_foundation.ai.outputs import AgentDomain
+from idml_foundation.ai.pricing import load_pricing_catalog
 from idml_foundation.dependencies import Database, require_permission
 from idml_foundation.models import AgentProposal, AgentRun
 from idml_foundation.rbac import Permission, TenantContext
@@ -20,6 +21,7 @@ def capabilities(
 ) -> AgentCapabilitiesRead:
     del context
     settings = get_settings()
+    pricing = load_pricing_catalog()
     return AgentCapabilitiesRead(
         enabled=settings.feature_openclaw,
         swarm_enabled=settings.feature_ai_swarm,
@@ -27,6 +29,9 @@ def capabilities(
         tools=sorted(ALLOWED_TOOLS),
         max_cost_microusd=settings.ai_max_cost_microusd,
         max_concurrency=settings.ai_max_concurrency,
+        cost_policy=pricing.source_policy,
+        pricing_version=pricing.version,
+        priced_models=list(pricing.priced_models),
     )
 
 

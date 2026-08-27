@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from decimal import Decimal
 from typing import Any
 
 import pytest
@@ -25,6 +26,7 @@ from idml_foundation.ai.orchestration import (
     TestOrchestrator as FixtureOrchestrator,
 )
 from idml_foundation.ai.outputs import AgentDomain, output_json_schema, parse_agent_output
+from idml_foundation.ai.pricing import ModelPrice, PricingCatalog
 from idml_foundation.ai.registry import load_registry
 from idml_foundation.ai.security import payload_digest, untrusted_envelope
 from idml_foundation.ai.service import build_assistance_payload, run_assistance
@@ -341,6 +343,37 @@ class _CrashedProvider:
         raise ValueError("worker process failed with private details")
 
 
+class _UnpricedProvider:
+    name = "openclaw"
+
+    async def complete(self, request: OrchestrationRequest) -> ProviderResponse:
+        del request
+        return ProviderResponse({}, "openai", "gpt-5.4-mini", 120, 80)
+
+
+class _PricedFixtureProvider:
+    name = "fixture"
+
+    async def complete(self, request: OrchestrationRequest) -> ProviderResponse:
+        del request
+        return ProviderResponse({}, "fixture", "estimated", 120, 80)
+
+
+def _fixture_pricing() -> PricingCatalog:
+    return PricingCatalog(
+        version="agent-pricing-1.test",
+        prices={
+            "fixture/estimated": ModelPrice(
+                model_key="fixture/estimated",
+                input_usd_per_million_tokens=Decimal("2.0"),
+                output_usd_per_million_tokens=Decimal("8.0"),
+                source="test fixture",
+                effective_date="2026-08-27",
+            )
+        },
+    )
+
+
 def test_timeout_budget_and_worker_cannot_create_swarm() -> None:
     result = asyncio.run(
         SequentialOrchestrator(_SlowProvider()).run(
@@ -371,6 +404,42 @@ def test_provider_unavailable_and_worker_crash_are_normalized() -> None:
     crashed = asyncio.run(SequentialOrchestrator(_CrashedProvider()).run(_request()))
     assert crashed.error_code == "AGENT_CRASH"
     assert "private" not in str(crashed)
+
+
+def test_monetary_cost_is_estimated_versioned_and_budget_blocking() -> None:
+    catalog = _fixture_pricing()
+    result = asyncio.run(
+        SequentialOrchestrator(
+            _PricedFixtureProvider(), pricing_catalog=catalog
+        ).run(_request())
+    )
+    assert result.status == "succeeded"
+    assert result.cost_microusd == 880
+    assert result.cost_source == "estimated"
+    assert result.pricing_version == "agent-pricing-1.test"
+    assert result.pricing_model_key == "fixture/estimated"
+
+    blocked = asyncio.run(
+        SequentialOrchestrator(
+            _PricedFixtureProvider(), pricing_catalog=catalog
+        ).run(_request(budget=AgentBudget(max_cost_microusd=879)))
+    )
+    assert blocked.status == "failed"
+    assert blocked.error_code == "BUDGET_EXCEEDED"
+    assert blocked.cost_microusd == 880
+    assert blocked.cost_source == "estimated"
+
+
+def test_unknown_monetary_cost_fails_closed_without_accepting_payload() -> None:
+    result = asyncio.run(SequentialOrchestrator(_UnpricedProvider()).run(_request()))
+    assert result.status == "failed"
+    assert result.payload is None
+    assert result.error_code == "COST_UNAVAILABLE"
+    assert result.input_tokens == 120
+    assert result.output_tokens == 80
+    assert result.cost_microusd == 0
+    assert result.cost_source == "unavailable"
+    assert result.pricing_model_key == "openai/gpt-5.4-mini"
 
 
 def test_openclaw_attestation_rejects_broad_capabilities() -> None:
@@ -414,6 +483,8 @@ def test_proposal_is_validated_persisted_and_never_applied(db: Session) -> None:
         )
     )
     assert run.status == "succeeded"
+    assert run.cost_source == "provider"
+    assert run.pricing_model_key == "fixture/contract-fixture"
     assert run.prompt_version == "1.2"
     assert run.output_schema_version == "agent-proposal-1.1"
     assert 0 < run.budget["input_envelope_bytes"] < 4_000
@@ -507,6 +578,9 @@ def test_ai_capabilities_are_off_and_tenant_protected(
     assert capabilities.json()["enabled"] is False
     assert capabilities.json()["auto_apply"] is False
     assert capabilities.json()["release_authority"] is False
+    assert capabilities.json()["cost_policy"] == "provider_or_exact_catalog_fail_closed"
+    assert capabilities.json()["pricing_version"] == "agent-pricing-1.0"
+    assert capabilities.json()["priced_models"] == []
     assert client.get(
         "/v1/ai/capabilities",
         headers={"Authorization": f"Bearer {token}", "X-Organization-ID": other.id},

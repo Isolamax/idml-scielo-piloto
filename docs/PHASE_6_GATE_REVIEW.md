@@ -38,7 +38,7 @@ carregados; Alembic aprovado em upgrade, downgrade para `c4e5f6a7b8c9` e novo up
 | IA melhora métrica sem elevar risco | FALHOU NO PROXY | somente 2/7 melhoraram e 1/7 foi exato; exige correção e baseline humano |
 | patch exige schema, evidência e validação | PASSOU | serviço e testes de contrato |
 | prompt injection não altera política | PASSOU | envelope não confiável + testes |
-| custo máximo por artigo é respeitado | PENDENTE | budget de tokens passou; custo monetário não é observado |
+| custo máximo por artigo é respeitado | PENDENTE NO ALIAS REAL | custo informado/estimado é bloqueável e auditável; gateway/alias real não fornece fonte monetária verificável |
 | release continua determinístico | PASSOU | nenhuma ferramenta/rota de release para agentes |
 
 ## Decisão
@@ -158,3 +158,20 @@ continuam falsas; OpenClaw e Mapalead permaneceram healthy e inalterados.
 
 Nenhum agente foi executado. O Gate G6 permanece bloqueado por custo monetário não observável,
 ganho de qualidade não comprovado e ausência temporária de baseline humano.
+
+## Incremento pós-gate — controle monetário fail-closed
+
+Em 2026-08-27 foi implementada a proveniência monetária append-only por chamada. Custo informado
+pelo provider tem precedência; na ausência dele, somente uma tarifa exata de `provider/model` no
+catálogo versionado pode gerar estimativa. Sem ambas, a execução termina em `COST_UNAVAILABLE` e
+seu payload não entra no fluxo de propostas. O custo resolvido acima do teto termina em
+`BUDGET_EXCEEDED`. Provider, modelo, tokens, custo, fonte, versão e chave tarifária ficam auditados.
+
+O catálogo `agent-pricing-1.0` não contém uma tarifa inventada para
+`openai/gpt-5.4-mini`: o CLI do OpenClaw confirmou o alias/modelo, mas não apresentou metadado de
+preço, e uma tarifa oficial exata não pôde ser verificada. Portanto `priced_models=[]`, as flags
+continuam falsas e o G6 permanece bloqueado pela fonte monetária real e pelo baseline humano.
+
+Localmente, 80 testes passaram com cobertura de 86,00%, além de Ruff e Mypy. A migration
+`e6a7b8c9d0e1` passou em upgrade, downgrade e novo upgrade. Nenhum agente foi executado neste
+incremento. Detalhes da regra estão em `docs/AGENT_COST_POLICY.md`.

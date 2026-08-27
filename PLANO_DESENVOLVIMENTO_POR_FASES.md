@@ -16,7 +16,7 @@ PLANO_ANALISE_CODEX_SCIELO_IDML_OPENCLAW_SWARM.md
 
 ```text
 PROJECT_STATUS: PHASE_6_TECHNICAL_EVALUATION_BLOCKED
-CURRENT_PHASE: FASE 6 com contratos reforçados — próximo incremento: custo observável
+CURRENT_PHASE: FASE 6 com custo fail-closed — próximo incremento: fonte monetária oficial do gateway
 IMPLEMENTATION_AUTHORIZED: PHASE_6_AUTHORIZED — PHASE_7_NOT_AUTHORIZED
 PRODUCTION_DEPLOYMENT_AUTHORIZED: NO
 ARCHITECTURE_STATUS: APPROVED_WITH_CHANGES
@@ -573,7 +573,9 @@ Adicionar IA somente onde houver ganho mensurável sobre o pipeline determiníst
 - [x] Testar patches conflitantes ou atrasados.
 - [x] Versionar prompts, Skills, modelos e configurações.
 - [x] Deduplicar e limitar o envelope assistivo, registrando seu tamanho canônico.
-- [~] Registrar tokens e latência sem raciocínio privado; custo monetário não é exposto pelo caminho atual.
+- [x] Registrar tokens, latência, custo, fonte monetária e versão tarifária sem raciocínio privado.
+- [x] Rejeitar a proposta com `COST_UNAVAILABLE` quando provider e catálogo exato não informam custo.
+- [!] Obter do gateway custo monetário real ou tarifa oficial exata para `openai/gpt-5.4-mini`.
 
 ## Pacote 6.6 — QA e repair assistidos
 
@@ -588,7 +590,7 @@ Adicionar IA somente onde houver ganho mensurável sobre o pipeline determiníst
 - [ ] IA melhora métrica definida sem elevar risco além do limite.
 - [x] Nenhum patch é aplicado sem schema, evidência e validação.
 - [x] Prompt injection não altera ferramentas ou políticas.
-- [!] Orçamento de tokens é respeitado; custo monetário por artigo ainda não é observável.
+- [!] Orçamento de tokens e custo resolvido é respeitado; o alias real continua sem fonte monetária verificável.
 - [x] Release continua sendo determinístico.
 
 ---
@@ -742,7 +744,7 @@ Cada novo periódico deve possuir corpus, profile, style mapping, métricas, hom
 | R-07 | Vazamento entre empresas | Crítico | Escopo no backend, storage isolado e testes negativos | Mitigado na fundação; monitorado |
 | R-08 | Modelo canônico insuficiente | Alto | Corpus antes do congelamento e migrations | Mitigado no contrato; validar no parser |
 | R-09 | Confiança de IA mal calibrada | Alto | Evidência, agreement, métricas e revisão humana | Aberto |
-| R-10 | Custo ou latência excessivos | Médio/Alto | Envelope compacto, model routing, cache seguro, limites e métricas | Parcialmente mitigado; custo monetário pendente |
+| R-10 | Custo ou latência excessivos | Médio/Alto | Envelope compacto, catálogo exato, fonte do custo, fail-closed e limites | Parcialmente mitigado; fonte monetária do alias real pendente |
 | R-11 | Falha sem retomada idempotente | Alto | Máquina de estados, idempotency keys e recuperação pelo PostgreSQL | Mitigado na fundação; monitorado |
 | R-12 | Perda de dados ou histórico | Crítico | Imutabilidade, backups e restore testado | Mitigado na fundação; monitorado |
 | R-13 | Vazamento ou contaminação do corpus | Alto | Manifestos sem conteúdo, acesso restrito e holdout separado | Mitigado; monitorado |
@@ -826,3 +828,4 @@ ADRs iniciais esperados:
 | 2026-08-27 | Resolvedor bibliográfico implantado na VPS com backup/restore e rollback; serviços saudáveis e flags de IA mantidas desligadas | Codex |
 | 2026-08-27 | Patch atômico de RichText implantado com backup/restore e rollback; prompts 1.1 e benchmark v1.2 preparados; nenhum agente executado e flags mantidas desligadas | Codex |
 | 2026-08-27 | Vínculo operação-evidência e envelope compacto implantados; schema 1.1, prompts 1.2 e benchmark v1.3 preparados; nenhum agente executado e flags mantidas desligadas | Codex |
+| 2026-08-27 | Política monetária fail-closed implementada: custo do provider ou tarifa exata versionada, auditoria de proveniência e bloqueio `COST_UNAVAILABLE`; alias real permanece sem preço oficial verificado e flags desligadas | Codex |
