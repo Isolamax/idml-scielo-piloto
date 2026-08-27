@@ -1,6 +1,6 @@
 # Política de custo monetário dos agentes
 
-Data: 2026-08-27. Versão do catálogo: `agent-pricing-1.0`.
+Data: 2026-08-27. Versão do catálogo: `agent-pricing-1.1`.
 
 ## Regra operacional
 
@@ -12,15 +12,15 @@ Cada resposta de provedor deve ter seu custo resolvido antes de ser aceita como 
 3. sem uma dessas fontes, a execução termina em `COST_UNAVAILABLE`, sem aceitar o payload do
    agente (`unavailable`).
 
-O cálculo usa tokens de entrada e saída separadamente, tarifas em USD por milhão de tokens e
-arredondamento para cima até o micro-USD. O teto `max_cost_microusd` é aplicado ao custo resolvido.
-Tokens, provider, modelo, fonte do custo, versão do catálogo e chave tarifária são preservados no
-`AgentRun` append-only, inclusive quando o teto bloqueia a proposta.
+O cálculo separa entrada sem cache, entrada em cache e saída, usa tarifas em USD por milhão de
+tokens e arredonda para cima até o micro-USD. O teto `max_cost_microusd` é aplicado ao custo
+resolvido. Tokens, cache, provider, modelo, fonte do custo, versão do catálogo e chave tarifária são
+preservados no `AgentRun` append-only, inclusive quando o teto bloqueia a proposta.
 
-O teto avaliado após a resposta impede que uma proposta acima do orçamento entre no fluxo
-editorial. Ele não evita o consumo já ocorrido na chamada. Bloqueio pré-chamada somente será
-permitido futuramente quando o modelo efetivo e todos os componentes tarifáveis forem conhecidos
-antes da execução.
+O modelo efetivo agora é fixado antes da execução. Um preflight assume zero cache e calcula o pior
+caso pelos limites de tokens; se ele exceder o saldo do artigo, nenhuma chamada é feita. Depois da
+resposta, o custo real/estimado é novamente validado. O orçamento é agregado por artigo e
+serializado por lock do recurso, não apenas aplicado isoladamente a cada chamada.
 
 ## Catálogo de produção
 
@@ -28,17 +28,18 @@ O arquivo `config/agent-pricing-v1.json` é a fonte versionada. Chaves devem ser
 normalizadas no formato `provider/model`; não há fallback por família, alias ou aproximação.
 Cada tarifa exige fonte e data de vigência.
 
-O alias observado no OpenClaw é `openai/gpt-5.4-mini`. Em 2026-08-27, o caminho do gateway não
-expôs custo monetário e não foi possível verificar uma tarifa oficial exata para esse alias. Por
-isso, ele consta como não precificado e a lista `models` permanece vazia. Nenhum preço aproximado
-foi inventado.
+O modelo observado e fixado é `openai/gpt-5.4-mini`. Em 2026-08-27, a documentação oficial da
+OpenAI confirmou US$ 0,75 por milhão de tokens de entrada, US$ 0,075 por milhão de tokens de entrada
+em cache e US$ 4,50 por milhão de tokens de saída. A fonte exata consta no catálogo; não há fallback
+por família ou outro alias.
 
-Enquanto o provider não retornar custo ou uma tarifa oficial exata não for validada e registrada:
+Apesar de a fonte monetária estar resolvida, a integração permanece desativada até existir gateway
+dedicado/restrito e o Gate G6 de qualidade ser aprovado:
 
 - `IDML_FEATURE_OPENCLAW=false`;
 - `IDML_FEATURE_AI_SWARM=false`;
-- qualquer resposta sem custo falha fechada;
-- o Gate G6 continua bloqueado.
+- qualquer modelo diferente do fixado ou sem tarifa falha fechado;
+- o Gate G6 continua bloqueado pelo baseline/qualidade, não mais pela tarifa.
 
 ## Alteração de tarifa
 

@@ -16,16 +16,27 @@ class CostUnavailable(RuntimeError):
 class ModelPrice:
     model_key: str
     input_usd_per_million_tokens: Decimal
+    cached_input_usd_per_million_tokens: Decimal
     output_usd_per_million_tokens: Decimal
     source: str
     effective_date: str
 
-    def estimate_microusd(self, *, input_tokens: int, output_tokens: int) -> int:
-        if min(input_tokens, output_tokens) < 0:
+    def estimate_microusd(
+        self,
+        *,
+        input_tokens: int,
+        output_tokens: int,
+        cached_input_tokens: int = 0,
+    ) -> int:
+        if min(input_tokens, output_tokens, cached_input_tokens) < 0:
             raise ValueError("token usage cannot be negative")
+        if cached_input_tokens > input_tokens:
+            raise ValueError("cached input cannot exceed total input")
         # USD / 1M tokens is numerically equal to micro-USD / token.
+        uncached_input_tokens = input_tokens - cached_input_tokens
         estimate = (
-            Decimal(input_tokens) * self.input_usd_per_million_tokens
+            Decimal(uncached_input_tokens) * self.input_usd_per_million_tokens
+            + Decimal(cached_input_tokens) * self.cached_input_usd_per_million_tokens
             + Decimal(output_tokens) * self.output_usd_per_million_tokens
         )
         return int(estimate.to_integral_value(rounding=ROUND_CEILING))
@@ -56,10 +67,13 @@ class PricingCatalog:
         model: str,
         input_tokens: int,
         output_tokens: int,
+        cached_input_tokens: int,
         provider_cost_microusd: int | None,
     ) -> ResolvedCost:
-        if min(input_tokens, output_tokens) < 0:
+        if min(input_tokens, output_tokens, cached_input_tokens) < 0:
             raise ValueError("token usage cannot be negative")
+        if cached_input_tokens > input_tokens:
+            raise ValueError("cached input cannot exceed total input")
         model_key = normalize_model_key(provider, model)
         if provider_cost_microusd is not None:
             if provider_cost_microusd < 0:
@@ -77,6 +91,7 @@ class PricingCatalog:
             microusd=price.estimate_microusd(
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
+                cached_input_tokens=cached_input_tokens,
             ),
             source="estimated",
             pricing_version=self.version,
@@ -133,8 +148,12 @@ def load_pricing_catalog(path: Path | None = None) -> PricingCatalog:
             raw_value.get("output_usd_per_million_tokens"),
             field="output_usd_per_million_tokens",
         )
-        if input_rate == 0 and output_rate == 0:
-            raise ValueError("an agent pricing entry cannot have two zero rates")
+        cached_input_rate = _decimal_rate(
+            raw_value.get("cached_input_usd_per_million_tokens"),
+            field="cached_input_usd_per_million_tokens",
+        )
+        if input_rate == 0 and cached_input_rate == 0 and output_rate == 0:
+            raise ValueError("an agent pricing entry cannot have all zero rates")
         source = str(raw_value.get("source", "")).strip()
         effective_date = str(raw_value.get("effective_date", "")).strip()
         if not source or not effective_date:
@@ -142,6 +161,7 @@ def load_pricing_catalog(path: Path | None = None) -> PricingCatalog:
         prices[model_key] = ModelPrice(
             model_key=model_key,
             input_usd_per_million_tokens=input_rate,
+            cached_input_usd_per_million_tokens=cached_input_rate,
             output_usd_per_million_tokens=output_rate,
             source=source,
             effective_date=effective_date,

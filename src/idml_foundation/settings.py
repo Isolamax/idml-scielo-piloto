@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     session_ttl_seconds: int = Field(default=8 * 60 * 60, ge=300, le=7 * 24 * 60 * 60)
     feature_openclaw: bool = False
     feature_ai_swarm: bool = False
+    openclaw_gateway_url: str = "http://openclaw:47716"
+    openclaw_gateway_token: SecretStr = SecretStr("")
     ai_timeout_seconds: int = Field(default=45, ge=1, le=300)
     ai_max_attempts: int = Field(default=2, ge=1, le=2)
     ai_max_input_tokens: int = Field(default=12_000, ge=1)
@@ -51,6 +53,8 @@ class Settings(BaseSettings):
                 raise ValueError("IDML_MFA_ENCRYPTION_KEY must be a strong environment secret")
             if self.database_url.startswith("sqlite"):
                 raise ValueError("SQLite is not allowed outside development/test")
+        if self.feature_openclaw and len(self.openclaw_gateway_token.get_secret_value()) < 32:
+            raise ValueError("IDML_OPENCLAW_GATEWAY_TOKEN is required when OpenClaw is enabled")
         return self
 
 

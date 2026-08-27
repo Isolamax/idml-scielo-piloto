@@ -349,6 +349,8 @@ class AgentCapabilitiesRead(BaseModel):
     cost_policy: str
     pricing_version: str
     priced_models: list[str]
+    default_model_key: str
+    preflight_max_cost_microusd: int
 
 
 class AgentRunRead(BaseModel):
@@ -369,6 +371,7 @@ class AgentRunRead(BaseModel):
     input_sha256: str
     output_sha256: str | None
     input_tokens: int
+    cached_input_tokens: int
     output_tokens: int
     cost_microusd: int
     cost_source: str

@@ -26,7 +26,7 @@ from idml_foundation.ai.orchestration import (
     TestOrchestrator as FixtureOrchestrator,
 )
 from idml_foundation.ai.outputs import AgentDomain, output_json_schema, parse_agent_output
-from idml_foundation.ai.pricing import ModelPrice, PricingCatalog
+from idml_foundation.ai.pricing import ModelPrice, PricingCatalog, load_pricing_catalog
 from idml_foundation.ai.registry import load_registry
 from idml_foundation.ai.security import payload_digest, untrusted_envelope
 from idml_foundation.ai.service import build_assistance_payload, run_assistance
@@ -47,7 +47,11 @@ from idml_foundation.settings import Settings
 from tests.domain_helpers import canonical_article
 
 
-def _request(*, budget: AgentBudget | None = None) -> OrchestrationRequest:
+def _request(
+    *,
+    budget: AgentBudget | None = None,
+    model_key: str | None = None,
+) -> OrchestrationRequest:
     return OrchestrationRequest(
         organization_id="org",
         job_id=None,
@@ -62,6 +66,7 @@ def _request(*, budget: AgentBudget | None = None) -> OrchestrationRequest:
         output_schema=output_json_schema(AgentDomain.METADATA),
         tool_allowlist=ALLOWED_TOOLS,
         budget=budget or AgentBudget(),
+        model_key=model_key,
     )
 
 
@@ -348,7 +353,7 @@ class _UnpricedProvider:
 
     async def complete(self, request: OrchestrationRequest) -> ProviderResponse:
         del request
-        return ProviderResponse({}, "openai", "gpt-5.4-mini", 120, 80)
+        return ProviderResponse({}, "openai", "unpriced-fixture", 120, 80)
 
 
 class _PricedFixtureProvider:
@@ -366,6 +371,7 @@ def _fixture_pricing() -> PricingCatalog:
             "fixture/estimated": ModelPrice(
                 model_key="fixture/estimated",
                 input_usd_per_million_tokens=Decimal("2.0"),
+                cached_input_usd_per_million_tokens=Decimal("0.2"),
                 output_usd_per_million_tokens=Decimal("8.0"),
                 source="test fixture",
                 effective_date="2026-08-27",
@@ -430,6 +436,51 @@ def test_monetary_cost_is_estimated_versioned_and_budget_blocking() -> None:
     assert blocked.cost_source == "estimated"
 
 
+def test_cached_input_and_preflight_maximum_are_accounted_for() -> None:
+    cached_response = ProviderResponse(
+        {},
+        "fixture",
+        "estimated",
+        120,
+        80,
+        cached_input_tokens=20,
+    )
+    cached = asyncio.run(
+        FixtureOrchestrator(
+            {"phase6-case-1": cached_response},
+            pricing_catalog=_fixture_pricing(),
+        ).run(_request())
+    )
+    assert cached.cached_input_tokens == 20
+    assert cached.cost_microusd == 844
+
+    provider = _PricedFixtureProvider()
+    preflight = asyncio.run(
+        SequentialOrchestrator(provider, pricing_catalog=_fixture_pricing()).run(
+            _request(
+                model_key="fixture/estimated",
+                budget=AgentBudget(max_cost_microusd=39_999),
+            )
+        )
+    )
+    assert preflight.status == "failed"
+    assert preflight.error_code == "BUDGET_EXCEEDED"
+    assert preflight.attempts == 0
+    assert preflight.preflight_max_cost_microusd == 40_000
+
+    official = load_pricing_catalog()
+    official_max = official.resolve(
+        provider="openai",
+        model="gpt-5.4-mini",
+        input_tokens=12_000,
+        output_tokens=2_000,
+        cached_input_tokens=0,
+        provider_cost_microusd=None,
+    )
+    assert official.version == "agent-pricing-1.1"
+    assert official_max.microusd == 18_000
+
+
 def test_unknown_monetary_cost_fails_closed_without_accepting_payload() -> None:
     result = asyncio.run(SequentialOrchestrator(_UnpricedProvider()).run(_request()))
     assert result.status == "failed"
@@ -439,7 +490,7 @@ def test_unknown_monetary_cost_fails_closed_without_accepting_payload() -> None:
     assert result.output_tokens == 80
     assert result.cost_microusd == 0
     assert result.cost_source == "unavailable"
-    assert result.pricing_model_key == "openai/gpt-5.4-mini"
+    assert result.pricing_model_key == "openai/unpriced-fixture"
 
 
 def test_openclaw_attestation_rejects_broad_capabilities() -> None:
@@ -447,6 +498,7 @@ def test_openclaw_attestation_rejects_broad_capabilities() -> None:
         OpenClawPolicyAttestation(
             openclaw_version="2026.6.11",
             agent_id="unsafe",
+            model_key="openai/gpt-5.4-mini",
             allowed_tools=ALLOWED_TOOLS,
             skills=("broad-skill",),
             output_schema_enforced=True,
@@ -487,6 +539,8 @@ def test_proposal_is_validated_persisted_and_never_applied(db: Session) -> None:
     assert run.pricing_model_key == "fixture/contract-fixture"
     assert run.prompt_version == "1.2"
     assert run.output_schema_version == "agent-proposal-1.1"
+    assert run.config_version == "agent-config-1.2"
+    assert run.budget["preflight_max_cost_microusd"] is None
     assert 0 < run.budget["input_envelope_bytes"] < 4_000
     assert proposal is not None and proposal.needs_human
     assert item.state == "open"
@@ -507,6 +561,51 @@ def test_proposal_is_validated_persisted_and_never_applied(db: Session) -> None:
     with pytest.raises(ValueError, match="append-only"):
         db.flush()
     db.rollback()
+
+
+def test_article_monetary_budget_blocks_new_calls_after_spend(db: Session) -> None:
+    scope, _ = _scoped_review(db)
+    digest = payload_digest("Corrected title")
+    first_response = ProviderResponse(
+        _proposal(evidence_sha=digest),
+        "fixture",
+        "fixture",
+        100,
+        50,
+        2_000,
+    )
+    first, first_proposal = asyncio.run(
+        run_assistance(
+            db,
+            scope=scope,
+            profile=load_registry()[AgentDomain.METADATA],
+            orchestrator=FixtureOrchestrator({"article-budget-first": first_response}),
+            idempotency_key="article-budget-first",
+            budget=AgentBudget(max_cost_microusd=2_000),
+        )
+    )
+    assert first.status == "succeeded"
+    assert first_proposal is not None
+    assert first.budget["article_cost_microusd_before_run"] == 0
+    assert first.budget["run_max_cost_microusd"] == 2_000
+
+    blocked, blocked_proposal = asyncio.run(
+        run_assistance(
+            db,
+            scope=scope,
+            profile=load_registry()[AgentDomain.METADATA],
+            orchestrator=FixtureOrchestrator({}),
+            idempotency_key="article-budget-blocked",
+            budget=AgentBudget(max_cost_microusd=2_000),
+        )
+    )
+    assert blocked.status == "failed"
+    assert blocked.error_code == "ARTICLE_BUDGET_EXCEEDED"
+    assert blocked.attempts == 0
+    assert blocked.cost_microusd == 0
+    assert blocked.budget["article_cost_microusd_before_run"] == 2_000
+    assert blocked.budget["article_cost_microusd_remaining_before_run"] == 0
+    assert blocked_proposal is None
 
 
 def test_stale_and_injection_proposals_are_rejected(db: Session) -> None:
@@ -579,8 +678,10 @@ def test_ai_capabilities_are_off_and_tenant_protected(
     assert capabilities.json()["auto_apply"] is False
     assert capabilities.json()["release_authority"] is False
     assert capabilities.json()["cost_policy"] == "provider_or_exact_catalog_fail_closed"
-    assert capabilities.json()["pricing_version"] == "agent-pricing-1.0"
-    assert capabilities.json()["priced_models"] == []
+    assert capabilities.json()["pricing_version"] == "agent-pricing-1.1"
+    assert capabilities.json()["priced_models"] == ["openai/gpt-5.4-mini"]
+    assert capabilities.json()["default_model_key"] == "openai/gpt-5.4-mini"
+    assert capabilities.json()["preflight_max_cost_microusd"] == 18_000
     assert client.get(
         "/v1/ai/capabilities",
         headers={"Authorization": f"Bearer {token}", "X-Organization-ID": other.id},

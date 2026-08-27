@@ -50,6 +50,7 @@ class OrchestrationRequest:
     budget: AgentBudget
     initiator: str = "root"
     can_spawn: bool = True
+    model_key: str | None = None
 
     def __post_init__(self) -> None:
         enforce_tool_allowlist(self.tool_allowlist)
@@ -57,6 +58,11 @@ class OrchestrationRequest:
             raise ValueError("invalid orchestration initiator")
         if len(self.idempotency_key) < 8:
             raise ValueError("agent idempotency key is too short")
+        if (
+            self.model_key is not None
+            and normalize_model_key("declared", self.model_key) != self.model_key
+        ):
+            raise ValueError("agent model key must be normalized provider/model")
 
 
 @dataclass(frozen=True)
@@ -67,6 +73,7 @@ class ProviderResponse:
     input_tokens: int
     output_tokens: int
     cost_microusd: int | None = None
+    cached_input_tokens: int = 0
 
 
 @dataclass(frozen=True)
@@ -84,6 +91,8 @@ class OrchestrationResult:
     cost_source: str = "unavailable"
     pricing_version: str | None = None
     pricing_model_key: str | None = None
+    cached_input_tokens: int = 0
+    preflight_max_cost_microusd: int | None = None
 
 
 class ProviderUnavailable(RuntimeError):
@@ -103,6 +112,10 @@ class Orchestrator(Protocol):
 
 
 def _enforce_tokens(response: ProviderResponse, budget: AgentBudget) -> None:
+    if min(response.input_tokens, response.output_tokens, response.cached_input_tokens) < 0:
+        raise RuntimeError("agent reported invalid token usage")
+    if response.cached_input_tokens > response.input_tokens:
+        raise RuntimeError("agent reported invalid cached input usage")
     if response.input_tokens > budget.max_input_tokens:
         raise RuntimeError("agent input token budget exceeded")
     if response.output_tokens > budget.max_output_tokens:
@@ -123,6 +136,11 @@ def _model_key_or_none(response: ProviderResponse | None) -> str | None:
         return None
 
 
+def _split_model_key(model_key: str) -> tuple[str, str]:
+    provider, model = model_key.split("/", 1)
+    return provider, model
+
+
 class SequentialOrchestrator:
     name = "sequential-v1"
 
@@ -140,6 +158,50 @@ class SequentialOrchestrator:
         attempts = 0
         response: ProviderResponse | None = None
         resolved_cost: ResolvedCost | None = None
+        preflight_cost: ResolvedCost | None = None
+        if request.model_key is not None:
+            provider, model = _split_model_key(request.model_key)
+            try:
+                preflight_cost = self.pricing_catalog.resolve(
+                    provider=provider,
+                    model=model,
+                    input_tokens=request.budget.max_input_tokens,
+                    output_tokens=request.budget.max_output_tokens,
+                    cached_input_tokens=0,
+                    provider_cost_microusd=None,
+                )
+            except CostUnavailable:
+                return OrchestrationResult(
+                    status="failed",
+                    payload=None,
+                    provider=provider,
+                    model=model,
+                    input_tokens=0,
+                    output_tokens=0,
+                    cost_microusd=0,
+                    latency_ms=int((time.monotonic() - started) * 1000),
+                    attempts=0,
+                    error_code="COST_UNAVAILABLE",
+                    cost_source="not_applicable",
+                    pricing_model_key=request.model_key,
+                )
+            if preflight_cost.microusd > request.budget.max_cost_microusd:
+                return OrchestrationResult(
+                    status="failed",
+                    payload=None,
+                    provider=provider,
+                    model=model,
+                    input_tokens=0,
+                    output_tokens=0,
+                    cost_microusd=0,
+                    latency_ms=int((time.monotonic() - started) * 1000),
+                    attempts=0,
+                    error_code="BUDGET_EXCEEDED",
+                    cost_source="not_applicable",
+                    pricing_version=preflight_cost.pricing_version,
+                    pricing_model_key=preflight_cost.model_key,
+                    preflight_max_cost_microusd=preflight_cost.microusd,
+                )
         try:
             while attempts < request.budget.max_attempts:
                 attempts += 1
@@ -149,11 +211,18 @@ class SequentialOrchestrator:
                         timeout=request.budget.timeout_seconds,
                     )
                     _enforce_tokens(response, request.budget)
+                    if (
+                        request.model_key is not None
+                        and normalize_model_key(response.provider, response.model)
+                        != request.model_key
+                    ):
+                        raise RuntimeError("agent response model does not match declared model")
                     resolved_cost = self.pricing_catalog.resolve(
                         provider=response.provider,
                         model=response.model,
                         input_tokens=response.input_tokens,
                         output_tokens=response.output_tokens,
+                        cached_input_tokens=response.cached_input_tokens,
                         provider_cost_microusd=response.cost_microusd,
                     )
                     _enforce_cost(resolved_cost, request.budget)
@@ -170,6 +239,10 @@ class SequentialOrchestrator:
                         cost_source=resolved_cost.source,
                         pricing_version=resolved_cost.pricing_version,
                         pricing_model_key=resolved_cost.model_key,
+                        cached_input_tokens=response.cached_input_tokens,
+                        preflight_max_cost_microusd=(
+                            preflight_cost.microusd if preflight_cost is not None else None
+                        ),
                     )
                 except ProviderUnavailable:
                     if attempts >= request.budget.max_attempts:
@@ -206,6 +279,12 @@ class SequentialOrchestrator:
                 resolved_cost.model_key
                 if resolved_cost is not None
                 else _model_key_or_none(response)
+            ),
+            cached_input_tokens=(
+                response.cached_input_tokens if response is not None else 0
+            ),
+            preflight_max_cost_microusd=(
+                preflight_cost.microusd if preflight_cost is not None else None
             ),
         )
 
@@ -264,6 +343,7 @@ class TestOrchestrator:
             model=response.model,
             input_tokens=response.input_tokens,
             output_tokens=response.output_tokens,
+            cached_input_tokens=response.cached_input_tokens,
             provider_cost_microusd=response.cost_microusd,
         )
         _enforce_cost(resolved_cost, request.budget)
@@ -280,6 +360,7 @@ class TestOrchestrator:
             cost_source=resolved_cost.source,
             pricing_version=resolved_cost.pricing_version,
             pricing_model_key=resolved_cost.model_key,
+            cached_input_tokens=response.cached_input_tokens,
         )
 
 
@@ -316,6 +397,7 @@ class SwarmOrchestrator:
                 error_code="SWARM_NO_VALID_RESULT",
                 cost_source="aggregate",
                 pricing_model_key="swarm/consensus",
+                cached_input_tokens=sum(item.cached_input_tokens for item in results),
             )
         parsed = []
         for item in succeeded:
@@ -338,6 +420,7 @@ class SwarmOrchestrator:
                 error_code="SWARM_NO_VALID_RESULT",
                 cost_source="aggregate",
                 pricing_model_key="swarm/consensus",
+                cached_input_tokens=sum(item.cached_input_tokens for item in results),
             )
         parsed.sort(key=lambda pair: pair[0].confidence, reverse=True)
         selected = parsed[0][1]
@@ -362,6 +445,10 @@ class SwarmOrchestrator:
             cost_source="aggregate",
             pricing_version=_aggregate_pricing_version(results),
             pricing_model_key="swarm/consensus",
+            cached_input_tokens=sum(item.cached_input_tokens for item in results),
+            preflight_max_cost_microusd=sum(
+                item.preflight_max_cost_microusd or 0 for item in results
+            ),
         )
 
 
@@ -378,6 +465,7 @@ def _aggregate_pricing_version(results: list[OrchestrationResult]) -> str | None
 class OpenClawPolicyAttestation:
     openclaw_version: str
     agent_id: str
+    model_key: str
     allowed_tools: frozenset[str]
     skills: tuple[str, ...]
     output_schema_enforced: bool
@@ -390,6 +478,8 @@ class OpenClawPolicyAttestation:
 
     def validate(self) -> None:
         enforce_tool_allowlist(self.allowed_tools)
+        if normalize_model_key("declared", self.model_key) != self.model_key:
+            raise PermissionError("OpenClaw model key is not exact provider/model")
         if self.skills:
             raise PermissionError("assistive OpenClaw agent must not load skills")
         controls = (
@@ -416,6 +506,7 @@ class OpenClawGatewayClient(Protocol):
         output_schema: dict[str, Any],
         tool_allowlist: frozenset[str],
         timeout_seconds: int,
+        max_output_tokens: int,
     ) -> ProviderResponse: ...
 
 
@@ -438,10 +529,12 @@ class OpenClawGatewayProvider:
     async def complete(self, request: OrchestrationRequest) -> ProviderResponse:
         if request.can_spawn is False and request.initiator != "worker":
             raise PermissionError("invalid worker orchestration state")
+        if request.model_key != self.attestation.model_key:
+            raise PermissionError("request model differs from OpenClaw attestation")
         if not request.tool_allowlist <= self.attestation.allowed_tools:
             raise PermissionError("request exceeds attested OpenClaw tools")
         session_key = f"idml:{request.organization_id}:{request.review_item_id}"
-        return await self.client.run_agent(
+        response = await self.client.run_agent(
             agent_id=self.attestation.agent_id,
             session_key=session_key,
             system_prompt=request.system_prompt,
@@ -449,7 +542,11 @@ class OpenClawGatewayProvider:
             output_schema=request.output_schema,
             tool_allowlist=request.tool_allowlist,
             timeout_seconds=request.budget.timeout_seconds,
+            max_output_tokens=request.budget.max_output_tokens,
         )
+        if normalize_model_key(response.provider, response.model) != self.attestation.model_key:
+            raise PermissionError("OpenClaw response model differs from attestation")
+        return response
 
 
 DEFAULT_ASSISTIVE_TOOLS = frozenset(ALLOWED_TOOLS)

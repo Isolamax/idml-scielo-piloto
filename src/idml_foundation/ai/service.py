@@ -1,19 +1,25 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
-from sqlalchemy import event, select
+from sqlalchemy import event, func, select
 from sqlalchemy.orm import Mapper, Session
 
 from idml_foundation.ai.contracts import ALLOWED_TOOLS, ToolScope
-from idml_foundation.ai.orchestration import AgentBudget, OrchestrationRequest, Orchestrator
+from idml_foundation.ai.orchestration import (
+    AgentBudget,
+    OrchestrationRequest,
+    OrchestrationResult,
+    Orchestrator,
+)
 from idml_foundation.ai.outputs import AgentDomain, AgentProposalOutput, output_json_schema
 from idml_foundation.ai.policy import route_proposal
 from idml_foundation.ai.registry import AgentProfile, load_prompt
 from idml_foundation.ai.security import payload_digest, redact_text, untrusted_envelope
 from idml_foundation.ai.tools import AgentToolService
 from idml_foundation.domain.common import canonical_bytes
-from idml_foundation.models import AgentProposal, AgentRun
+from idml_foundation.models import AgentProposal, AgentRun, Resource
 
 
 @event.listens_for(AgentRun, "before_update")
@@ -76,9 +82,35 @@ async def run_assistance(
         proposal = db.scalar(select(AgentProposal).where(AgentProposal.agent_run_id == existing.id))
         return existing, proposal
 
+    locked_resource_id = db.scalar(
+        select(Resource.id)
+        .where(
+            Resource.id == scope.resource_id,
+            Resource.organization_id == scope.organization_id,
+        )
+        .with_for_update()
+    )
+    if locked_resource_id is None:
+        raise LookupError("resource not found in organization")
+    article_cost_before = int(
+        db.scalar(
+            select(func.coalesce(func.sum(AgentRun.cost_microusd), 0)).where(
+                AgentRun.organization_id == scope.organization_id,
+                AgentRun.resource_id == scope.resource_id,
+            )
+        )
+        or 0
+    )
+    remaining_article_cost = max(0, budget.max_cost_microusd - article_cost_before)
+
     tools = AgentToolService(db, scope)
     envelope = untrusted_envelope(build_assistance_payload(tools))
     envelope_bytes = len(canonical_bytes(envelope))
+    run_budget = (
+        replace(budget, max_cost_microusd=remaining_article_cost)
+        if remaining_article_cost > 0
+        else budget
+    )
     request = OrchestrationRequest(
         organization_id=scope.organization_id,
         job_id=scope.job_id,
@@ -92,9 +124,27 @@ async def run_assistance(
         input_envelope=envelope,
         output_schema=output_json_schema(scope.domain),
         tool_allowlist=ALLOWED_TOOLS,
-        budget=budget,
+        budget=run_budget,
+        model_key=profile.model_alias,
     )
-    result = await orchestrator.run(request)
+    if remaining_article_cost == 0:
+        provider, _, model = profile.model_alias.partition("/")
+        result = OrchestrationResult(
+            status="failed",
+            payload=None,
+            provider=provider,
+            model=model,
+            input_tokens=0,
+            output_tokens=0,
+            cost_microusd=0,
+            latency_ms=0,
+            attempts=0,
+            error_code="ARTICLE_BUDGET_EXCEEDED",
+            cost_source="not_applicable",
+            pricing_model_key=profile.model_alias,
+        )
+    else:
+        result = await orchestrator.run(request)
     raw_output = result.payload
     output_hash = payload_digest(raw_output) if raw_output is not None else None
     proposal_record: AgentProposal | None = None
@@ -134,6 +184,7 @@ async def run_assistance(
         input_sha256=payload_digest(envelope),
         output_sha256=output_hash,
         input_tokens=result.input_tokens,
+        cached_input_tokens=result.cached_input_tokens,
         output_tokens=result.output_tokens,
         cost_microusd=result.cost_microusd,
         cost_source=result.cost_source,
@@ -147,7 +198,11 @@ async def run_assistance(
             "max_input_tokens": budget.max_input_tokens,
             "max_output_tokens": budget.max_output_tokens,
             "max_cost_microusd": budget.max_cost_microusd,
+            "article_cost_microusd_before_run": article_cost_before,
+            "article_cost_microusd_remaining_before_run": remaining_article_cost,
+            "run_max_cost_microusd": remaining_article_cost,
             "input_envelope_bytes": envelope_bytes,
+            "preflight_max_cost_microusd": result.preflight_max_cost_microusd,
         },
         error_code=error_code,
     )

@@ -99,13 +99,19 @@ agente dedicado `idml-evaluator` é exclusivo para avaliação offline, sem bind
 ferramentas efetivas. Uma ativação futura exige plugin de ferramentas tenant-bound, atestação
 completa, custo observável e benchmark real aprovado no Gate G6.
 
-O custo segue `docs/AGENT_COST_POLICY.md`. Se `/v1/ai/capabilities` retornar `priced_models=[]` e o
-gateway não fornecer custo por chamada, manter as duas flags falsas. Nunca preencher o catálogo
-por aproximação de família ou alias: uma resposta sem custo deve terminar em `COST_UNAVAILABLE`.
+O custo segue `docs/AGENT_COST_POLICY.md`; a integração segue
+`docs/OPENCLAW_GATEWAY_INTEGRATION.md`. O catálogo deve expor somente o modelo exato verificado.
+Nunca preencher preço por aproximação de família ou alias: modelo divergente ou sem tarifa deve
+falhar fechado.
+
+Não conectar API/worker ao OpenClaw compartilhado do Mapalead. O segredo compartilhado do endpoint
+OpenResponses possui autoridade ampla de operador. A ativação exige instância dedicada ao IDML ou
+autenticação com escopo mínimo comprovado. Até lá, deixar `IDML_OPENCLAW_GATEWAY_TOKEN` vazio,
+preservar redes separadas e manter as duas flags falsas.
 
 Em deploy, validar dentro da imagem que `load_registry()` encontra seis perfis e que todos os
 prompts carregam. Validar também `load_pricing_catalog()`, executar backup/restore, aplicar a
-migration `e6a7b8c9d0e1` e recriar somente API
+migration `f7b8c9d0e1f2` e recriar somente API
 e worker. Preservar `phase5` como rollback da aplicação; a migration é aditiva e pode permanecer
 enquanto um incidente é investigado. Confirmar zero `agent_runs`/`agent_proposals` enquanto as
 features estiverem desabilitadas.

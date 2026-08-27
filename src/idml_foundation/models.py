@@ -450,6 +450,7 @@ class AgentRun(Base):
     input_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     output_sha256: Mapped[str | None] = mapped_column(String(64))
     input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cached_input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     cost_microusd: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     cost_source: Mapped[str] = mapped_column(String(20), nullable=False, default="unavailable")

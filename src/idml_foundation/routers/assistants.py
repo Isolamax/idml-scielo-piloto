@@ -6,6 +6,7 @@ from sqlalchemy import select
 from idml_foundation.ai.contracts import ALLOWED_TOOLS
 from idml_foundation.ai.outputs import AgentDomain
 from idml_foundation.ai.pricing import load_pricing_catalog
+from idml_foundation.ai.registry import load_registry
 from idml_foundation.dependencies import Database, require_permission
 from idml_foundation.models import AgentProposal, AgentRun
 from idml_foundation.rbac import Permission, TenantContext
@@ -22,6 +23,19 @@ def capabilities(
     del context
     settings = get_settings()
     pricing = load_pricing_catalog()
+    model_keys = {profile.model_alias for profile in load_registry().values()}
+    if len(model_keys) != 1:
+        raise RuntimeError("agent domains must share one preflight model")
+    model_key = model_keys.pop()
+    provider, model = model_key.split("/", 1)
+    preflight = pricing.resolve(
+        provider=provider,
+        model=model,
+        input_tokens=settings.ai_max_input_tokens,
+        output_tokens=settings.ai_max_output_tokens,
+        cached_input_tokens=0,
+        provider_cost_microusd=None,
+    )
     return AgentCapabilitiesRead(
         enabled=settings.feature_openclaw,
         swarm_enabled=settings.feature_ai_swarm,
@@ -32,6 +46,8 @@ def capabilities(
         cost_policy=pricing.source_policy,
         pricing_version=pricing.version,
         priced_models=list(pricing.priced_models),
+        default_model_key=model_key,
+        preflight_max_cost_microusd=preflight.microusd,
     )
 
 

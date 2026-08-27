@@ -12,8 +12,8 @@ determinística.
 
 O gate não pode ser aprovado porque ainda não existe benchmark editorial contra o baseline humano
 por domínio. Um agente dedicado foi provisionado e passou no piloto sintético real, mas seis casos
-sintéticos não são evidência suficiente de ganho editorial. O registro da aplicação continua com
-`model_alias=unconfigured` e as flags permanecem desligadas.
+sintéticos não são evidência suficiente de ganho editorial. O registro atual fixa
+`openai/gpt-5.4-mini`; as flags permanecem desligadas e o endpoint não está conectado.
 
 ## Evidências automatizadas
 
@@ -38,16 +38,16 @@ carregados; Alembic aprovado em upgrade, downgrade para `c4e5f6a7b8c9` e novo up
 | IA melhora métrica sem elevar risco | FALHOU NO PROXY | somente 2/7 melhoraram e 1/7 foi exato; exige correção e baseline humano |
 | patch exige schema, evidência e validação | PASSOU | serviço e testes de contrato |
 | prompt injection não altera política | PASSOU | envelope não confiável + testes |
-| custo máximo por artigo é respeitado | PENDENTE NO ALIAS REAL | custo informado/estimado é bloqueável e auditável; gateway/alias real não fornece fonte monetária verificável |
+| custo máximo por artigo é respeitado | PASSOU | tarifa oficial, cache auditado, preflight conservador, lock e soma append-only por recurso |
 | release continua determinístico | PASSOU | nenhuma ferramenta/rota de release para agentes |
 
 ## Decisão
 
 A Fase 6 de fundação pode permanecer na VPS com `IDML_FEATURE_OPENCLAW=false` e
 `IDML_FEATURE_AI_SWARM=false`. Isso não autoriza habilitar IA em artigos e não autoriza iniciar a
-Fase 7. Para destravar G6 é necessário corrigir as lacunas de qualidade/patch atômico, observar o
-custo monetário e executar um corpus de avaliação separado, comparando cada domínio com revisão
-humana e limites de risco predefinidos.
+Fase 7. Para destravar G6 é necessário comprovar ganho em corpus separado contra revisão humana e
+limites de risco predefinidos. Antes de qualquer ativação técnica também é obrigatório isolar o
+endpoint OpenClaw em gateway dedicado/restrito.
 
 ## Piloto OpenClaw dedicado
 
@@ -188,3 +188,21 @@ O rollback é `idml-foundation:phase6-pre-cost`, ID
 artefato; o snapshot anterior está em
 `/opt/idml-platform/backups/source-phase6-pre-cost-20260827T133753Z.tar.gz`. OpenClaw 2026.6.11 e
 Mapalead permaneceram healthy e inalterados. O volume raiz ficou em 79%, com 21 GiB livres.
+
+## Incremento pós-gate — modelo fixado e cliente OpenResponses
+
+Em 2026-08-27, a documentação oficial da OpenAI confirmou a tarifa exata do
+`gpt-5.4-mini`: US$ 0,75/M entrada, US$ 0,075/M entrada em cache e US$ 4,50/M saída. O catálogo foi
+versionado como `agent-pricing-1.1`, o registro como `agent-config-1.2` e os seis domínios agora
+fixam `openai/gpt-5.4-mini`. O preflight máximo padrão é 18.000 micro-USD, abaixo do teto agregado
+por artigo de 50.000 micro-USD.
+
+O cliente OpenResponses restrito fixa agente/modelo, rejeita redirects, limita resposta, exige
+usage/cache válido e aceita somente um objeto JSON. A soma monetária do artigo ocorre sob lock do
+recurso e bloqueia uma nova chamada em `ARTICLE_BUDGET_EXCEEDED`. A migration
+`f7b8c9d0e1f2` adiciona o contador append-only de entrada em cache.
+
+O endpoint OpenResponses do OpenClaw compartilhado continuou desativado. A autenticação por segredo
+compartilhado restaura autoridade completa de operador; por isso, a aplicação não foi conectada às
+redes do Mapalead/OpenClaw e nenhum token foi configurado. Uma instância dedicada ao IDML é a
+fronteira recomendada antes da ativação. Nenhum agente foi executado neste incremento.
