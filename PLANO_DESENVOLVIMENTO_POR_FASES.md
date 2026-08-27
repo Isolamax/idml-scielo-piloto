@@ -820,3 +820,4 @@ ADRs iniciais esperados:
 | 2026-08-26 | Fase 5 concluída; revisão humana, interface, identidade/MFA, RBAC e dupla aprovação editorial implementados; Gate G5 aprovado; Gate G4 continua bloqueando release | Codex |
 | 2026-08-26 | Fundação da Fase 6 implantada com flags desligadas; agente OpenClaw isolado e benchmark real v1.1 executado; G6 permanece bloqueado por baixa qualidade, custo não observável e ausência de baseline humano | Codex |
 | 2026-08-26 | Resolvedor determinístico ESA concluído; 81 vínculos bibliográficos gerados, parser de células corrigido e CrossRef Accuracy incorporada ao G3; seis divergências com o XML aprovado aguardam adjudicação humana | Codex |
+| 2026-08-27 | Resolvedor bibliográfico implantado na VPS com backup/restore e rollback; serviços saudáveis e flags de IA mantidas desligadas | Codex |

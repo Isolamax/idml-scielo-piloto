@@ -133,3 +133,18 @@ um artefato. O código anterior está em
 é `idml-foundation:phase6-pre-corpus`, ID
 `sha256:538fee6c33936b57db1fc926338753e0aea5f6d8a34a6a5c3b281bedf466e6df`. OpenClaw e
 os serviços Mapalead permaneceram healthy.
+
+## Implantação do resolvedor bibliográfico
+
+Em 2026-08-27, o incremento foi implantado na imagem
+`idml-foundation:phase6-crossrefs-v1`, ID
+`sha256:667c5faff1f8406659f1deddae03680eb1d0edab56e13e25398040d57ad6e893`. A
+imagem anterior foi preservada como `idml-foundation:phase6-pre-crossrefs`, ID
+`sha256:e1d56c0de344a0210872fb55b639603dde66370418559f8f16543935a982e146`.
+
+O backup `/opt/idml-platform/backups/20260826T212034Z` passou no restore isolado com 21 tabelas e
+um artefato; o código anterior está em
+`/opt/idml-platform/backups/source-phase6-pre-crossrefs-20260826T212034Z.tar.gz`. API, worker,
+PostgreSQL e Redis ficaram healthy; a migration permaneceu em `d5f6a7b8c9d0`, com zero
+`agent_runs` e zero `agent_proposals`. As flags de IA permaneceram desligadas, e OpenClaw e
+Mapalead continuaram healthy.

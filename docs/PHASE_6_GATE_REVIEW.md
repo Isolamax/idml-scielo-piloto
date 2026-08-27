@@ -104,3 +104,12 @@ worker, PostgreSQL e Redis ficaram healthy; migration `d5f6a7b8c9d0`; flags de I
 `agent_runs` e `agent_proposals`. O backup `/opt/idml-platform/backups/20260826T205408Z` passou no
 restore isolado e o snapshot do código anterior está em
 `/opt/idml-platform/backups/source-phase6-pre-corpus-20260826T205412Z.tar.gz`.
+
+O resolvedor bibliográfico posterior foi implantado em 2026-08-27 na imagem
+`idml-foundation:phase6-crossrefs-v1`, ID
+`sha256:667c5faff1f8406659f1deddae03680eb1d0edab56e13e25398040d57ad6e893`; o
+rollback é `idml-foundation:phase6-pre-crossrefs`, ID
+`sha256:e1d56c0de344a0210872fb55b639603dde66370418559f8f16543935a982e146`.
+O backup `/opt/idml-platform/backups/20260826T212034Z` passou no restore isolado com 21 tabelas e
+um artefato. API, worker, PostgreSQL, Redis, OpenClaw e Mapalead ficaram healthy; a migration e as
+flags permaneceram inalteradas, com zero execuções/propostas de agentes.
