@@ -10,8 +10,9 @@ from idml_foundation.ai.orchestration import AgentBudget, OrchestrationRequest, 
 from idml_foundation.ai.outputs import AgentDomain, AgentProposalOutput, output_json_schema
 from idml_foundation.ai.policy import route_proposal
 from idml_foundation.ai.registry import AgentProfile, load_prompt
-from idml_foundation.ai.security import payload_digest, untrusted_envelope
+from idml_foundation.ai.security import payload_digest, redact_text, untrusted_envelope
 from idml_foundation.ai.tools import AgentToolService
+from idml_foundation.domain.common import canonical_bytes
 from idml_foundation.models import AgentProposal, AgentRun
 
 
@@ -24,6 +25,36 @@ def _prevent_agent_history_mutation(
 ) -> None:
     del mapper, connection, target
     raise ValueError("agent history is append-only")
+
+
+def build_assistance_payload(tools: AgentToolService) -> dict[str, Any]:
+    """Build the compact, deduplicated model input from tenant-bound tool results."""
+    review = tools.read_review_item().payload
+    fragment = tools.read_canonical_fragment(tools.item.field_path).payload
+    evidence = tools.read_evidence().payload["evidence"]
+    current: dict[str, Any] = {
+        "path": fragment["path"],
+        "value": fragment["value"],
+    }
+    if "atomic_rich_text" in fragment:
+        current["atomic_rich_text"] = fragment["atomic_rich_text"]
+    return {
+        "contract_version": "assistive-input-1.1",
+        "task": {
+            "review_item_id": review["review_item_id"],
+            "review_version": review["version"],
+            "domain": tools.scope.domain.value,
+            "rule_code": review["rule_code"],
+            "field_path": review["field_path"],
+            "message": redact_text(str(review["message"]), max_characters=1_200),
+        },
+        "current": current,
+        "evidence": evidence,
+        "alternatives": [
+            redact_text(str(value), max_characters=500)
+            for value in review["alternatives"][:10]
+        ],
+    }
 
 
 async def run_assistance(
@@ -46,13 +77,8 @@ async def run_assistance(
         return existing, proposal
 
     tools = AgentToolService(db, scope)
-    tool_payloads = {
-        "review": tools.read_review_item().payload,
-        "canonical_fragment": tools.read_canonical_fragment(tools.item.field_path).payload,
-        "evidence": tools.read_evidence().payload,
-        "validation_issues": tools.read_validation_issues().payload,
-    }
-    envelope = untrusted_envelope(tool_payloads)
+    envelope = untrusted_envelope(build_assistance_payload(tools))
+    envelope_bytes = len(canonical_bytes(envelope))
     request = OrchestrationRequest(
         organization_id=scope.organization_id,
         job_id=scope.job_id,
@@ -118,6 +144,7 @@ async def run_assistance(
             "max_input_tokens": budget.max_input_tokens,
             "max_output_tokens": budget.max_output_tokens,
             "max_cost_microusd": budget.max_cost_microusd,
+            "input_envelope_bytes": envelope_bytes,
         },
         error_code=error_code,
     )

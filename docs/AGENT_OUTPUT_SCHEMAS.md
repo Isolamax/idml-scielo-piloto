@@ -1,6 +1,7 @@
 # Schemas de saída dos agentes — Fase 6
 
-Versão do contrato: `agent-proposal-1.0`.
+Versão ativa do contrato: `agent-proposal-1.1`. A versão 1.0 permanece somente como artefato
+histórico e não é aceita em novas execuções assistivas.
 
 Há um schema fechado comum e uma especialização por domínio em `schemas/agents/`. Em runtime, o
 backend gera o schema inline a partir do mesmo modelo Pydantic e fixa `domain` no valor da tarefa.
@@ -10,9 +11,9 @@ Propriedades adicionais são rejeitadas.
 
 | Campo | Regra |
 |---|---|
-| `schema_version` | valor exato `agent-proposal-1.0` |
+| `schema_version` | valor exato `agent-proposal-1.1` |
 | `domain` | um dos seis domínios configurados e igual à tarefa |
-| `patch` | 1–5 operações `replace`; caminho JSON Pointer existente, escopado e sem duplicação |
+| `patch` | 1–5 operações `replace`; cada uma contém `evidence_ids`, caminho existente, escopado e sem duplicação |
 | `confidence` | número entre 0 e 1 |
 | `evidence` | 1–20 referências existentes no item |
 | `alternatives` | 1–10 alternativas explícitas |
@@ -21,6 +22,9 @@ Propriedades adicionais são rejeitadas.
 
 Uma evidência contém `evidence_id`, `source_kind`, `locator` e `excerpt_sha256`. Não basta o formato
 ser válido: os quatro valores são comparados com a evidência tenant-bound entregue pelo backend.
+O conjunto de IDs citado nas operações deve ser exatamente igual ao conjunto declarado em
+`evidence`: evidência ausente, externa, duplicada ou declarada sem uso rejeita toda a proposta.
+O hash é recalculado pelo backend sobre o trecho sanitizado efetivamente entregue ao agente.
 
 ## Domínios e caminhos
 
@@ -41,6 +45,7 @@ Para `RichText`, `plain.value` e `inlines` formam um único valor semântico. Se
 `atomic_rich_text`, a proposta deve conter as duas operações indicadas: uma substitui o texto
 simples e a outra substitui o array completo de inlines. A concatenação de `inline.text` deve ser
 exatamente igual a `plain.value`; não é permitido alterar somente um inline individual.
+As duas operações do mesmo `RichText` também devem citar a mesma lista de evidências.
 
 ## Rejeição
 

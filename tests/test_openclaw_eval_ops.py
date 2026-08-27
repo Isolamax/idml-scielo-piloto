@@ -74,13 +74,14 @@ def test_score_requires_both_sides_of_atomic_rich_text_patch() -> None:
         tools_exposed=0,
         skills_exposed=0,
         output={
-            "schema_version": "agent-proposal-1.0",
+            "schema_version": "agent-proposal-1.1",
             "domain": "figures_tables",
             "patch": [
                 {
                     "op": "replace",
                     "path": case["field_path"],
                     "value": "Expected",
+                    "evidence_ids": ["evidence-1"],
                 }
             ],
             "confidence": 0.9,
@@ -97,6 +98,7 @@ def test_score_requires_both_sides_of_atomic_rich_text_patch() -> None:
             "op": "replace",
             "path": case["atomic_rich_text"]["required_patch_paths"][1],
             "value": [{"id": "inline-1", "kind": "text", "text": "Expected"}],
+            "evidence_ids": ["evidence-1"],
         }
     )
     assert score(dataset, results)["metrics"]["exact_patch_accuracy"] == 1

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from enum import StrEnum
-from typing import Any, Literal, Self
+from typing import Annotated, Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -16,12 +16,26 @@ class AgentDomain(StrEnum):
     MATH_NOTES = "math_notes"
 
 
+EvidenceId = Annotated[str, Field(min_length=1, max_length=200)]
+
+
 class AgentPatchOperation(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     op: Literal["replace"]
     path: str = Field(pattern=r"^/", min_length=2, max_length=500)
     value: Any
+    evidence_ids: tuple[EvidenceId, ...] = Field(
+        min_length=1,
+        max_length=20,
+        json_schema_extra={"uniqueItems": True},
+    )
+
+    @model_validator(mode="after")
+    def evidence_ids_are_unique(self) -> Self:
+        if len(self.evidence_ids) != len(set(self.evidence_ids)):
+            raise ValueError("patch operation evidence_ids must be unique")
+        return self
 
 
 class AgentEvidenceReference(BaseModel):
@@ -36,7 +50,7 @@ class AgentEvidenceReference(BaseModel):
 class AgentProposalOutput(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    schema_version: Literal["agent-proposal-1.0"]
+    schema_version: Literal["agent-proposal-1.1"]
     domain: AgentDomain
     patch: tuple[AgentPatchOperation, ...] = Field(min_length=1, max_length=5)
     confidence: float = Field(ge=0.0, le=1.0)
@@ -46,9 +60,25 @@ class AgentProposalOutput(BaseModel):
     needs_human: bool
 
     @model_validator(mode="after")
-    def low_confidence_requires_human(self) -> Self:
+    def proposal_invariants(self) -> Self:
         if self.confidence < 0.85 and not self.needs_human:
             raise ValueError("low-confidence proposals must require human review")
+        declared = [reference.evidence_id for reference in self.evidence]
+        if len(declared) != len(set(declared)):
+            raise ValueError("proposal evidence references must be unique")
+        used = {evidence_id for operation in self.patch for evidence_id in operation.evidence_ids}
+        if used != set(declared):
+            raise ValueError(
+                "patch evidence_ids must use every and only declared evidence reference"
+            )
+        by_path = {operation.path: operation for operation in self.patch}
+        for operation in self.patch:
+            suffix = "/plain/value"
+            if not operation.path.endswith(suffix):
+                continue
+            sibling = by_path.get(f"{operation.path[: -len(suffix)]}/inlines")
+            if sibling is not None and sibling.evidence_ids != operation.evidence_ids:
+                raise ValueError("atomic RichText operations must cite identical evidence_ids")
         return self
 
 
@@ -64,7 +94,7 @@ DOMAIN_PATH_PREFIXES: dict[AgentDomain, tuple[str, ...]] = {
 
 def output_json_schema(domain: AgentDomain) -> dict[str, Any]:
     schema = AgentProposalOutput.model_json_schema()
-    schema["$id"] = f"https://idml.local/schemas/agents/{domain.value}-proposal-1.0.json"
+    schema["$id"] = f"https://idml.local/schemas/agents/{domain.value}-proposal-1.1.json"
     schema["title"] = f"{domain.value} assistive proposal"
     schema["properties"]["domain"] = {"const": domain.value, "type": "string"}
     schema["additionalProperties"] = False

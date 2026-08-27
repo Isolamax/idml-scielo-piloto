@@ -27,8 +27,9 @@ from idml_foundation.ai.orchestration import (
 from idml_foundation.ai.outputs import AgentDomain, output_json_schema, parse_agent_output
 from idml_foundation.ai.registry import load_registry
 from idml_foundation.ai.security import payload_digest, untrusted_envelope
-from idml_foundation.ai.service import run_assistance
+from idml_foundation.ai.service import build_assistance_payload, run_assistance
 from idml_foundation.ai.tools import AgentToolService
+from idml_foundation.domain.common import canonical_bytes
 from idml_foundation.models import (
     AgentProposal,
     Membership,
@@ -64,10 +65,15 @@ def _request(*, budget: AgentBudget | None = None) -> OrchestrationRequest:
 
 def _proposal(*, evidence_sha: str, value: str = "Corrected title") -> dict[str, Any]:
     return {
-        "schema_version": "agent-proposal-1.0",
+        "schema_version": "agent-proposal-1.1",
         "domain": "metadata",
         "patch": [
-            {"op": "replace", "path": "/front/titles/0/text/value", "value": value}
+            {
+                "op": "replace",
+                "path": "/front/titles/0/text/value",
+                "value": value,
+                "evidence_ids": ["ev-1"],
+            }
         ],
         "confidence": 0.91,
         "evidence": [
@@ -187,6 +193,7 @@ def _rich_text_proposal(*, atomic: bool) -> dict[str, Any]:
             "op": "replace",
             "path": "/body/0/blocks/1/caption/plain/value",
             "value": "Corrected figure",
+            "evidence_ids": ["ev-caption-1"],
         }
     ]
     if atomic:
@@ -202,10 +209,11 @@ def _rich_text_proposal(*, atomic: bool) -> dict[str, Any]:
                         "evidence_ids": ["evidence-source-1"],
                     }
                 ],
+                "evidence_ids": ["ev-caption-1"],
             }
         )
     return {
-        "schema_version": "agent-proposal-1.0",
+        "schema_version": "agent-proposal-1.1",
         "domain": "figures_tables",
         "patch": patch,
         "confidence": 0.93,
@@ -236,6 +244,45 @@ def test_closed_schema_rejects_invalid_or_unsupported_output() -> None:
     low_confidence = dict(valid, confidence=0.2, needs_human=False)
     with pytest.raises(ValidationError):
         parse_agent_output(low_confidence)
+
+    unbound_operation = _proposal(evidence_sha=digest)
+    unbound_operation["patch"][0]["evidence_ids"] = ["outside-scope"]
+    with pytest.raises(ValidationError, match="every and only declared evidence"):
+        parse_agent_output(unbound_operation)
+
+    unused_evidence = _proposal(evidence_sha=digest)
+    unused_evidence["evidence"].append(
+        {
+            "evidence_id": "ev-unused",
+            "source_kind": "canonical",
+            "locator": "unused",
+            "excerpt_sha256": "b" * 64,
+        }
+    )
+    with pytest.raises(ValidationError, match="every and only declared evidence"):
+        parse_agent_output(unused_evidence)
+
+
+def test_assistance_payload_is_compact_and_deduplicated(db: Session) -> None:
+    scope, item = _rich_text_review(db)
+    item.evidence[0]["excerpt_sha256"] = "f" * 64
+    tools = AgentToolService(db, scope)
+    payload = build_assistance_payload(tools)
+
+    assert payload["contract_version"] == "assistive-input-1.1"
+    assert set(payload) == {
+        "contract_version",
+        "task",
+        "current",
+        "evidence",
+        "alternatives",
+    }
+    assert "snapshot_id" not in payload["current"]
+    atomic = payload["current"]["atomic_rich_text"]
+    assert "value" not in atomic
+    assert atomic["current_inlines"][0]["text"] == "Synthetic figure"
+    assert payload["evidence"][0]["excerpt_sha256"] == payload_digest("Corrected figure")
+    assert len(canonical_bytes(payload)) < 4_000
 
 
 def test_rich_text_patch_requires_atomic_plain_and_inlines(db: Session) -> None:
@@ -367,6 +414,9 @@ def test_proposal_is_validated_persisted_and_never_applied(db: Session) -> None:
         )
     )
     assert run.status == "succeeded"
+    assert run.prompt_version == "1.2"
+    assert run.output_schema_version == "agent-proposal-1.1"
+    assert 0 < run.budget["input_envelope_bytes"] < 4_000
     assert proposal is not None and proposal.needs_human
     assert item.state == "open"
     assert item.version == 1

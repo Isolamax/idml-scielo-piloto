@@ -115,6 +115,23 @@ Nenhum agente foi executado e nenhuma nova métrica de qualidade foi produzida n
 As flags de OpenClaw e Swarm permanecem desligadas; o v1.2 será executado somente na etapa futura
 de testes com agentes autorizada pelo responsável do projeto.
 
+## Preparação do benchmark v1.3 — sem execução de agentes
+
+Antes de executar o v1.2, o contrato foi endurecido e o dataset preparado passou a v1.3. O schema
+ativo `agent-proposal-1.1` exige `evidence_ids` em cada operação e igualdade exata entre o conjunto
+de evidências declarado e o efetivamente usado. Operações atômicas do mesmo `RichText` devem citar
+a mesma evidência. O hash é recalculado sobre o trecho sanitizado entregue, em vez de aceitar um
+hash informado no item.
+
+O envelope `assistive-input-1.1` remove cópias de snapshot e validações redundantes, limita a vinte
+evidências, 1.200 caracteres por trecho, dez alternativas de 500 caracteres e registra o tamanho
+canônico enviado. O contexto atômico deixou de repetir `plain` e carrega somente os inlines
+necessários. Prompts 1.2, configuração 1.1 e bundle de instruções 1.1 foram versionados.
+
+Essa redução se aplica ao conteúdo controlado pela aplicação; o overhead do system prompt interno
+do OpenClaw só poderá ser medido quando os testes de agentes forem retomados. Nenhum agente foi
+executado neste incremento, e o v1.2 foi substituído pelo v1.3 antes de qualquer medição.
+
 ## Decisão e próximos incrementos
 
 Os resultados mantêm `IDML_FEATURE_OPENCLAW=false` e `IDML_FEATURE_AI_SWARM=false`. G6 permanece
@@ -122,7 +139,8 @@ bloqueado e a Fase 7 não deve começar. Ordem recomendada de desenvolvimento:
 
 1. adjudicar com revisores as seis divergências bibliográficas quando houver disponibilidade;
 2. [concluído] definir patch atômico para `RichText`, preservando `plain` e `inlines` juntos;
-3. reforçar structured output/evidence binding e reduzir o prompt de aproximadamente 9 mil tokens;
+3. [concluído no envelope da aplicação] reforçar structured output/evidence binding e reduzir
+   conteúdo redundante; medir o overhead total do OpenClaw somente nos testes futuros;
 4. implementar observação de custo monetário por chamada;
 5. criar profile/style mapping RBEdu somente quando a expansão de template for autorizada;
 6. repetir o benchmark com corpus maior e baseline humano assim que revisores estiverem disponíveis.

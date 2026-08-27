@@ -14,7 +14,12 @@ from idml_foundation.ai.outputs import (
     AgentProposalOutput,
     parse_agent_output,
 )
-from idml_foundation.ai.security import contains_policy_override, payload_digest, sanitize_untrusted
+from idml_foundation.ai.security import (
+    contains_policy_override,
+    payload_digest,
+    redact_text,
+    sanitize_untrusted,
+)
 from idml_foundation.models import DomainSnapshot, ReviewItem
 from idml_foundation.pipeline.profile import load_profile
 from idml_foundation.pipeline.validation import OfflineJatsValidator
@@ -58,9 +63,29 @@ def _atomic_rich_text_context(payload: dict[str, Any], path: str) -> dict[str, A
         and isinstance(rich_text.get("inlines"), list)
     ):
         return None
+    compact_inlines = [
+        {
+            key: sanitize_untrusted(value)
+            for key, value in inline.items()
+            if key
+            in {
+                "id",
+                "kind",
+                "text",
+                "target_id",
+                "href",
+                "name",
+                "attributes",
+                "evidence_ids",
+            }
+            and value not in (None, {}, [])
+        }
+        for inline in rich_text["inlines"]
+        if isinstance(inline, dict)
+    ]
     return {
         "root_path": root_path,
-        "value": sanitize_untrusted(rich_text),
+        "current_inlines": compact_inlines,
         "required_patch_paths": [path, f"{root_path}/inlines"],
     }
 
@@ -74,7 +99,7 @@ def _source_kind(value: Any) -> str:
 
 def _normalize_evidence(item: ReviewItem) -> list[dict[str, Any]]:
     normalized: list[dict[str, Any]] = []
-    for position, evidence in enumerate(item.evidence):
+    for position, evidence in enumerate(item.evidence[:20]):
         evidence_id = str(evidence.get("evidence_id") or evidence.get("id") or position)
         locator_value = evidence.get("locator") or evidence.get("logical_path") or evidence
         locator = (
@@ -82,14 +107,17 @@ def _normalize_evidence(item: ReviewItem) -> list[dict[str, Any]]:
             if isinstance(locator_value, str)
             else json.dumps(locator_value, ensure_ascii=False, sort_keys=True)
         )
-        excerpt = str(evidence.get("excerpt") or evidence.get("text") or "")
-        excerpt_sha256 = str(evidence.get("excerpt_sha256") or payload_digest(excerpt))
+        excerpt = redact_text(
+            str(evidence.get("excerpt") or evidence.get("text") or ""),
+            max_characters=1_200,
+        )
+        excerpt_sha256 = payload_digest(excerpt)
         normalized.append(
             {
                 "evidence_id": evidence_id[:200],
                 "source_kind": _source_kind(evidence.get("source_kind") or evidence.get("source")),
                 "locator": locator[:500],
-                "excerpt": sanitize_untrusted(excerpt),
+                "excerpt": excerpt,
                 "excerpt_sha256": excerpt_sha256,
             }
         )

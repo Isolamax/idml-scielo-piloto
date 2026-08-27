@@ -25,7 +25,7 @@ def repository_root() -> Path:
 def load_registry(path: Path | None = None) -> dict[AgentDomain, AgentProfile]:
     registry_path = path or repository_root() / "config" / "agent-model-registry-v1.json"
     payload = json.loads(registry_path.read_text(encoding="utf-8"))
-    if payload.get("version") != "agent-config-1.0":
+    if payload.get("version") != "agent-config-1.1":
         raise ValueError("unsupported agent registry version")
     profiles: dict[AgentDomain, AgentProfile] = {}
     for key, value in payload["domains"].items():

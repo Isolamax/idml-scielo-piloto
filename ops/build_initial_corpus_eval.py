@@ -321,7 +321,7 @@ def main() -> int:
     args.cases_output.write_text(
         json.dumps(
             {
-                "version": "idml-agent-initial-corpus-eval-1.2",
+                "version": "idml-agent-initial-corpus-eval-1.3",
                 "description": "Restricted minimized cases; do not commit or redistribute.",
                 "restricted": True,
                 "atomic_rich_text_cases": sum(

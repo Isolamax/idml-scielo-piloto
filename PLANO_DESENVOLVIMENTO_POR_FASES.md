@@ -16,7 +16,7 @@ PLANO_ANALISE_CODEX_SCIELO_IDML_OPENCLAW_SWARM.md
 
 ```text
 PROJECT_STATUS: PHASE_6_TECHNICAL_EVALUATION_BLOCKED
-CURRENT_PHASE: FASE 6 com patch atômico concluído — Gate G6 bloqueado em custo e avaliação futura
+CURRENT_PHASE: FASE 6 com contratos reforçados — próximo incremento: custo observável
 IMPLEMENTATION_AUTHORIZED: PHASE_6_AUTHORIZED — PHASE_7_NOT_AUTHORIZED
 PRODUCTION_DEPLOYMENT_AUTHORIZED: NO
 ARCHITECTURE_STATUS: APPROVED_WITH_CHANGES
@@ -542,6 +542,7 @@ Adicionar IA somente onde houver ganho mensurável sobre o pipeline determiníst
 - [x] Definir confidence, evidence, alternatives e reason.
 - [x] Rejeitar saída inválida ou sem evidência.
 - [x] Exigir patch atômico de `RichText` para `plain.value` e `inlines`.
+- [x] Vincular cada operação às evidências exatas e rejeitar evidência declarada sem uso.
 - [x] Produzir `docs/AGENT_OUTPUT_SCHEMAS.md`.
 
 ## Pacote 6.3 — Orquestração substituível
@@ -571,6 +572,7 @@ Adicionar IA somente onde houver ganho mensurável sobre o pipeline determiníst
 - [x] Testar indisponibilidade OpenAI/OpenClaw.
 - [x] Testar patches conflitantes ou atrasados.
 - [x] Versionar prompts, Skills, modelos e configurações.
+- [x] Deduplicar e limitar o envelope assistivo, registrando seu tamanho canônico.
 - [~] Registrar tokens e latência sem raciocínio privado; custo monetário não é exposto pelo caminho atual.
 
 ## Pacote 6.6 — QA e repair assistidos
@@ -740,12 +742,12 @@ Cada novo periódico deve possuir corpus, profile, style mapping, métricas, hom
 | R-07 | Vazamento entre empresas | Crítico | Escopo no backend, storage isolado e testes negativos | Mitigado na fundação; monitorado |
 | R-08 | Modelo canônico insuficiente | Alto | Corpus antes do congelamento e migrations | Mitigado no contrato; validar no parser |
 | R-09 | Confiança de IA mal calibrada | Alto | Evidência, agreement, métricas e revisão humana | Aberto |
-| R-10 | Custo ou latência excessivos | Médio/Alto | Model routing, cache seguro, limites e métricas | Aberto |
+| R-10 | Custo ou latência excessivos | Médio/Alto | Envelope compacto, model routing, cache seguro, limites e métricas | Parcialmente mitigado; custo monetário pendente |
 | R-11 | Falha sem retomada idempotente | Alto | Máquina de estados, idempotency keys e recuperação pelo PostgreSQL | Mitigado na fundação; monitorado |
 | R-12 | Perda de dados ou histórico | Crítico | Imutabilidade, backups e restore testado | Mitigado na fundação; monitorado |
 | R-13 | Vazamento ou contaminação do corpus | Alto | Manifestos sem conteúdo, acesso restrito e holdout separado | Mitigado; monitorado |
 | R-14 | Referências sem `xref` bibliográfico | Alto | Detecção offline, CrossRef Accuracy e resolver determinístico de citações | Mitigado tecnicamente — 81 vínculos/52 alvos; seis divergências com o aprovado aguardam adjudicação |
-| R-15 | Patch escalar quebrar invariantes de `RichText` | Alto | Patch atômico de `plain` + `inlines` e validação prévia | Mitigado; benchmark v1.2 preparado sem execução de agentes |
+| R-15 | Patch escalar quebrar invariantes de `RichText` | Alto | Patch atômico de `plain` + `inlines` e validação prévia | Mitigado; benchmark v1.3 preparado sem execução de agentes |
 
 # 8. Definition of Done global
 
