@@ -30,7 +30,7 @@ x-app-environment: &app-environment
   IDML_SESSION_TTL_SECONDS: ${IDML_SESSION_TTL_SECONDS:-28800}
   IDML_FEATURE_OPENCLAW: "false"
   IDML_FEATURE_AI_SWARM: "false"
-  IDML_OPENCLAW_GATEWAY_URL: ${IDML_OPENCLAW_GATEWAY_URL:-http://openclaw:47716}
+  IDML_OPENCLAW_GATEWAY_URL: ${IDML_OPENCLAW_GATEWAY_URL:-http://openclaw-idml:47716}
   IDML_OPENCLAW_GATEWAY_TOKEN: ${IDML_OPENCLAW_GATEWAY_TOKEN:-}
   IDML_AI_TIMEOUT_SECONDS: ${IDML_AI_TIMEOUT_SECONDS:-45}
   IDML_AI_MAX_ATTEMPTS: ${IDML_AI_MAX_ATTEMPTS:-2}
@@ -131,6 +131,81 @@ services:
     cpus: 0.05
     pids_limit: 20
 
+  openclaw-config-init:
+    image: alpine:3.21
+    user: "0:0"
+    command:
+      - sh
+      - -ec
+      - >-
+        mkdir -p /state/workspace &&
+        cp /seed/openclaw.json /state/openclaw.json &&
+        cp -a /seed/workspace/. /state/workspace/ &&
+        chown -R 1000:1000 /state &&
+        chmod 0700 /state /state/workspace &&
+        chmod 0600 /state/openclaw.json
+    network_mode: none
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+    volumes:
+      - idml_openclaw_state:/state
+      - ../config/openclaw-idml-dedicated.json:/seed/openclaw.json:ro
+      - ../openclaw/idml-evaluator-workspace:/seed/workspace:ro
+    restart: "no"
+    mem_limit: 32m
+    cpus: 0.05
+    pids_limit: 20
+
+  openclaw-idml:
+    image: ghcr.io/openclaw/openclaw@sha256:3814fb1f62f9cfc5944de088c5817c68c88b5d721feebe36420b666a90a61ce7
+    user: "1000:1000"
+    command: ["node", "openclaw.mjs", "gateway", "run"]
+    environment:
+      HOME: /home/node
+      NODE_ENV: production
+      OPENCLAW_STATE_DIR: /home/node/.openclaw
+      OPENCLAW_CONFIG_PATH: /home/node/.openclaw/openclaw.json
+      OPENCLAW_WORKSPACE_DIR: /home/node/.openclaw/workspace
+      OPENCLAW_GATEWAY_TOKEN: ${IDML_OPENCLAW_GATEWAY_TOKEN:?define a dedicated IDML OpenClaw token}
+      OPENCLAW_DISABLE_BONJOUR: "1"
+    volumes:
+      - idml_openclaw_state:/home/node/.openclaw
+    networks:
+      - idml_openclaw
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:47716/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    depends_on:
+      openclaw-config-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    mem_limit: 384m
+    cpus: 0.35
+    pids_limit: 120
+
   api:
     <<: *service-defaults
     image: idml-foundation:${IDML_IMAGE_TAG:-development}
@@ -140,6 +215,7 @@ services:
     networks:
       - idml_internal
       - idml_loopback
+      - idml_openclaw
     volumes:
       - idml_artifacts:/var/lib/idml/artifacts
     healthcheck:
@@ -172,6 +248,9 @@ services:
     command: ["python", "-m", "idml_foundation.worker"]
     volumes:
       - idml_artifacts:/var/lib/idml/artifacts
+    networks:
+      - idml_internal
+      - idml_openclaw
     healthcheck:
       test: ["CMD", "python", "-c", "import os; os.kill(1, 0)"]
       interval: 30s
@@ -194,6 +273,9 @@ networks:
     internal: true
   idml_loopback:
     name: idml_development_loopback
+  idml_openclaw:
+    name: idml_development_openclaw
+    internal: true
 
 volumes:
   idml_postgres_data:
@@ -202,3 +284,5 @@ volumes:
     name: idml_development_redis
   idml_artifacts:
     name: idml_development_artifacts
+  idml_openclaw_state:
+    name: idml_development_openclaw_state

@@ -16,7 +16,7 @@ PLANO_ANALISE_CODEX_SCIELO_IDML_OPENCLAW_SWARM.md
 
 ```text
 PROJECT_STATUS: PHASE_6_TECHNICAL_EVALUATION_BLOCKED
-CURRENT_PHASE: FASE 6 com custo controlado — próximo incremento: gateway OpenClaw dedicado ao IDML
+CURRENT_PHASE: FASE 6 com gateway dedicado inerte — próximo incremento: ativação controlada do provider
 IMPLEMENTATION_AUTHORIZED: PHASE_6_AUTHORIZED — PHASE_7_NOT_AUTHORIZED
 PRODUCTION_DEPLOYMENT_AUTHORIZED: NO
 ARCHITECTURE_STATUS: APPROVED_WITH_CHANGES
@@ -114,7 +114,7 @@ Antes de qualquer implantação futura na VPS:
 | 3 | Pipeline determinístico mínimo | IDML → modelo → XML válido sem IA | Concluída — Gate G3 aprovado |
 | 4 | Validação, fidelidade e pacote | Pacote validado e política de release | Implementada — Gate G4 bloqueado por validadores externos/crossrefs |
 | 5 | Revisão humana e interface mínima | Correção humana auditável | Concluída — Gate G5 aprovado |
-| 6 | IA assistiva e OpenClaw | Assistência semântica controlada | Fundação concluída — Gate G6 bloqueado por qualidade/custo/baseline |
+| 6 | IA assistiva e OpenClaw | Assistência semântica controlada | Gateway dedicado implantado; agentes desligados — Gate G6 bloqueado por qualidade/baseline |
 | 7 | Homologação e piloto | Qualidade comprovada no periódico piloto | Não iniciada — não autorizada |
 | 8 | Produção e operação | Operação segura e recuperável | Não iniciada |
 | 9 | Expansão controlada | Novos periódicos e casos complexos | Não iniciada |
@@ -578,7 +578,12 @@ Adicionar IA somente onde houver ganho mensurável sobre o pipeline determiníst
 - [x] Rejeitar a proposta com `COST_UNAVAILABLE` quando provider e catálogo exato não informam custo.
 - [x] Fixar tarifa oficial exata para `openai/gpt-5.4-mini`, incluindo entrada em cache.
 - [x] Aplicar preflight conservador e orçamento monetário agregado por artigo.
-- [!] Isolar o endpoint OpenResponses em gateway dedicado/restrito antes da ativação.
+- [x] Isolar o endpoint OpenResponses em gateway dedicado/restrito antes da ativação.
+- [x] Fixar imagem por digest, estado/workspace próprios e segredo independente.
+- [x] Manter o gateway sem porta publicada, sem egress, provider key, tools, Skills, plugins ou canais.
+- [x] Desabilitar heartbeat recorrente no default e no agente dedicado.
+- [x] Incluir o estado OpenClaw no backup consistente e no restore test.
+- [ ] Preparar credencial de provider e egress sob ativação explícita, sem executar agentes.
 
 ## Pacote 6.6 — QA e repair assistidos
 
@@ -753,6 +758,7 @@ Cada novo periódico deve possuir corpus, profile, style mapping, métricas, hom
 | R-13 | Vazamento ou contaminação do corpus | Alto | Manifestos sem conteúdo, acesso restrito e holdout separado | Mitigado; monitorado |
 | R-14 | Referências sem `xref` bibliográfico | Alto | Detecção offline, CrossRef Accuracy e resolver determinístico de citações | Mitigado tecnicamente — 81 vínculos/52 alvos; seis divergências com o aprovado aguardam adjudicação |
 | R-15 | Patch escalar quebrar invariantes de `RichText` | Alto | Patch atômico de `plain` + `inlines` e validação prévia | Mitigado; benchmark v1.3 preparado sem execução de agentes |
+| R-16 | Segredo do OpenClaw compartilhado exposto em comando de inicialização | Alto | Não reutilizar no IDML; rotacionar separadamente em janela do sistema existente | Aberto no sistema legado; isolado do IDML |
 
 # 8. Definition of Done global
 
@@ -833,3 +839,4 @@ ADRs iniciais esperados:
 | 2026-08-27 | Vínculo operação-evidência e envelope compacto implantados; schema 1.1, prompts 1.2 e benchmark v1.3 preparados; nenhum agente executado e flags mantidas desligadas | Codex |
 | 2026-08-27 | Política monetária fail-closed implementada e implantada: custo do provider ou tarifa exata versionada, auditoria de proveniência e bloqueio `COST_UNAVAILABLE`; alias real permanece sem preço oficial verificado e flags desligadas | Codex |
 | 2026-08-27 | Tarifa oficial do `gpt-5.4-mini` fixada; cache, preflight, teto agregado por artigo e cliente OpenResponses restrito implementados e implantados; integração continua desligada até existir gateway dedicado ao IDML | Codex |
+| 2026-08-27 | Gateway OpenClaw dedicado implantado com digest fixo, token próprio, rede interna sem egress, endpoint mínimo, estado/backup próprios e zero sessões; flags de IA permanecem desligadas | Codex |

@@ -91,7 +91,7 @@ aplicar a migration `c4e5f6a7b8c9` e recriar somente `api` e `worker`. A migrati
 é aditiva e a imagem anterior pode ser usada para rollback da aplicação enquanto
 se investiga um incidente.
 
-## Fase 6 — IA assistiva desativada
+## Fase 6 — gateway dedicado com IA desativada
 
 A fundação da Fase 6 deve operar com `IDML_FEATURE_OPENCLAW=false` e
 `IDML_FEATURE_AI_SWARM=false`. Não conectar o agente pessoal existente ao conteúdo de artigos. O
@@ -104,14 +104,35 @@ O custo segue `docs/AGENT_COST_POLICY.md`; a integração segue
 Nunca preencher preço por aproximação de família ou alias: modelo divergente ou sem tarifa deve
 falhar fechado.
 
-Não conectar API/worker ao OpenClaw compartilhado do Mapalead. O segredo compartilhado do endpoint
-OpenResponses possui autoridade ampla de operador. A ativação exige instância dedicada ao IDML ou
-autenticação com escopo mínimo comprovado. Até lá, deixar `IDML_OPENCLAW_GATEWAY_TOKEN` vazio,
-preservar redes separadas e manter as duas flags falsas.
+Não conectar API/worker ao OpenClaw compartilhado do Mapalead. O serviço `openclaw-idml` usa imagem
+fixada por digest, estado próprio, token aleatório próprio e somente a rede interna
+`idml_development_openclaw`. O token deve existir em `.env`, com modo 600, mas nunca deve ser
+impresso. As duas flags continuam falsas; o gateway permanece sem provider key e sem egress.
+
+Antes de subir o Compose pela primeira vez, gerar o segredo na própria VPS:
+
+```sh
+umask 077
+printf 'IDML_OPENCLAW_GATEWAY_TOKEN=%s\n' "$(openssl rand -hex 32)" >> .env
+```
+
+Validar sem chamar o endpoint de agentes:
+
+```sh
+docker compose --env-file .env -f deploy/docker-compose.dev.yml exec -T openclaw-idml \
+  node openclaw.mjs config validate --json
+docker compose --env-file .env -f deploy/docker-compose.dev.yml exec -T openclaw-idml \
+  node -e "fetch('http://127.0.0.1:47716/readyz').then(r=>process.exit(r.ok?0:1))"
+```
+
+O backup pausa brevemente apenas `openclaw-idml`, arquiva o volume consistente, retoma o serviço e
+aguarda health saudável. O restore test verifica checksum, presença da configuração e
+`PRAGMA integrity_check` do SQLite. Confirmar `agents.defaults.heartbeat.every=0m` e o mesmo valor no
+agente dedicado. Não usar `/v1/responses` em smoke enquanto o provider estiver desabilitado.
 
 Em deploy, validar dentro da imagem que `load_registry()` encontra seis perfis e que todos os
 prompts carregam. Validar também `load_pricing_catalog()`, executar backup/restore, aplicar a
 migration `f7b8c9d0e1f2` e recriar somente API
 e worker. Preservar `phase5` como rollback da aplicação; a migration é aditiva e pode permanecer
-enquanto um incidente é investigado. Confirmar zero `agent_runs`/`agent_proposals` enquanto as
-features estiverem desabilitadas.
+enquanto um incidente é investigado. Confirmar zero `agent_runs`/`agent_proposals` e zero sessões
+OpenClaw enquanto as features estiverem desabilitadas.

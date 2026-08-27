@@ -1,1 +1,1 @@
-No heartbeat tasks.
+# Heartbeat disabled

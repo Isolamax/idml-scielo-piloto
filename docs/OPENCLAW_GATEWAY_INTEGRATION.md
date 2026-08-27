@@ -1,6 +1,6 @@
 # Integração da aplicação com o gateway OpenClaw
 
-Data: 2026-08-27. Estado: implementada, implantada e desativada.
+Data: 2026-08-27. Estado: gateway dedicado implantado; inferência e agentes desativados.
 
 ## Contrato escolhido
 
@@ -38,21 +38,32 @@ duas reservas concorrentes. Custos reais de runs falhos também entram na soma q
 
 ## Fronteira de segurança da VPS
 
-O endpoint OpenResponses está desativado no OpenClaw atual. Segundo o contrato do gateway, segredo
-compartilhado restaura o conjunto completo de escopos de operador, mesmo quando o cliente pede
-escopos menores. Conectar a aplicação ao OpenClaw compartilhado do Mapalead ampliaria
-desnecessariamente o impacto de um comprometimento.
+O OpenClaw compartilhado do Mapalead não faz parte da integração. Segundo o contrato do gateway,
+seu segredo compartilhado restaura o conjunto completo de escopos de operador, mesmo quando o
+cliente pede escopos menores. A inspeção também encontrou esse segredo no comando persistido do
+container legado. A rotação exige janela própria do sistema existente e não foi feita neste
+incremento para evitar interrupção.
 
-Antes de habilitar `IDML_FEATURE_OPENCLAW`, escolher e validar uma destas opções:
+A instância `openclaw-idml` agora implementa a fronteira dedicada:
 
-1. instância OpenClaw dedicada ao IDML, com rede Docker exclusiva, agente único, ferramentas/skills
-   vazios, limites de CPU/RAM e segredo próprio; opção recomendada;
-2. autenticação identity-aware com escopos mínimos efetivamente honrados pelo gateway, depois de
-   teste negativo documentado.
+- imagem 2026.6.11 fixada pelo digest `sha256:3814fb1f62f9cfc5944de088c5817c68c88b5d721feebe36420b666a90a61ce7`;
+- configuração e workspace no volume exclusivo `idml_development_openclaw_state`;
+- token aleatório independente, injetado por ambiente e não gravado no JSON;
+- rede `idml_development_openclaw` marcada como interna, sem egress e sem porta publicada;
+- root filesystem read-only, capabilities removidas, 384 MiB, 0,35 CPU e 120 PIDs;
+- somente `/v1/responses` habilitado; Chat Completions e Control UI desligados;
+- único agente `idml-evaluator`, modelo fixo, sem fallback, tools/Skills/plugins/canais vazios;
+- heartbeat desabilitado com `every: 0m` no default e no agente;
+- nenhuma `OPENAI_API_KEY` ou outra credencial de provider.
 
-Até essa fronteira existir, não configurar o token na aplicação, não conectar redes Docker e manter
-as duas flags de IA falsas. O OpenClaw e o Mapalead atuais não devem ser reiniciados ou alterados
-por este incremento.
+API e worker alcançam apenas essa rede dedicada. `IDML_FEATURE_OPENCLAW=false` e
+`IDML_FEATURE_AI_SWARM=false` continuam fixos no Compose. Ter URL e token configurados não autoriza
+execução: o gateway também não possui rota de saída nem credencial de modelo.
+
+Antes de habilitar qualquer flag ainda é obrigatório preparar o provider/egress sob controle
+explícito, validar orçamento e observabilidade e aprovar um protocolo de teste. Enquanto a instância
+estiver inerte, o smoke operacional deve usar apenas `/healthz`, `/readyz` e `config validate`. O
+endpoint `/v1/responses` fica reservado ao protocolo controlado de ativação.
 
 ## Evidência de implantação
 
@@ -68,3 +79,24 @@ O rollback é `idml-foundation:phase6-pre-gateway`, ID
 `/opt/idml-platform/backups/20260827T204747Z` passou no restore isolado; o snapshot anterior está em
 `/opt/idml-platform/backups/source-phase6-pre-gateway-20260827T204747Z.tar.gz`. OpenClaw e Mapalead
 continuaram healthy, a interface respondeu HTTP 200 e o volume raiz permaneceu em 79%.
+
+## Evidência da instância dedicada
+
+O Compose e o schema da imagem foram validados antes do deploy. Na VPS, `openclaw-idml`, API,
+worker, PostgreSQL e Redis ficaram healthy; a migration permaneceu em `f7b8c9d0e1f2` e API/worker
+continuaram na imagem `idml-foundation:phase6-gateway-v1`, ID
+`sha256:1bcd5223601bdbedc655aa113903adb87aabf0e8ed98c1be5c3655e2931847bd`.
+
+O teste confirmou rede interna sem egress, nenhuma porta publicada, ausência de provider key,
+configuração modo 600, root filesystem read-only, token dedicado com 64 caracteres sem exibi-lo e
+zero linhas em `agent_runs`/`agent_proposals`. A verificação prolongada detectou que o heartbeat
+padrão do OpenClaw criava uma sessão e tentava resolver o modelo; não houve inferência ou tráfego ao
+provider. O heartbeat foi desabilitado em dois níveis, seu arquivo ficou inerte e o volume novo foi
+removido e recriado de forma controlada. Uma observação contínua de 105 segundos confirmou saúde,
+zero sessões e zero erros de modelo.
+
+O backup pós-deploy `/opt/idml-platform/backups/20260827T212619Z` contém banco, artefatos e estado
+OpenClaw; checksums, restore isolado e integridade SQLite passaram. O snapshot anterior do código é
+`/opt/idml-platform/backups/source-phase6-pre-dedicated-openclaw-20260827T210633Z.tar.gz`. O
+OpenClaw compartilhado manteve o mesmo container, restart count zero e health saudável; os serviços
+Mapalead permaneceram em execução. A raiz continuou em 79%, com 21 GiB livres.

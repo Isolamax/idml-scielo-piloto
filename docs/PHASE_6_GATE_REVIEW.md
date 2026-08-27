@@ -219,3 +219,37 @@ O rollback é `idml-foundation:phase6-pre-gateway`, ID
 `/opt/idml-platform/backups/20260827T204747Z` passou no restore com 21 tabelas e um artefato; o
 snapshot anterior está em
 `/opt/idml-platform/backups/source-phase6-pre-gateway-20260827T204747Z.tar.gz`.
+
+## Incremento pós-gate — gateway OpenClaw dedicado e inerte
+
+Em 2026-08-27 foi implantada uma segunda instância OpenClaw, exclusiva do IDML. A imagem 2026.6.11
+está fixada pelo digest `sha256:3814fb1f62f9cfc5944de088c5817c68c88b5d721feebe36420b666a90a61ce7`;
+o serviço tem volume e workspace próprios, token independente, rede Docker interna sem egress e
+nenhuma porta publicada. Root filesystem é read-only, capabilities foram removidas e os limites são
+384 MiB, 0,35 CPU e 120 PIDs.
+
+O schema live foi validado sem warnings. Apenas `/v1/responses` está habilitado; Control UI e Chat
+Completions estão desligados. Há um único agente `idml-evaluator`, modelo
+`openai/gpt-5.4-mini`, nenhum fallback e listas vazias de ferramentas e Skills; plugins e canais
+também estão desligados. Não existe provider key. API e worker só alcançam essa instância pela rede
+dedicada e as duas flags de IA seguem falsas.
+
+A observação prolongada detectou que o heartbeat padrão criava uma sessão e tentava resolver o
+modelo. Não houve chamada de provider: egress estava bloqueado e não existia credencial. O heartbeat
+foi desabilitado com `every: 0m` nos defaults e no agente, e `HEARTBEAT.md` ficou inerte. O volume,
+criado apenas neste incremento, foi validado pelo label Compose, removido e recriado; o estado final
+registra zero sessões e zero erros de modelo durante 105 segundos de observação; o banco da
+aplicação registra zero runs/propostas. O runbook agora proíbe smoke em `/v1/responses` antes da
+ativação controlada.
+
+Localmente, 91 testes passaram com cobertura de 85,68%, além de Ruff, Mypy, sintaxe shell, schema
+OpenClaw e Compose. Na VPS, OpenClaw dedicado, API, worker, PostgreSQL e Redis estão healthy;
+migration `f7b8c9d0e1f2`; aplicação na imagem correta `phase6-gateway-v1`; OpenClaw compartilhado
+com mesmo container, zero restarts e health saudável; Mapalead permaneceu em execução.
+
+O backup `/opt/idml-platform/backups/20260827T212619Z` passou em checksums, restore isolado e
+integridade SQLite, com 21 tabelas, um artefato e 13 arquivos de estado OpenClaw. O snapshot
+pré-deploy é
+`/opt/idml-platform/backups/source-phase6-pre-dedicated-openclaw-20260827T210633Z.tar.gz`. O Gate G6
+continua bloqueado pela comprovação de ganho de qualidade e baseline humano; esta infraestrutura não
+autoriza execução de agentes.
