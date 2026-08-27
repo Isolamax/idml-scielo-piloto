@@ -825,3 +825,4 @@ ADRs iniciais esperados:
 | 2026-08-26 | Resolvedor determinístico ESA concluído; 81 vínculos bibliográficos gerados, parser de células corrigido e CrossRef Accuracy incorporada ao G3; seis divergências com o XML aprovado aguardam adjudicação humana | Codex |
 | 2026-08-27 | Resolvedor bibliográfico implantado na VPS com backup/restore e rollback; serviços saudáveis e flags de IA mantidas desligadas | Codex |
 | 2026-08-27 | Patch atômico de RichText implantado com backup/restore e rollback; prompts 1.1 e benchmark v1.2 preparados; nenhum agente executado e flags mantidas desligadas | Codex |
+| 2026-08-27 | Vínculo operação-evidência e envelope compacto implantados; schema 1.1, prompts 1.2 e benchmark v1.3 preparados; nenhum agente executado e flags mantidas desligadas | Codex |

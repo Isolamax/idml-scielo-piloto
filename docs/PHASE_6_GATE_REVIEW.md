@@ -134,3 +134,27 @@ healthy; PostgreSQL e Redis foram preservados; migration `d5f6a7b8c9d0`; seis pr
 código está em
 `/opt/idml-platform/backups/source-phase6-pre-richtext-20260827T124757Z.tar.gz`. OpenClaw e
 Mapalead permaneceram healthy e inalterados.
+
+## Incremento pós-gate — vínculo de evidência e envelope compacto
+
+Em 2026-08-27 foi implantado o contrato ativo `agent-proposal-1.1`. Cada operação de patch agora
+declara `evidence_ids`; o backend exige igualdade exata entre evidências declaradas e utilizadas,
+recalcula o hash do trecho sanitizado e exige o mesmo vínculo nas duas operações de um
+`RichText`. O envelope `assistive-input-1.1` remove duplicações, limita trechos, alternativas e
+quantidade de evidências, e registra seu tamanho canônico. Prompts 1.2, configuração 1.1 e bundle
+de instruções 1.1 foram versionados. O benchmark preparado passou a v1.3 antes de qualquer nova
+execução.
+
+Localmente, 78 testes passaram com cobertura de 86,33%, além de Ruff e Mypy. Na VPS, a imagem
+`idml-foundation:phase6-evidence-v1`
+(`sha256:9eedfdbe2191ea0a4afbfec7e6a54f122458eb2b9b719d23769c65aa1dca9506`) deixou API e worker
+healthy; PostgreSQL e Redis foram preservados; migration `d5f6a7b8c9d0`; seis prompts 1.2; zero
+`agent_runs` e `agent_proposals`. O rollback é `idml-foundation:phase6-pre-evidence`
+(`sha256:7c16c04730fdb11b734ac630c229bacaa1c96615146b4ae5b1fbc780d6bce307`). O backup
+`/opt/idml-platform/backups/20260827T130035Z` passou no restore isolado, e o snapshot anterior do
+código está em
+`/opt/idml-platform/backups/source-phase6-pre-evidence-20260827T130037Z.tar.gz`. As flags de IA
+continuam falsas; OpenClaw e Mapalead permaneceram healthy e inalterados.
+
+Nenhum agente foi executado. O Gate G6 permanece bloqueado por custo monetário não observável,
+ganho de qualidade não comprovado e ausência temporária de baseline humano.
