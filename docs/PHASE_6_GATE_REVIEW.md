@@ -253,3 +253,26 @@ pré-deploy é
 `/opt/idml-platform/backups/source-phase6-pre-dedicated-openclaw-20260827T210633Z.tar.gz`. O Gate G6
 continua bloqueado pela comprovação de ganho de qualidade e baseline humano; esta infraestrutura não
 autoriza execução de agentes.
+
+## Incremento pós-gate — staging controlado do provider
+
+Em 2026-08-28 foi preparado o caminho opt-in do provider sem executar agentes. A configuração fixa
+`openai/gpt-5.4-mini`, força proxy explícito e não grava chave no JSON. O Squid dedicado não publica
+porta e permite somente `api.openai.com:443`; gateway e proxy compartilham uma rede interna, e
+apenas o proxy possui rede com egress. API/worker continuam sem a chave e as duas flags permanecem
+falsas.
+
+A chave do OpenClaw existente foi reutilizada por autorização explícita e armazenada apenas como
+`IDML_OPENAI_API_KEY` no `.env` modo 600. O risco de rotação compartilhada está documentado, sem
+alteração do contêiner legado.
+
+Os testes sem autenticação confirmaram túnel permitido, domínio externo negado com 403, saída direta
+do gateway bloqueada, modelo único no catálogo e health estável. O banco e o estado OpenClaw
+permaneceram com zero runs, propostas e sessões. O kill switch foi validado e o estado final está
+desligado: proxy e redes removidos, credencial ausente de gateway/API/worker. O OpenClaw
+compartilhado permaneceu healthy e com zero reinicializações. O backup
+`/opt/idml-platform/backups/20260828T202601Z` passou restore isolado.
+
+Este incremento encerra a preparação técnica de credencial/egress, mas não altera o Gate G6: a
+primeira inferência depende de protocolo autorizado, e a aprovação continua exigindo ganho de
+qualidade contra baseline humano.

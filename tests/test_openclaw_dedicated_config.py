@@ -4,6 +4,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT / "config" / "openclaw-idml-dedicated.json"
 COMPOSE_PATH = ROOT / "deploy" / "docker-compose.dev.yml"
+PROVIDER_COMPOSE_PATH = ROOT / "deploy" / "docker-compose.openclaw-provider.yml"
 
 
 def test_dedicated_openclaw_config_has_a_single_inert_agent() -> None:
@@ -49,11 +50,45 @@ def test_dedicated_openclaw_exposes_only_the_required_http_endpoint() -> None:
     assert "secrets" not in config
 
 
+def test_openai_provider_is_pinned_and_forced_through_the_proxy() -> None:
+    config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    provider = config["models"]["providers"]["openai"]
+
+    assert config["models"]["mode"] == "replace"
+    assert provider["baseUrl"] == "https://api.openai.com/v1"
+    assert provider["api"] == "openai-responses"
+    assert provider["auth"] == "api-key"
+    assert provider["agentRuntime"] == {"id": "openclaw"}
+    assert provider["request"] == {
+        "proxy": {
+            "mode": "explicit-proxy",
+            "url": "http://openclaw-egress-proxy:3128",
+        },
+        "allowPrivateNetwork": False,
+    }
+    assert "apiKey" not in provider
+    assert provider["models"] == [
+        {
+            "id": "gpt-5.4-mini",
+            "name": "GPT-5.4 Mini",
+            "reasoning": True,
+            "input": ["text"],
+            "cost": {
+                "input": 0.75,
+                "output": 4.5,
+                "cacheRead": 0.075,
+                "cacheWrite": 0,
+            },
+            "contextWindow": 400000,
+            "contextTokens": 12000,
+            "maxTokens": 2000,
+        }
+    ]
+
+
 def test_dedicated_openclaw_compose_is_private_and_has_no_provider_key() -> None:
     compose = COMPOSE_PATH.read_text(encoding="utf-8")
-    service = compose.split("  openclaw-idml:\n", maxsplit=1)[1].split(
-        "\n  api:\n", maxsplit=1
-    )[0]
+    service = compose.split("  openclaw-idml:\n", maxsplit=1)[1].split("\n  api:\n", maxsplit=1)[0]
 
     assert "ghcr.io/openclaw/openclaw@sha256:" in service
     assert "OPENCLAW_GATEWAY_TOKEN:" in service
@@ -63,3 +98,32 @@ def test_dedicated_openclaw_compose_is_private_and_has_no_provider_key() -> None
     assert "cap_drop:" in service
     assert "- idml_openclaw" in service
     assert "internal: true" in compose.split("  idml_openclaw:\n", maxsplit=1)[1]
+
+
+def test_provider_overlay_uses_a_separate_allowlisted_proxy() -> None:
+    overlay = PROVIDER_COMPOSE_PATH.read_text(encoding="utf-8")
+    proxy_config = (ROOT / "config" / "squid-openai.conf").read_text(encoding="utf-8")
+    dockerfile = (ROOT / "deploy" / "Dockerfile.openclaw-egress-proxy").read_text(encoding="utf-8")
+
+    assert "OPENAI_API_KEY: ${IDML_OPENAI_API_KEY:?" in overlay
+    assert "ports:" not in overlay
+    assert "/proc/net/tcp6" in overlay
+    assert "squidclient" not in overlay
+    assert "- idml_openclaw_provider" in overlay
+    assert "- idml_openclaw_egress" in overlay
+    assert "internal: true" in overlay
+    assert "FROM alpine:3.21@sha256:" in dockerfile
+    assert "squid=6.12-r0" in dockerfile
+    assert "acl openai_api dstdomain api.openai.com" in proxy_config
+    assert "http_access allow CONNECT openai_api" in proxy_config
+    assert proxy_config.index("http_access allow CONNECT openai_api") < proxy_config.index(
+        "http_access deny all"
+    )
+
+    stage_script = (ROOT / "ops" / "openclaw-provider-stage.sh").read_text(encoding="utf-8")
+    disable_script = (ROOT / "ops" / "openclaw-provider-disable.sh").read_text(encoding="utf-8")
+    assert "trap fail_closed EXIT" in stage_script
+    assert '"$disable_script"' in stage_script
+    assert "docker rm -f idml-development-openclaw-egress-proxy-1" in disable_script
+    assert "docker network rm idml_development_openclaw_provider" in disable_script
+    assert "docker network rm idml_development_openclaw_egress" in disable_script

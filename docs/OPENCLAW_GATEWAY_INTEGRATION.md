@@ -1,6 +1,7 @@
 # Integração da aplicação com o gateway OpenClaw
 
-Data: 2026-08-27. Estado: gateway dedicado implantado; inferência e agentes desativados.
+Data: 2026-08-28. Estado: gateway dedicado implantado; rota do provider preparada e desligada;
+inferência e agentes desativados.
 
 ## Contrato escolhido
 
@@ -60,8 +61,9 @@ API e worker alcançam apenas essa rede dedicada. `IDML_FEATURE_OPENCLAW=false` 
 `IDML_FEATURE_AI_SWARM=false` continuam fixos no Compose. Ter URL e token configurados não autoriza
 execução: o gateway também não possui rota de saída nem credencial de modelo.
 
-Antes de habilitar qualquer flag ainda é obrigatório preparar o provider/egress sob controle
-explícito, validar orçamento e observabilidade e aprovar um protocolo de teste. Enquanto a instância
+O provider/egress já pode ser preparado sob controle explícito pelo procedimento
+`docs/OPENCLAW_PROVIDER_ACTIVATION.md`, sem habilitar flags nem executar agentes. Antes da primeira
+inferência ainda é obrigatório validar orçamento e observabilidade e aprovar um protocolo de teste. Enquanto a instância
 estiver inerte, o smoke operacional deve usar apenas `/healthz`, `/readyz` e `config validate`. O
 endpoint `/v1/responses` fica reservado ao protocolo controlado de ativação.
 
@@ -100,3 +102,22 @@ OpenClaw; checksums, restore isolado e integridade SQLite passaram. O snapshot a
 `/opt/idml-platform/backups/source-phase6-pre-dedicated-openclaw-20260827T210633Z.tar.gz`. O
 OpenClaw compartilhado manteve o mesmo container, restart count zero e health saudável; os serviços
 Mapalead permaneceram em execução. A raiz continuou em 79%, com 21 GiB livres.
+
+## Evidência do staging controlado do provider
+
+Em 2026-08-28 foi adicionado um overlay opt-in com provider OpenAI fixado em
+`openai/gpt-5.4-mini` e proxy explícito. O gateway recebe a credencial somente no staging; API e
+worker nunca a recebem. A rede gateway/proxy é interna e apenas o proxy entra em uma rede com
+egress. A ACL aceita somente `CONNECT api.openai.com:443`; não há porta publicada.
+
+A credencial já usada pelo OpenClaw compartilhado foi reutilizada por autorização explícita do
+usuário e armazenada como `IDML_OPENAI_API_KEY` no `.env` modo 600, sem exposição. Isso não conecta
+os dois gateways, mas acopla a futura rotação da credencial e está registrado no ADR-013 e no risco
+R-17.
+
+O script de staging comprovou o túnel permitido, a recusa 403 fora da allowlist e o bloqueio da
+saída direta. O catálogo exibiu somente `openai/gpt-5.4-mini`; não houve autenticação na API,
+inferência ou chamada a `/v1/responses`. Após observação, permaneceram zero sessões, runs e
+propostas. O kill switch foi executado e o estado final ficou sem proxy/redes de provider e sem
+chave em gateway/API/worker. Backup e restore passaram em
+`/opt/idml-platform/backups/20260828T202601Z`.

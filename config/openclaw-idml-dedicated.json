@@ -7,6 +7,46 @@
       "enabled": false
     }
   },
+  "models": {
+    "mode": "replace",
+    "providers": {
+      "openai": {
+        "baseUrl": "https://api.openai.com/v1",
+        "auth": "api-key",
+        "api": "openai-responses",
+        "agentRuntime": {
+          "id": "openclaw"
+        },
+        "timeoutSeconds": 45,
+        "request": {
+          "proxy": {
+            "mode": "explicit-proxy",
+            "url": "http://openclaw-egress-proxy:3128"
+          },
+          "allowPrivateNetwork": false
+        },
+        "models": [
+          {
+            "id": "gpt-5.4-mini",
+            "name": "GPT-5.4 Mini",
+            "reasoning": true,
+            "input": [
+              "text"
+            ],
+            "cost": {
+              "input": 0.75,
+              "output": 4.5,
+              "cacheRead": 0.075,
+              "cacheWrite": 0
+            },
+            "contextWindow": 400000,
+            "contextTokens": 12000,
+            "maxTokens": 2000
+          }
+        ]
+      }
+    }
+  },
   "gateway": {
     "mode": "local",
     "bind": "lan",

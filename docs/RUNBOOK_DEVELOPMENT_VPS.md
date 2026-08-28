@@ -107,7 +107,8 @@ falhar fechado.
 Não conectar API/worker ao OpenClaw compartilhado do Mapalead. O serviço `openclaw-idml` usa imagem
 fixada por digest, estado próprio, token aleatório próprio e somente a rede interna
 `idml_development_openclaw`. O token deve existir em `.env`, com modo 600, mas nunca deve ser
-impresso. As duas flags continuam falsas; o gateway permanece sem provider key e sem egress.
+impresso. As duas flags continuam falsas; no Compose base o gateway permanece sem provider key e
+sem egress.
 
 Antes de subir o Compose pela primeira vez, gerar o segredo na própria VPS:
 
@@ -136,3 +137,26 @@ migration `f7b8c9d0e1f2` e recriar somente API
 e worker. Preservar `phase5` como rollback da aplicação; a migration é aditiva e pode permanecer
 enquanto um incidente é investigado. Confirmar zero `agent_runs`/`agent_proposals` e zero sessões
 OpenClaw enquanto as features estiverem desabilitadas.
+
+### Staging controlado do provider, sem agentes
+
+O procedimento completo está em `docs/OPENCLAW_PROVIDER_ACTIVATION.md`. A chave reutilizada por
+autorização do usuário fica somente em `IDML_OPENAI_API_KEY` no `.env` modo 600. Não copiá-la para o
+JSON, a aplicação, comandos de diagnóstico ou logs.
+
+Preparar a rota, mantendo flags falsas e sem acessar `/v1/responses`:
+
+```sh
+cd /opt/idml-platform
+ops/openclaw-provider-stage.sh
+```
+
+Desligar e remover imediatamente chave, proxy e redes do runtime IDML:
+
+```sh
+cd /opt/idml-platform
+ops/openclaw-provider-disable.sh
+```
+
+Ao terminar qualquer diagnóstico, deixar o estado desligado e confirmar zero sessões,
+`agent_runs` e `agent_proposals`.
