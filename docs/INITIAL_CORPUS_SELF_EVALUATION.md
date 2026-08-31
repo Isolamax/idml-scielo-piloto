@@ -132,6 +132,11 @@ Essa redução se aplica ao conteúdo controlado pela aplicação; o overhead do
 do OpenClaw só poderá ser medido quando os testes de agentes forem retomados. Nenhum agente foi
 executado neste incremento, e o v1.2 foi substituído pelo v1.3 antes de qualquer medição.
 
+Em 2026-08-31 o dataset v1.3 foi reconstruído a partir da amostra ESA autorizada. Dez casos ficaram
+elegíveis; o primeiro protocolo controlado selecionou apenas um caso de metadados e um de
+referências para respeitar o teto agregado por artigo. O manifesto foi reproduzido localmente e na
+VPS sem subir provider ou executar agente. Detalhes em `docs/OPENCLAW_CONTROLLED_BENCHMARK.md`.
+
 ## Decisão e próximos incrementos
 
 Os resultados mantêm `IDML_FEATURE_OPENCLAW=false` e `IDML_FEATURE_AI_SWARM=false`. G6 permanece

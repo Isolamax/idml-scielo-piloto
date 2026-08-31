@@ -67,6 +67,10 @@ Exige protocolo separado, janela observada e autorização explícita. Antes da 
 
 A aprovação do Gate G6 continua dependendo de ganho mensurável e baseline humano autorizado.
 
+O harness da primeira janela está descrito em `docs/OPENCLAW_CONTROLLED_BENCHMARK.md`. A preparação
+desse harness não autoriza a execução: o comando exige confirmação transitória explícita e encerra
+sempre com o kill switch e reset do estado dedicado.
+
 ## Evidência de 2026-08-28
 
 O staging foi executado duas vezes de forma reprodutível. Modelo catalogado:

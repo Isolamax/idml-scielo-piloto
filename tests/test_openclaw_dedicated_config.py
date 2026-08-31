@@ -5,6 +5,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT / "config" / "openclaw-idml-dedicated.json"
 COMPOSE_PATH = ROOT / "deploy" / "docker-compose.dev.yml"
 PROVIDER_COMPOSE_PATH = ROOT / "deploy" / "docker-compose.openclaw-provider.yml"
+BENCHMARK_COMPOSE_PATH = ROOT / "deploy" / "docker-compose.openclaw-benchmark.yml"
 
 
 def test_dedicated_openclaw_config_has_a_single_inert_agent() -> None:
@@ -127,3 +128,26 @@ def test_provider_overlay_uses_a_separate_allowlisted_proxy() -> None:
     assert "docker rm -f idml-development-openclaw-egress-proxy-1" in disable_script
     assert "docker network rm idml_development_openclaw_provider" in disable_script
     assert "docker network rm idml_development_openclaw_egress" in disable_script
+
+
+def test_controlled_benchmark_runner_is_private_and_double_gated() -> None:
+    overlay = BENCHMARK_COMPOSE_PATH.read_text(encoding="utf-8")
+    runner = (ROOT / "ops" / "openclaw-controlled-benchmark.sh").read_text(encoding="utf-8")
+    plan = json.loads(
+        (ROOT / "config" / "openclaw-controlled-benchmark-v1.json").read_text(encoding="utf-8")
+    )
+
+    assert "ports:" not in overlay
+    assert 'IDML_FEATURE_OPENCLAW: "false"' in overlay
+    assert 'IDML_FEATURE_AI_SWARM: "false"' in overlay
+    assert "/benchmark/input:ro" in overlay
+    assert "cap_drop:" in overlay
+    assert 'profiles: ["benchmark"]' in overlay
+    assert "RUN_IDML_OPENCLAW_BENCHMARK_V1" in runner
+    assert "IDML_RESET_OPENCLAW_STATE=true" in runner
+    assert "openclaw-provider-stage.sh" in runner
+    assert "openclaw-provider-disable.sh" in runner
+    assert plan["max_cases"] == 2
+    assert plan["domains"] == ["metadata", "references"]
+    assert plan["max_attempts"] == 1
+    assert plan["max_total_cost_microusd"] == 50_000

@@ -24,6 +24,15 @@ def _digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def _artifact_path(root: Path, manifest: dict[str, Any], logical_path: str) -> Path:
+    hint = Path(str(manifest.get("source_root_hint", "")))
+    candidates = [root / logical_path, root / hint.name / logical_path]
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    raise FileNotFoundError(f"authorized corpus artifact is missing: {logical_path}")
+
+
 def _text(element: Any) -> str:
     return normalize_text(" ".join(element.itertext()))
 
@@ -91,21 +100,13 @@ def _canonical_fields(article: Any) -> dict[str, list[tuple[str, str]]]:
                 fields["structure"].append((f"{section_path}/title/value", section.title.value))
             for block_index, block in enumerate(section.blocks):
                 block_path = f"{section_path}/blocks/{block_index}"
-                if (
-                    isinstance(block, (FigureBlock, TableBlock))
-                    and block.caption.plain.value
-                ):
+                if isinstance(block, (FigureBlock, TableBlock)) and block.caption.plain.value:
                     fields["figures_tables"].append(
                         (f"{block_path}/caption/plain/value", block.caption.plain.value)
                     )
                 if isinstance(block, FormulaBlock) and block.source.value:
-                    fields["math_notes"].append(
-                        (f"{block_path}/source/value", block.source.value)
-                    )
-                if (
-                    isinstance(block, NoteBlock)
-                    and block.content.plain.value
-                ):
+                    fields["math_notes"].append((f"{block_path}/source/value", block.source.value))
+                if isinstance(block, NoteBlock) and block.content.plain.value:
                     fields["math_notes"].append(
                         (f"{block_path}/content/plain/value", block.content.plain.value)
                     )
@@ -160,19 +161,15 @@ def _gold_values(root: Any) -> dict[str, list[str]]:
     contributors.extend(_text(element) for element in root.xpath("front/article-meta/aff"))
     return {
         "metadata": [
-            _text(element)
-            for element in root.xpath("front/article-meta/title-group/article-title")
+            _text(element) for element in root.xpath("front/article-meta/title-group/article-title")
         ],
         "contributors_affiliations": contributors,
         "structure": [_text(element) for element in root.xpath("body//sec/title")],
         "references": [_text(element) for element in root.xpath("back/ref-list/ref")],
         "figures_tables": [
-            _text(element)
-            for element in root.xpath("body//fig/caption | body//table-wrap/caption")
+            _text(element) for element in root.xpath("body//fig/caption | body//table-wrap/caption")
         ],
-        "math_notes": [
-            _text(element) for element in root.xpath("body//disp-formula | back//fn")
-        ],
+        "math_notes": [_text(element) for element in root.xpath("body//disp-formula | back//fn")],
     }
 
 
@@ -195,9 +192,7 @@ def _cases(article: Any, gold: Any, *, limit: int) -> list[dict[str, Any]]:
                 ).ratio(),
             )
             expected = available.pop(best)
-            similarity = SequenceMatcher(
-                None, normalized_current, expected, autojunk=False
-            ).ratio()
+            similarity = SequenceMatcher(None, normalized_current, expected, autojunk=False).ratio()
             if normalized_current == expected or similarity < 0.35:
                 continue
             case_id = f"esa-{domain}-{emitted + 1:03d}"
@@ -233,20 +228,26 @@ def main() -> int:
     parser.add_argument("--metrics-output", type=Path, required=True)
     parser.add_argument("--cases-output", type=Path, required=True)
     parser.add_argument("--cases-per-domain", type=int, default=3)
+    parser.add_argument("--corpus-id", action="append", dest="corpus_ids")
     args = parser.parse_args()
     manifest_root = Path(__file__).parents[1] / "corpus" / "manifests"
     pipeline = DeterministicPipeline()
     article_reports: list[dict[str, Any]] = []
     esa_result = None
-    for manifest_path in sorted(manifest_root.glob("*.json")):
+    requested = set(args.corpus_ids or [])
+    manifest_paths = sorted(manifest_root.glob("*.json"))
+    if requested:
+        available = {path.stem for path in manifest_paths}
+        missing = requested - available
+        if missing:
+            raise ValueError(f"unknown corpus ids: {sorted(missing)}")
+        manifest_paths = [path for path in manifest_paths if path.stem in requested]
+    for manifest_path in manifest_paths:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         source_artifact = next(
             artifact for artifact in manifest["artifacts"] if artifact["role"] == "source_idml"
         )
-        source_root = args.scielo_root / (
-            "EXEMPLO" if manifest["corpus_id"].startswith("esa-") else ""
-        )
-        source_path = source_root / source_artifact["logical_path"]
+        source_path = _artifact_path(args.scielo_root, manifest, source_artifact["logical_path"])
         source = source_path.read_bytes()
         if _digest(source) != source_artifact["sha256"]:
             raise ValueError(f"corpus hash mismatch: {manifest['corpus_id']}")
@@ -283,7 +284,9 @@ def main() -> int:
         for artifact in esa_manifest["artifacts"]
         if artifact["role"] == "approved_xml_reference"
     )
-    gold_data = (args.scielo_root / "EXEMPLO" / gold_artifact["logical_path"]).read_bytes()
+    gold_data = _artifact_path(
+        args.scielo_root, esa_manifest, gold_artifact["logical_path"]
+    ).read_bytes()
     if _digest(gold_data) != gold_artifact["sha256"]:
         raise ValueError("ESA gold hash mismatch")
     parser_xml = etree.XMLParser(resolve_entities=False, load_dtd=False, no_network=True)
@@ -323,10 +326,14 @@ def main() -> int:
             {
                 "version": "idml-agent-initial-corpus-eval-1.3",
                 "description": "Restricted minimized cases; do not commit or redistribute.",
-                "restricted": True,
-                "atomic_rich_text_cases": sum(
-                    "atomic_rich_text" in case for case in cases
+                "corpus_id": esa_manifest["corpus_id"],
+                "source_idml_sha256": next(
+                    artifact["sha256"]
+                    for artifact in esa_manifest["artifacts"]
+                    if artifact["role"] == "source_idml"
                 ),
+                "restricted": True,
+                "atomic_rich_text_cases": sum("atomic_rich_text" in case for case in cases),
                 "cases": cases,
             },
             ensure_ascii=False,

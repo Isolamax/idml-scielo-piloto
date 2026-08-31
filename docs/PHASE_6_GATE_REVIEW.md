@@ -276,3 +276,30 @@ compartilhado permaneceu healthy e com zero reinicializações. O backup
 Este incremento encerra a preparação técnica de credencial/egress, mas não altera o Gate G6: a
 primeira inferência depende de protocolo autorizado, e a aprovação continua exigindo ganho de
 qualidade contra baseline humano.
+
+## Incremento pós-gate — harness do benchmark controlado
+
+Em 2026-08-31 foi implementado o harness fail-closed da primeira janela real, sem executar agentes.
+O dataset privado v1.3 foi reconstruído com hashes conferidos e dez casos elegíveis. O plano escolhe
+deterministicamente `esa-metadata-001` e `esa-references-001`, concorrência 1, uma tentativa por caso
+e preflight total de 36.000 micro-USD sob o teto agregado de 50.000.
+
+O runner exige flags falsas e uma confirmação transitória exata antes de `execute`. Input privado é
+read-only; output fica modo 600; qualquer erro interrompe os casos restantes. A finalização sempre
+aciona o kill switch, remove o provider e recria o estado do gateway dedicado. O teste negativo sem
+confirmação parou antes do staging.
+
+O dry-run local e o da VPS reproduziram o manifesto
+`84feaa6d94bea033d6c53300c0ba742e4b51d5edd69a9736e376f45f6711956d`. Nenhum proxy ou rede de
+provider foi criado, nenhuma chave entrou no gateway e permaneceram zero sessões, runs e propostas.
+O reset do volume dedicado foi testado após corrigir a remoção segura do contêiner inicializador;
+gateway dedicado e OpenClaw compartilhado terminaram healthy.
+
+A imagem do runner é `idml-foundation:phase6-benchmark-v1`, ID
+`sha256:7e559fa2a0cbdb527b75e5db3beb644e98bafaea83e7ac9e228f7a381cc6215f`. O backup
+`/opt/idml-platform/backups/20260831T123026Z` passou no restore; o snapshot anterior é
+`/opt/idml-platform/backups/source-phase6-pre-controlled-benchmark-20260831T123045Z.tar.gz`.
+O backup final `/opt/idml-platform/backups/20260831T124753Z` também passou no restore isolado.
+
+O estado é `prepared-not-executed`. G6 permanece bloqueado; este incremento não autoriza a primeira
+inferência nem substitui o baseline humano.

@@ -16,7 +16,7 @@ PLANO_ANALISE_CODEX_SCIELO_IDML_OPENCLAW_SWARM.md
 
 ```text
 PROJECT_STATUS: PHASE_6_TECHNICAL_EVALUATION_BLOCKED
-CURRENT_PHASE: FASE 6 com ativação de provider preparada e desligada — próximo incremento: protocolo controlado de teste dos agentes
+CURRENT_PHASE: FASE 6 com benchmark controlado preparado e travado — próxima ação: primeira janela somente após autorização explícita
 IMPLEMENTATION_AUTHORIZED: PHASE_6_AUTHORIZED — PHASE_7_NOT_AUTHORIZED
 PRODUCTION_DEPLOYMENT_AUTHORIZED: NO
 ARCHITECTURE_STATUS: APPROVED_WITH_CHANGES
@@ -114,7 +114,7 @@ Antes de qualquer implantação futura na VPS:
 | 3 | Pipeline determinístico mínimo | IDML → modelo → XML válido sem IA | Concluída — Gate G3 aprovado |
 | 4 | Validação, fidelidade e pacote | Pacote validado e política de release | Implementada — Gate G4 bloqueado por validadores externos/crossrefs |
 | 5 | Revisão humana e interface mínima | Correção humana auditável | Concluída — Gate G5 aprovado |
-| 6 | IA assistiva e OpenClaw | Assistência semântica controlada | Provider/egress preparados e desligados; agentes não executados — Gate G6 bloqueado por qualidade/baseline |
+| 6 | IA assistiva e OpenClaw | Assistência semântica controlada | Harness real preparado e não executado; provider desligado — Gate G6 bloqueado por qualidade/baseline |
 | 7 | Homologação e piloto | Qualidade comprovada no periódico piloto | Não iniciada — não autorizada |
 | 8 | Produção e operação | Operação segura e recuperável | Não iniciada |
 | 9 | Expansão controlada | Novos periódicos e casos complexos | Não iniciada |
@@ -588,6 +588,12 @@ Adicionar IA somente onde houver ganho mensurável sobre o pipeline determiníst
 - [x] Testar o fail-closed: domínio não autorizado negado e saída direta do gateway bloqueada.
 - [x] Implementar e testar kill switch que remove credencial, proxy e redes de provider.
 - [x] Confirmar flags falsas e zero sessões, runs e propostas antes e depois do staging.
+- [x] Reconstruir o dataset privado v1.3 e congelar hashes sem versionar conteúdo restrito.
+- [x] Preparar primeira janela com dois casos, concorrência 1, tentativa única e preflight agregado.
+- [x] Implementar runner com confirmação explícita, output privado e interrupção no primeiro erro.
+- [x] Implementar limpeza final com kill switch e reset validado do estado OpenClaw dedicado.
+- [x] Reproduzir o manifesto em dry-run local e na VPS sem executar agentes.
+- [ ] Executar a primeira janela controlada somente após nova autorização explícita.
 
 ## Pacote 6.6 — QA e repair assistidos
 
@@ -764,6 +770,7 @@ Cada novo periódico deve possuir corpus, profile, style mapping, métricas, hom
 | R-15 | Patch escalar quebrar invariantes de `RichText` | Alto | Patch atômico de `plain` + `inlines` e validação prévia | Mitigado; benchmark v1.3 preparado sem execução de agentes |
 | R-16 | Segredo do OpenClaw compartilhado exposto em comando de inicialização | Alto | Não reutilizar no IDML; rotacionar separadamente em janela do sistema existente | Aberto no sistema legado; isolado do IDML |
 | R-17 | Credencial OpenAI reutilizada entre o OpenClaw existente e o staging IDML | Médio/Alto | Injetar apenas no overlay opt-in, nunca em API/worker; manter kill switch; coordenar rotação e separar a chave se o acoplamento se tornar operacionalmente inadequado | Aceito pelo usuário; mitigado tecnicamente e monitorado |
+| R-18 | Harness de benchmark contorna intencionalmente o fluxo persistido da aplicação | Alto | Dois casos minimizados, dupla confirmação, flags falsas, nenhuma aplicação de patch, output privado, orçamento agregado, tentativa única e reset final do gateway | Mitigado para avaliação; proibido como caminho de produção |
 
 # 8. Definition of Done global
 
@@ -847,3 +854,4 @@ ADRs iniciais esperados:
 | 2026-08-27 | Tarifa oficial do `gpt-5.4-mini` fixada; cache, preflight, teto agregado por artigo e cliente OpenResponses restrito implementados e implantados; integração continua desligada até existir gateway dedicado ao IDML | Codex |
 | 2026-08-27 | Gateway OpenClaw dedicado implantado com digest fixo, token próprio, rede interna sem egress, endpoint mínimo, estado/backup próprios e zero sessões; flags de IA permanecem desligadas | Codex |
 | 2026-08-28 | Staging controlado do provider preparado com chave reutilizada por autorização explícita, proxy allowlist, saída direta bloqueada e kill switch testado; nenhum agente ou chamada autenticada foi executado e o estado final voltou a ficar desligado | Codex |
+| 2026-08-31 | Harness do benchmark real v1.3 preparado com dois casos, teto agregado, confirmação explícita, runner isolado e reset final; dry-run reproduzido localmente/VPS, execução sem confirmação bloqueada e nenhum agente chamado | Codex |
