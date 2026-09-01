@@ -639,12 +639,14 @@ preparando a comparação editorial humana para a RC final.
 
 - [x] Implementar papéis separados de proponente, crítico XML, crítico editorial e adjudicador.
 - [x] Impedir compartilhamento de raciocínio privado entre sessões e registrar somente saídas estruturadas.
-- [ ] Executar os domínios restantes do corpus ESA com custo, tokens e latência contabilizados.
+- [x] Executar os dez casos reais disponíveis do corpus ESA, em quatro domínios, com custo, tokens e latência contabilizados.
+- [ ] Obter casos reais autorizados para os domínios de estrutura e matemática, ausentes no corpus atual.
 - [ ] Criar casos positivos, negativos, ambíguos, de abstenção e de prompt injection por domínio.
 - [x] Comparar propostas da primeira janela com fonte, regras determinísticas e alvos automáticos ocultos dos agentes.
 - [x] Medir falso consenso na primeira janela e impedir que concordância substitua evidência.
 - [ ] Transformar todo defeito confirmado em fixture de regressão.
-- [ ] Produzir relatório sanitizado para todos os domínios, sem promover o resultado a baseline humano.
+- [x] Produzir relatório sanitizado para os quatro domínios reais disponíveis, sem promover o resultado a baseline humano.
+- [ ] Ampliar o relatório quando houver evidência real autorizada de estrutura e matemática.
 
 ## Gate técnico de saída G6-T
 
@@ -971,3 +973,4 @@ ADRs iniciais esperados:
 | 2026-09-01 | Primeira janela OpenClaw concluída em dois casos reais minimizados; custo de 13.024 micro-USD, contratos e cleanup aprovados; metadado exato e referência inconclusiva sem baseline humano; G6 permanece bloqueado | Codex |
 | 2026-09-01 | Governança revisada: desenvolvimento planejado até a prontidão de produção; quinze famílias de testes e validação multiagente precedem a RC; homologação do especialista em XML transferida para o Gate Humano Final G8-H antes do go-live | Codex |
 | 2026-09-01 | Laboratório multiagente v1 implementado e executado em metadados/referências por 32.824 micro-USD; metadados exato, referência atômica rejeitada antes dos críticos e convertida em regressão; cleanup integral aprovado e G6-T ainda pendente | Codex |
+| 2026-09-01 | Laboratório multiagente v2 executado nos dez casos ESA disponíveis por 218.200 micro-USD; contrato atômico e contabilização fail-closed reforçados; nove saídas não JSON rejeitadas; cleanup, rotação do token e relatório sanitizado concluídos; G6-T permanece pendente | Codex |

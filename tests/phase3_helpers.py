@@ -1,5 +1,5 @@
 from io import BytesIO
-from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
+from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile, ZipInfo
 
 
 def synthetic_idml(*, include_table: bool = False) -> bytes:
@@ -89,10 +89,16 @@ def synthetic_idml(*, include_table: bool = False) -> bytes:
 
     buffer = BytesIO()
     with ZipFile(buffer, "w") as archive:
-        archive.writestr("mimetype", "application/vnd.adobe.indesign-idml-package", ZIP_STORED)
-        archive.writestr("designmap.xml", design, ZIP_DEFLATED)
-        archive.writestr("Resources/Styles.xml", styles, ZIP_DEFLATED)
-        archive.writestr("Spreads/Spread_spread-1.xml", spread, ZIP_DEFLATED)
+        def write(name: str, value: str | bytes, compression: int) -> None:
+            info = ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+            info.compress_type = compression
+            info.external_attr = 0o600 << 16
+            archive.writestr(info, value)
+
+        write("mimetype", "application/vnd.adobe.indesign-idml-package", ZIP_STORED)
+        write("designmap.xml", design, ZIP_DEFLATED)
+        write("Resources/Styles.xml", styles, ZIP_DEFLATED)
+        write("Spreads/Spread_spread-1.xml", spread, ZIP_DEFLATED)
         for name, value in stories.items():
-            archive.writestr(name, value, ZIP_DEFLATED)
+            write(name, value, ZIP_DEFLATED)
     return buffer.getvalue()

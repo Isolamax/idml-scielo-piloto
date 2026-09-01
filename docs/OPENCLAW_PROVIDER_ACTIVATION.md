@@ -78,6 +78,12 @@ O laboratório com proponente, dois críticos e adjudicador está descrito em
 `docs/OPENCLAW_MULTI_AGENT_LAB.md`. Ele mantém sessões independentes, oculta o alvo automático dos
 agentes e submete qualquer consenso ao juiz determinístico local.
 
+A janela v2 executou os dez casos ESA disponíveis com custo de 218.200 micro-USD e terminou pelo
+kill switch. Nove casos foram rejeitados de forma fechada por saída não JSON. O estado final manteve
+flags falsas, zero runs/propostas/sessões, gateway sem chave do provider e redes transitórias
+ausentes. O token do gateway dedicado foi rotacionado depois da auditoria e os três serviços do
+projeto voltaram saudáveis; o OpenClaw compartilhado permaneceu saudável e não foi reiniciado.
+
 ## Evidência da primeira janela — 2026-09-01
 
 O modo de proxy explícito na configuração do provider causou timeout upstream tanto no OpenClaw

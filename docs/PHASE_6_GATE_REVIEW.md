@@ -356,3 +356,31 @@ alvo esperado. O pós-teste confirmou flags falsas, zero runs/propostas/sessões
 gateway, proxy e redes transitórias ausentes, API/interface em HTTP 200 e ambos os OpenClaw healthy
 com zero reinicializações. O backup `/opt/idml-platform/backups/20260901T152646Z` passou no restore
 isolado. O G6-T permanece pendente pelos domínios e classes de caso ainda não executados.
+
+## Expansão v2 — corpus ESA disponível
+
+Em 2026-09-01, o contrato atômico foi reforçado para proibir inlines vazios, preservar todos os
+campos e IDs do template e exigir equivalência exata com o valor plain. Falhas de contrato passaram
+a rejeitar somente o caso, enquanto falhas operacionais ou de política continuam encerrando a
+janela. Quando a resposta falha antes de expor usage confiável, o custo máximo preflight do papel é
+reservado para manter a política monetária fail-closed. Esses comportamentos ganharam regressões
+automatizadas.
+
+A janela final `multi-agent-full-corpus-v2r2` processou os dez casos reais disponíveis em quatro
+domínios, com 26 chamadas e custo conservador de 218.200 micro-USD sob o teto de 585.000. Somente
+metadados foi exato e aceito para futura revisão humana. Os outros nove casos foram rejeitados por
+`AGENT_OUTPUT_NOT_JSON`: duas falhas no proponente, quatro no crítico XML e três no adjudicador. A
+taxa de conclusão foi 100%, aceitação 10%, rejeição 90%, abstenção 0% e candidato a falso consenso
+0%. Sem baseline humano, essas taxas não aprovam qualidade nem ausência real de falso consenso.
+
+O custo conservador agregado das execuções deste artigo, incluindo tentativa interrompida e reservas
+preflight, foi 528.995 micro-USD, abaixo do limite autorizado de US$ 1. O relatório público
+sanitizado é `benchmarks/agents/reports/multi-agent-full-corpus-v2.json`; saídas brutas e conteúdo do
+artigo permanecem privados.
+
+Após o kill switch e uma rotação preventiva do token do gateway dedicado, API, worker, gateway
+dedicado e OpenClaw compartilhado ficaram healthy com zero reinicializações. Flags de IA ficaram
+falsas; `agent_runs`, `agent_proposals` e sessões ficaram zerados; chave do provider, proxy e redes
+transitórias ficaram ausentes; `/health/ready` e `/app` retornaram 200. O G6-T permanece bloqueado por
+saída estruturada não confiável, ausência das classes adversariais por domínio, falta de casos reais
+de estrutura/matemática e ausência deliberada de baseline humano até o G8-H.

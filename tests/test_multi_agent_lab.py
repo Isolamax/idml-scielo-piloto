@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import json
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -156,11 +157,13 @@ class _FixtureLabClient:
         self,
         *,
         corrupt_xml_hash: bool = False,
-        inconsistent_atomic_values: bool = False,
+        empty_atomic_inlines: bool = False,
+        mutate_atomic_metadata: bool = False,
     ) -> None:
         self.calls: list[dict[str, Any]] = []
         self.corrupt_xml_hash = corrupt_xml_hash
-        self.inconsistent_atomic_values = inconsistent_atomic_values
+        self.empty_atomic_inlines = empty_atomic_inlines
+        self.mutate_atomic_metadata = mutate_atomic_metadata
 
     async def run_agent(self, **kwargs: Any) -> ProviderResponse:
         self.calls.append(kwargs)
@@ -184,14 +187,18 @@ class _FixtureLabClient:
             ]
             atomic = content["current"].get("atomic_rich_text")
             if atomic:
-                inline_value = (
-                    evidence["excerpt"] if self.inconsistent_atomic_values else value
-                )
+                inline_value = copy.deepcopy(atomic["output_inlines_template"])
+                if self.empty_atomic_inlines:
+                    inline_value = []
+                else:
+                    inline_value[0]["text"] = value
+                    if self.mutate_atomic_metadata:
+                        inline_value[0]["evidence_ids"] = []
                 patch.append(
                     {
                         "op": "replace",
                         "path": atomic["required_patch_paths"][1],
-                        "value": [{"kind": "text", "text": inline_value}],
+                        "value": inline_value,
                         "evidence_ids": [evidence["evidence_id"]],
                     }
                 )
@@ -316,7 +323,7 @@ def test_multi_agent_lab_rejects_inconsistent_atomic_rich_text_before_critics(
     tmp_path: Path,
 ) -> None:
     plan_path, _, dataset = _files(tmp_path)
-    client = _FixtureLabClient(inconsistent_atomic_values=True)
+    client = _FixtureLabClient(empty_atomic_inlines=True)
     result = asyncio.run(
         execute_multi_agent_lab(
             load_lab_plan(plan_path),
@@ -329,17 +336,73 @@ def test_multi_agent_lab_rejects_inconsistent_atomic_rich_text_before_critics(
     metadata, references = result["cases"]
     assert metadata["final_decision"] == "accepted_for_human_review"
     assert references["final_decision"] == "rejected"
+    assert references["error_code"] == ("PROPOSAL_DETERMINISTIC_REJECTED_ATOMIC_VALUES_CONSISTENT")
+    assert len(references["roles"]) == 1
+    assert len(client.calls) == 5
+
+
+def test_multi_agent_lab_rejects_changed_atomic_inline_metadata_before_critics(
+    tmp_path: Path,
+) -> None:
+    plan_path, _, dataset = _files(tmp_path)
+    result = asyncio.run(
+        execute_multi_agent_lab(
+            load_lab_plan(plan_path),
+            dataset,
+            client=_FixtureLabClient(mutate_atomic_metadata=True),
+            run_id="multi-agent-atomic-metadata-001",
+        )
+    )
+
+    references = result["cases"][1]
+    assert references["final_decision"] == "rejected"
     assert references["error_code"] == (
         "PROPOSAL_DETERMINISTIC_REJECTED_ATOMIC_VALUES_CONSISTENT"
     )
     assert len(references["roles"]) == 1
-    assert len(client.calls) == 5
 
 
 class _UnavailableLabClient:
     async def run_agent(self, **kwargs: Any) -> ProviderResponse:
         del kwargs
         raise RuntimeError("OPENCLAW_HTTP_503_API_ERROR")
+
+
+class _MalformedThenValidLabClient:
+    def __init__(self) -> None:
+        self.valid = _FixtureLabClient()
+        self.first = True
+
+    async def run_agent(self, **kwargs: Any) -> ProviderResponse:
+        if self.first:
+            self.first = False
+            raise RuntimeError("OpenClaw gateway output is not JSON")
+        return await self.valid.run_agent(**kwargs)
+
+
+def test_multi_agent_lab_rejects_malformed_case_and_continues_with_reserved_cost(
+    tmp_path: Path,
+) -> None:
+    plan_path, _, dataset = _files(tmp_path)
+    result = asyncio.run(
+        execute_multi_agent_lab(
+            load_lab_plan(plan_path),
+            dataset,
+            client=_MalformedThenValidLabClient(),
+            run_id="multi-agent-malformed-001",
+        )
+    )
+
+    assert result["completed"] is True
+    first, second = result["cases"]
+    assert first["status"] == "completed"
+    assert first["final_decision"] == "rejected"
+    assert first["error_code"] == "AGENT_OUTPUT_NOT_JSON"
+    assert first["roles"][0]["failure_class"] == "contract"
+    assert first["roles"][0]["cost_microusd"] == 18_000
+    assert first["roles"][0]["cost_source"] == "preflight_upper_bound"
+    assert second["status"] == "completed"
+    assert result["total_cost_microusd"] == 18_660
 
 
 def test_multi_agent_lab_stops_on_operational_failure(tmp_path: Path) -> None:
@@ -356,7 +419,8 @@ def test_multi_agent_lab_stops_on_operational_failure(tmp_path: Path) -> None:
     assert result["completed"] is False
     assert len(result["cases"]) == 1
     assert result["cases"][0]["error_code"] == "OPENCLAW_HTTP_503_API_ERROR"
-    assert result["total_cost_microusd"] == 0
+    assert result["cases"][0]["roles"][0]["failure_class"] == "operational"
+    assert result["total_cost_microusd"] == 18_000
 
 
 def test_multi_agent_manifest_rejects_budget_below_preflight(tmp_path: Path) -> None:

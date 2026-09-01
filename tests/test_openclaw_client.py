@@ -99,6 +99,49 @@ def test_openclaw_client_builds_restricted_request_and_parses_usage() -> None:
     assert "JSON schema" in transport.call["payload"]["instructions"]
 
 
+def test_openclaw_client_accepts_only_an_exact_json_markdown_fence() -> None:
+    response = _gateway_response()
+    response["output"][0]["content"][0]["text"] = (
+        '```json\n{"schema_version":"agent-proposal-1.1"}\n```'
+    )
+    client = OpenClawResponsesClient(
+        base_url="https://gateway.example.test",
+        token="t" * 32,
+        expected_model_key="openai/gpt-5.4-mini",
+        transport=_FixtureTransport(response),
+    )
+    result = asyncio.run(
+        client.run_agent(
+            agent_id="idml-evaluator",
+            session_key="idml:org:review",
+            system_prompt="Return JSON.",
+            input_envelope={},
+            output_schema={"type": "object"},
+            tool_allowlist=ALLOWED_TOOLS,
+            timeout_seconds=12,
+            max_output_tokens=200,
+        )
+    )
+    assert result.payload == {"schema_version": "agent-proposal-1.1"}
+
+    response["output"][0]["content"][0]["text"] = (
+        'Explanation\n```json\n{"schema_version":"agent-proposal-1.1"}\n```'
+    )
+    with pytest.raises(RuntimeError, match="output is not JSON"):
+        asyncio.run(
+            client.run_agent(
+                agent_id="idml-evaluator",
+                session_key="idml:org:review",
+                system_prompt="Return JSON.",
+                input_envelope={},
+                output_schema={"type": "object"},
+                tool_allowlist=ALLOWED_TOOLS,
+                timeout_seconds=12,
+                max_output_tokens=200,
+            )
+        )
+
+
 @pytest.mark.parametrize(
     "mutation, message",
     [

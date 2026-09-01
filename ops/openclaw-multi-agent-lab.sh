@@ -3,6 +3,7 @@ set -eu
 
 mode=${1:-prepare}
 run_id=${2:-multi-agent-first-window}
+lab_version=${3:-v1}
 project_dir=${IDML_PROJECT_DIR:-/opt/idml-platform}
 env_file="$project_dir/.env"
 base_compose="$project_dir/deploy/docker-compose.dev.yml"
@@ -10,16 +11,34 @@ benchmark_compose="$project_dir/deploy/docker-compose.openclaw-benchmark.yml"
 private_root="$project_dir/benchmarks/private"
 input_dir="$private_root/input"
 output_dir="$private_root/output"
-dataset="$input_dir/dataset-v1.3.json"
-prepared_manifest="$input_dir/multi-agent-manifest-v1.json"
-validated_manifest="$output_dir/validated-multi-agent-manifest-v1.json"
+case "$lab_version" in
+  v1)
+    plan_name=openclaw-multi-agent-lab-v1.json
+    dataset_name=dataset-v1.3.json
+    manifest_name=multi-agent-manifest-v1.json
+    expected_confirmation=RUN_IDML_OPENCLAW_MULTI_AGENT_LAB_V1
+    ;;
+  v2)
+    plan_name=openclaw-multi-agent-lab-v2.json
+    dataset_name=dataset-full-v1.3.json
+    manifest_name=multi-agent-manifest-v2.json
+    expected_confirmation=RUN_IDML_OPENCLAW_MULTI_AGENT_LAB_V2
+    ;;
+  *)
+    echo "lab-version must be v1 or v2" >&2
+    exit 2
+    ;;
+esac
+dataset="$input_dir/$dataset_name"
+prepared_manifest="$input_dir/$manifest_name"
+validated_manifest="$output_dir/validated-$manifest_name"
 results="$output_dir/multi-agent-results-$run_id.json"
 report="$output_dir/multi-agent-report-$run_id.json"
 
 case "$mode" in
   prepare|execute) ;;
   *)
-    echo "usage: $0 [prepare|execute] [run-id]" >&2
+    echo "usage: $0 [prepare|execute] [run-id] [v1|v2]" >&2
     exit 2
     ;;
 esac
@@ -60,10 +79,10 @@ base() {
 }
 
 runner_args="python -m idml_foundation.ai.multi_agent_lab \
---plan /app/config/openclaw-multi-agent-lab-v1.json \
---dataset /benchmark/input/dataset-v1.3.json \
---manifest-output /benchmark/output/validated-multi-agent-manifest-v1.json \
---prepared-manifest /benchmark/input/multi-agent-manifest-v1.json"
+--plan /app/config/$plan_name \
+--dataset /benchmark/input/$dataset_name \
+--manifest-output /benchmark/output/validated-$manifest_name \
+--prepared-manifest /benchmark/input/$manifest_name"
 
 benchmark config --quiet
 benchmark build openclaw-benchmark-runner
@@ -79,7 +98,7 @@ if [ "$mode" = prepare ]; then
 fi
 
 : "${IDML_CONFIRM_AGENT_EXECUTION:?explicit multi-agent execution confirmation is required}"
-[ "$IDML_CONFIRM_AGENT_EXECUTION" = RUN_IDML_OPENCLAW_MULTI_AGENT_LAB_V1 ] || {
+[ "$IDML_CONFIRM_AGENT_EXECUTION" = "$expected_confirmation" ] || {
   echo "multi-agent execution confirmation is invalid" >&2
   exit 1
 }

@@ -181,6 +181,19 @@ IDML_CONFIRM_AGENT_EXECUTION=RUN_IDML_OPENCLAW_MULTI_AGENT_LAB_V1 \
   ./ops/openclaw-multi-agent-lab.sh execute multi-agent-first-window
 ```
 
+Para os dez casos ESA disponíveis, selecionar explicitamente a versão v2:
+
+```sh
+cd /opt/idml-platform
+./ops/openclaw-multi-agent-lab.sh prepare multi-agent-full-corpus v2
+IDML_CONFIRM_AGENT_EXECUTION=RUN_IDML_OPENCLAW_MULTI_AGENT_LAB_V2 \
+  ./ops/openclaw-multi-agent-lab.sh execute multi-agent-full-corpus v2
+```
+
+Falha de contrato de saída rejeita o caso e contabiliza o limite superior preflight do papel. Falha
+operacional ou de política interrompe a janela. Em ambos os casos o encerramento executa o kill
+switch e o reset do estado dedicado.
+
 O encerramento, inclusive em erro, deve executar `ops/openclaw-provider-disable.sh`. Não copiar a
 saída bruta para documentação ou logs públicos; publicar somente o relatório sanitizado.
 

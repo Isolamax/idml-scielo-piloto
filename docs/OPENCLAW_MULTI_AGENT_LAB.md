@@ -34,6 +34,19 @@ metadados e referências. São oito chamadas sequenciais, tentativa única, time
 papel e teto agregado de 150.000 micro-USD (US$ 0,15). As flags
 `IDML_FEATURE_OPENCLAW` e `IDML_FEATURE_AI_SWARM` devem permanecer falsas.
 
+## Janela v2 — corpus ESA disponível
+
+A configuração `config/openclaw-multi-agent-lab-v2.json` seleciona os dez casos reais disponíveis:
+metadados, autores/afiliações, referências e figuras/tabelas. São no máximo 40 chamadas sequenciais,
+tentativa única, timeout de 45 segundos por papel e teto agregado de 585.000 micro-USD. O contrato
+atômico de `RichText` fornece template completo, exige inlines não vazios, preserva todos os campos e
+IDs e permite alterar somente o texto, cuja concatenação deve reproduzir exatamente o valor plain.
+
+O endpoint OpenResponses da versão OpenClaw fixada não aceita o campo `text.format` do Responses API.
+Por isso o cliente mantém o schema nas instruções, aceita JSON puro ou um único fence Markdown que
+contenha somente JSON e rejeita qualquer texto externo. Falha de contrato rejeita apenas o caso e
+reserva o custo máximo do papel; falha operacional ou de política encerra a janela inteira.
+
 O dataset e o manifesto ficam privados em `benchmarks/private/input`; resultados brutos e relatório
 sanitizado ficam em `benchmarks/private/output`, todos em modo 600. O relatório público contém apenas
 métricas, códigos de decisão, hashes e custo — nunca trechos, valores propostos ou respostas brutas.
@@ -55,6 +68,15 @@ IDML_CONFIRM_AGENT_EXECUTION=RUN_IDML_OPENCLAW_MULTI_AGENT_LAB_V1 \
   ./ops/openclaw-multi-agent-lab.sh execute multi-agent-first-window
 ```
 
+Preparar ou executar a janela v2 requer o terceiro argumento e a confirmação própria:
+
+```sh
+cd /opt/idml-platform
+./ops/openclaw-multi-agent-lab.sh prepare multi-agent-full-corpus v2
+IDML_CONFIRM_AGENT_EXECUTION=RUN_IDML_OPENCLAW_MULTI_AGENT_LAB_V2 \
+  ./ops/openclaw-multi-agent-lab.sh execute multi-agent-full-corpus v2
+```
+
 O script verifica zero `agent_runs`/`agent_proposals`, faz backup e restore test, ativa o provider
 somente durante a janela e sempre chama o kill switch no encerramento. O pós-teste deve confirmar
 flags falsas, zero sessões, ausência do proxy/redes transitórias e saúde da aplicação, do gateway
@@ -74,3 +96,21 @@ foi exato e aceito somente para futura revisão humana. Referências foi rejeita
 dos críticos porque as duas representações atômicas de `RichText` divergiram. O caso foi convertido
 em teste de regressão. O relatório sanitizado está em
 `benchmarks/agents/reports/multi-agent-first-window-v1.json`; o resultado bruto permanece privado.
+
+## Evidência da janela v2
+
+Em 2026-09-01, `multi-agent-full-corpus-v2r2` concluiu os dez casos e 26 chamadas por 218.200
+micro-USD. Metadados passou nas sete verificações determinísticas, foi exato contra o alvo automático
+e ficou aceito somente para a futura revisão humana. Os nove casos restantes foram rejeitados por
+`AGENT_OUTPUT_NOT_JSON`: duas falhas no proponente, quatro no crítico XML e três no adjudicador. A
+aceitação do fence JSON exato não alterou a taxa da janela anterior, portanto saída estruturada
+confiável continua uma pendência técnica do gateway/modelo, e não deve ser contornada extraindo JSON
+de prosa arbitrária.
+
+O custo conservador acumulado das janelas deste artigo ficou em 528.995 micro-USD. O relatório
+público sanitizado está em `benchmarks/agents/reports/multi-agent-full-corpus-v2.json`; resultados
+brutos permanecem privados em modo 600. O pós-teste confirmou flags falsas, zero
+runs/propostas/sessões, ausência de chave do provider no gateway, proxy e redes transitórias
+ausentes, API/interface em HTTP 200 e os dois OpenClaw saudáveis sem reinicialização do compartilhado.
+O token do gateway dedicado foi rotacionado após a auditoria, sem registrar o valor anterior ou o
+novo. O G6-T continua pendente.

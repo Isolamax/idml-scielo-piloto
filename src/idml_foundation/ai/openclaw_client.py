@@ -15,6 +15,10 @@ from idml_foundation.domain.common import canonical_bytes
 MAX_GATEWAY_RESPONSE_BYTES = 2 * 1024 * 1024
 MAX_GATEWAY_ERROR_BYTES = 64 * 1024
 _SAFE_ERROR_FRAGMENT = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]{0,63}$")
+_JSON_FENCE = re.compile(
+    r"\A```(?:json)?[ \t]*\r?\n(?P<body>[\s\S]*?)\r?\n```[ \t]*\Z",
+    re.IGNORECASE,
+)
 
 
 class JsonPostTransport(Protocol):
@@ -169,8 +173,12 @@ def _parse_output(payload: dict[str, Any]) -> dict[str, Any]:
             texts.append(text)
     if len(texts) != 1:
         raise RuntimeError("OpenClaw gateway must return exactly one JSON output")
+    candidate = texts[0].strip()
+    fenced = _JSON_FENCE.fullmatch(candidate)
+    if fenced is not None:
+        candidate = fenced.group("body").strip()
     try:
-        decoded = json.loads(texts[0])
+        decoded = json.loads(candidate)
     except json.JSONDecodeError as exc:
         raise RuntimeError("OpenClaw gateway output is not JSON") from exc
     if not isinstance(decoded, dict):
