@@ -152,6 +152,20 @@ def test_prepare_lab_manifest_is_content_free_and_within_article_budget(tmp_path
     assert "Current references value" not in serialized
 
 
+def test_multi_agent_manifest_rejects_case_path_outside_declared_domain(tmp_path: Path) -> None:
+    plan_path, dataset_path, dataset = _files(tmp_path)
+    dataset["cases"][0]["field_path"] = "/back/references/0/title/value"
+    dataset_path.write_text(json.dumps(dataset), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="path is outside its domain"):
+        prepare_lab_manifest(
+            load_lab_plan(plan_path),
+            dataset,
+            plan_path=plan_path,
+            dataset_path=dataset_path,
+        )
+
+
 class _FixtureLabClient:
     def __init__(
         self,

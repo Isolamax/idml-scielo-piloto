@@ -182,6 +182,11 @@ classificadas e rastreáveis.
 Aceite: zero alteração sem evidência, zero violação de contrato, orçamento respeitado e todos os
 erros ou desacordos encaminhados como bloqueio/abstenção.
 
+Evidência incremental: a matriz `idml-multi-agent-adversarial-matrix-1.0` cobre seis domínios e cinco
+cenários por domínio sem provider. Em 2026-09-01, os 30 casos e 84 papéis simulados passaram 100% dos
+oráculos, incluindo evidência divergente, ambiguidade, falso consenso e prompt injection. Estrutura e
+matemática são sintéticas e continuam exigindo evidência real autorizada antes da RC.
+
 ### V-09 — Segurança, identidade e multiempresa
 
 - login, logout, expiração, recuperação, MFA e reautenticação;

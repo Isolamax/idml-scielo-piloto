@@ -28,6 +28,7 @@ from idml_foundation.ai.multi_agent_outputs import (
 from idml_foundation.ai.openclaw_client import OpenClawResponsesClient
 from idml_foundation.ai.orchestration import ProviderResponse, ProviderUnavailable
 from idml_foundation.ai.outputs import (
+    DOMAIN_PATH_PREFIXES,
     AgentDomain,
     AgentProposalOutput,
     output_json_schema,
@@ -186,7 +187,7 @@ def _selected_cases(
         if not isinstance(case_id, str) or not _CASE_ID.fullmatch(case_id) or case_id in by_id:
             raise ValueError("multi-agent case IDs must be valid and unique")
         try:
-            AgentDomain(str(raw_case.get("domain", "")))
+            domain = AgentDomain(str(raw_case.get("domain", "")))
         except ValueError as exc:
             raise ValueError("multi-agent case domain is invalid") from exc
         required = (
@@ -200,6 +201,28 @@ def _selected_cases(
         )
         if any(name not in raw_case for name in required):
             raise ValueError("multi-agent case is incomplete")
+        field_path = raw_case["field_path"]
+        if not isinstance(field_path, str) or not _path_matches_domain(field_path, domain):
+            raise ValueError("multi-agent case path is outside its domain")
+        atomic = raw_case.get("atomic_rich_text")
+        if atomic is not None:
+            if not isinstance(atomic, dict):
+                raise ValueError("multi-agent atomic RichText contract is invalid")
+            root_path = field_path.removesuffix("/plain/value")
+            required_paths = atomic.get("required_patch_paths")
+            if (
+                root_path == field_path
+                or atomic.get("root_path") != root_path
+                or not isinstance(atomic.get("current_inlines"), list)
+                or not isinstance(required_paths, list)
+                or len(required_paths) != 2
+                or required_paths != [field_path, f"{root_path}/inlines"]
+                or any(
+                    not isinstance(path, str) or not _path_matches_domain(path, domain)
+                    for path in required_paths
+                )
+            ):
+                raise ValueError("multi-agent atomic RichText paths are outside their domain")
         evidence = raw_case["evidence"]
         if not isinstance(evidence, dict) or not isinstance(evidence.get("excerpt"), str):
             raise ValueError("multi-agent evidence excerpt is missing")
@@ -209,6 +232,13 @@ def _selected_cases(
     if any(case_id not in by_id for case_id in plan.selected_case_ids):
         raise ValueError("multi-agent selected case is absent from the dataset")
     return tuple(by_id[case_id] for case_id in plan.selected_case_ids)
+
+
+def _path_matches_domain(path: str, domain: AgentDomain) -> bool:
+    return any(
+        path == prefix or path.startswith(f"{prefix}/")
+        for prefix in DOMAIN_PATH_PREFIXES[domain]
+    )
 
 
 def _case_content(case: dict[str, Any]) -> dict[str, Any]:

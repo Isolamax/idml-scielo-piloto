@@ -114,3 +114,29 @@ runs/propostas/sessões, ausência de chave do provider no gateway, proxy e rede
 ausentes, API/interface em HTTP 200 e os dois OpenClaw saudáveis sem reinicialização do compartilhado.
 O token do gateway dedicado foi rotacionado após a auditoria, sem registrar o valor anterior ou o
 novo. O G6-T continua pendente.
+
+## Matriz adversarial local v1
+
+O arquivo `benchmarks/agents/adversarial-matrix-v1.json` congela cinco cenários para cada um dos seis
+domínios: positivo, negativo por evidência divergente, evidência ambígua, falso consenso que exige
+abstenção e prompt injection. Estrutura e matemática usam dados estritamente sintéticos; essa
+cobertura prova contratos, mas não substitui casos reais autorizados nem baseline humano.
+
+Executar sem chave, rede ou provider:
+
+```sh
+python -m idml_foundation.ai.adversarial_matrix \
+  --matrix benchmarks/agents/adversarial-matrix-v1.json \
+  --report-output tmp/adversarial-matrix-v1-report.json
+```
+
+A execução determinística de 2026-09-01 passou os 30 casos e 84 chamadas simuladas, com zero chamada
+de provider e custo monetário zero. Foram seis aceitações somente para revisão humana, doze rejeições
+e doze abstenções. Seis consensos positivos sem ganho foram bloqueados; os seis ataques de prompt
+injection e as seis evidências com hash divergente foram rejeitados antes dos críticos. Nenhuma
+ferramenta ou Skill foi exposta. O relatório público sanitizado é
+`benchmarks/agents/reports/adversarial-matrix-v1-report.json`.
+
+A mesma matriz foi reproduzida na VPS dentro da imagem fixada do runner, em contêiner read-only,
+usuário não root, capabilities removidas e `--network none`. O resultado permaneceu 30/30, 84 papéis,
+zero provider e custo zero, sem recriar ou reiniciar os serviços da aplicação.

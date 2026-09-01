@@ -381,6 +381,28 @@ artigo permanecem privados.
 Após o kill switch e uma rotação preventiva do token do gateway dedicado, API, worker, gateway
 dedicado e OpenClaw compartilhado ficaram healthy com zero reinicializações. Flags de IA ficaram
 falsas; `agent_runs`, `agent_proposals` e sessões ficaram zerados; chave do provider, proxy e redes
-transitórias ficaram ausentes; `/health/ready` e `/app` retornaram 200. O G6-T permanece bloqueado por
-saída estruturada não confiável, ausência das classes adversariais por domínio, falta de casos reais
-de estrutura/matemática e ausência deliberada de baseline humano até o G8-H.
+transitórias ficaram ausentes; `/health/ready` e `/app` retornaram 200. Naquele ponto, o G6-T seguia
+bloqueado por saída estruturada não confiável, ausência das classes adversariais por domínio, falta
+de casos reais de estrutura/matemática e ausência deliberada de baseline humano até o G8-H.
+
+## Matriz adversarial determinística v1
+
+O incremento seguinte fechou as cinco classes adversariais em todos os seis domínios por meio de 30
+fixtures sintéticas versionadas. A matriz executa proponente, críticos, adjudicador e juiz local sem
+rede, credencial ou provider. Ela também passou a rejeitar o próprio dataset quando o path do caso ou
+do contrato atômico está fora do domínio declarado, fechando uma fronteira de confiança anterior.
+
+Os 30 casos e 84 papéis simulados passaram os oráculos com custo zero: seis positivos foram aceitos
+somente para revisão humana; seis evidências divergentes e seis prompt injections foram rejeitados;
+seis ambiguidades resultaram em abstenção; seis consensos positivos sem ganho foram convertidos em
+abstenção com `POTENTIAL_FALSE_CONSENSUS`. Todos os domínios e cenários atingiram 100% das expectativas.
+O relatório sanitizado é `benchmarks/agents/reports/adversarial-matrix-v1-report.json`.
+
+A reprodução na VPS usou a imagem do runner com filesystem read-only, usuário não root, nenhuma
+capability e `--network none`; repetiu 30/30 casos, 84 papéis, zero provider e custo zero. Os serviços
+ativos não foram recriados ou reiniciados por essa validação.
+
+Essa evidência remove a pendência das classes sintéticas e transforma os defeitos conhecidos em
+regressões, mas não aprova o G6-T. Ainda faltam casos reais autorizados de estrutura/matemática,
+confiabilidade de JSON na execução OpenClaw real, testes explícitos de invenção sem alterar o hash da
+evidência e, conforme planejado, baseline humano somente no G8-H.
