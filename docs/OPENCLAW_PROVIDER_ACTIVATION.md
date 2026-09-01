@@ -74,6 +74,10 @@ O harness da primeira janela está descrito em `docs/OPENCLAW_CONTROLLED_BENCHMA
 desse harness não autoriza novas execuções: o comando exige confirmação transitória explícita e
 encerra sempre com o kill switch e reset do estado dedicado.
 
+O laboratório com proponente, dois críticos e adjudicador está descrito em
+`docs/OPENCLAW_MULTI_AGENT_LAB.md`. Ele mantém sessões independentes, oculta o alvo automático dos
+agentes e submete qualquer consenso ao juiz determinístico local.
+
 ## Evidência da primeira janela — 2026-09-01
 
 O modo de proxy explícito na configuração do provider causou timeout upstream tanto no OpenClaw

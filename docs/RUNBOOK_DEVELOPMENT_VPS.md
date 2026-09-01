@@ -161,6 +161,29 @@ ops/openclaw-provider-disable.sh
 Ao terminar qualquer diagnóstico, deixar o estado desligado e confirmar zero sessões,
 `agent_runs` e `agent_proposals`.
 
+### Laboratório multiagente controlado
+
+O procedimento completo está em `docs/OPENCLAW_MULTI_AGENT_LAB.md`. Ele usa quatro sessões isoladas,
+não envia o alvo esperado aos agentes, não aplica patches e mantém revisão humana obrigatória.
+
+Validar sem inferência:
+
+```sh
+cd /opt/idml-platform
+./ops/openclaw-multi-agent-lab.sh prepare multi-agent-first-window
+```
+
+Em uma janela já autorizada, executar com a confirmação transitória exata:
+
+```sh
+cd /opt/idml-platform
+IDML_CONFIRM_AGENT_EXECUTION=RUN_IDML_OPENCLAW_MULTI_AGENT_LAB_V1 \
+  ./ops/openclaw-multi-agent-lab.sh execute multi-agent-first-window
+```
+
+O encerramento, inclusive em erro, deve executar `ops/openclaw-provider-disable.sh`. Não copiar a
+saída bruta para documentação ou logs públicos; publicar somente o relatório sanitizado.
+
 ### Benchmark controlado
 
 Seguir `docs/OPENCLAW_CONTROLLED_BENCHMARK.md`. O modo padrão é somente preparação:

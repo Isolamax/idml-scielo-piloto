@@ -22,7 +22,7 @@ docs/XML_VALIDATION_MASTER_PLAN.md
 
 ```text
 PROJECT_STATUS: PHASE_6_MULTI_AGENT_VALIDATION_PLANNED
-CURRENT_PHASE: FASE 6 — próxima ação: laboratório multiagente e cobertura completa do corpus autorizado
+CURRENT_PHASE: FASE 6 — próxima ação: ampliar o laboratório multiagente para todos os domínios e classes de caso
 CURRENT_IMPLEMENTATION_AUTHORIZED: PHASE_6
 DEVELOPMENT_ROADMAP_AUTHORIZED: THROUGH_PHASE_8_PRODUCTION_READINESS
 PRODUCTION_ACTIVATION_AUTHORIZED: NO — REQUIRES XML_EXPERT_FINAL_ACCEPTANCE
@@ -637,14 +637,14 @@ preparando a comparação editorial humana para a RC final.
 
 ## Pacote 6.7 — Laboratório multiagente de qualidade XML
 
-- [ ] Implementar papéis separados de proponente, crítico XML, crítico editorial e adjudicador.
-- [ ] Impedir compartilhamento de raciocínio privado entre sessões e registrar somente saídas estruturadas.
+- [x] Implementar papéis separados de proponente, crítico XML, crítico editorial e adjudicador.
+- [x] Impedir compartilhamento de raciocínio privado entre sessões e registrar somente saídas estruturadas.
 - [ ] Executar os domínios restantes do corpus ESA com custo, tokens e latência contabilizados.
 - [ ] Criar casos positivos, negativos, ambíguos, de abstenção e de prompt injection por domínio.
-- [ ] Comparar propostas com fonte, XML aprovado, regras determinísticas e alvos automáticos.
-- [ ] Medir falso consenso entre agentes e impedir que concordância substitua evidência.
+- [x] Comparar propostas da primeira janela com fonte, regras determinísticas e alvos automáticos ocultos dos agentes.
+- [x] Medir falso consenso na primeira janela e impedir que concordância substitua evidência.
 - [ ] Transformar todo defeito confirmado em fixture de regressão.
-- [ ] Produzir relatório sanitizado por domínio, sem promover o resultado a baseline humano.
+- [ ] Produzir relatório sanitizado para todos os domínios, sem promover o resultado a baseline humano.
 
 ## Gate técnico de saída G6-T
 
@@ -970,3 +970,4 @@ ADRs iniciais esperados:
 | 2026-08-31 | Harness do benchmark real v1.3 preparado com dois casos, teto agregado, confirmação explícita, runner isolado e reset final; dry-run reproduzido localmente/VPS, execução sem confirmação bloqueada e nenhum agente chamado | Codex |
 | 2026-09-01 | Primeira janela OpenClaw concluída em dois casos reais minimizados; custo de 13.024 micro-USD, contratos e cleanup aprovados; metadado exato e referência inconclusiva sem baseline humano; G6 permanece bloqueado | Codex |
 | 2026-09-01 | Governança revisada: desenvolvimento planejado até a prontidão de produção; quinze famílias de testes e validação multiagente precedem a RC; homologação do especialista em XML transferida para o Gate Humano Final G8-H antes do go-live | Codex |
+| 2026-09-01 | Laboratório multiagente v1 implementado e executado em metadados/referências por 32.824 micro-USD; metadados exato, referência atômica rejeitada antes dos críticos e convertida em regressão; cleanup integral aprovado e G6-T ainda pendente | Codex |

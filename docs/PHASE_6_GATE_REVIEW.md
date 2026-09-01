@@ -331,3 +331,28 @@ backups `/opt/idml-platform/backups/20260901T134823Z` e
 
 Essa janela resolve a pendência operacional e monetária do primeiro teste, mas não aprova o G6. A
 qualidade por domínio continua inconclusiva até existir baseline e adjudicação humana autorizados.
+
+## Incremento pós-gate — laboratório multiagente v1
+
+Em 2026-09-01 foi implementado o laboratório técnico com proponente, crítico XML, crítico editorial
+e adjudicador em sessões separadas. O alvo automático fica oculto dos quatro papéis; apenas saídas
+estruturadas passam entre eles. Contratos fechados vinculam hashes de evidência, proposta e críticas,
+e o juiz determinístico mantém precedência sobre o consenso.
+
+A primeira configuração selecionou metadados e referências do corpus ESA, com até oito chamadas
+sequenciais, tentativa única e preflight de 117.000 micro-USD sob o teto agregado de 150.000. O
+mecanismo detecta consenso positivo sem ganho sobre o baseline e converte o resultado em abstenção.
+Não há persistência na aplicação, aplicação de patch ou autorização de release; `needs_human=true`
+é obrigatório.
+
+A janela `multi-agent-first-window-v1` foi executada na VPS com custo de 32.824 micro-USD. O caso de
+metadados chegou a consenso unânime e valor exato, permanecendo aceito apenas para futura revisão humana. Em
+referências, o proponente produziu as duas representações atômicas de `RichText` com valores
+inconsistentes; o juiz determinístico rejeitou antes dos críticos e do adjudicador. O defeito foi
+transformado em fixture de regressão.
+
+O relatório sanitizado confirmou zero ferramentas/Skills e não contém saídas brutas, prompts ou
+alvo esperado. O pós-teste confirmou flags falsas, zero runs/propostas/sessões, credencial ausente do
+gateway, proxy e redes transitórias ausentes, API/interface em HTTP 200 e ambos os OpenClaw healthy
+com zero reinicializações. O backup `/opt/idml-platform/backups/20260901T152646Z` passou no restore
+isolado. O G6-T permanece pendente pelos domínios e classes de caso ainda não executados.
