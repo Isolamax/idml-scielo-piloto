@@ -12,6 +12,8 @@ from sqlalchemy.orm import Session
 
 from idml_foundation.ai.contracts import ALLOWED_TOOLS, ToolScope
 from idml_foundation.ai.evaluation import EvalCase, evaluate_outputs
+from idml_foundation.ai.evidence import evidence_reference as trusted_evidence_reference
+from idml_foundation.ai.evidence import reassemble_evidence
 from idml_foundation.ai.orchestration import (
     AgentBudget,
     NoOpOrchestrator,
@@ -292,6 +294,33 @@ def test_assistance_payload_is_compact_and_deduplicated(db: Session) -> None:
     assert len(canonical_bytes(payload)) < 4_000
 
 
+def test_assistance_payload_preserves_long_evidence_as_authenticated_segments(
+    db: Session,
+) -> None:
+    scope, item = _scoped_review(db)
+    complete_text = "Complete trusted evidence: " + ("bibliographic field " * 90)
+    item.evidence = [
+        {
+            "evidence_id": "ev-1",
+            "source_kind": "idml",
+            "locator": "Stories/Story_u1.xml#u1",
+            "excerpt": complete_text,
+        }
+    ]
+    tools = AgentToolService(db, scope)
+
+    payload = build_assistance_payload(tools)
+    evidence = payload["evidence"][0]
+
+    assert payload["contract_version"] == "assistive-input-1.2"
+    assert len(evidence["segments"]) == 4
+    assert reassemble_evidence(evidence) == complete_text
+    assert "excerpt" not in evidence
+    assert trusted_evidence_reference(evidence)["aggregate_sha256"] == evidence[
+        "aggregate_sha256"
+    ]
+
+
 def test_rich_text_patch_requires_atomic_plain_and_inlines(db: Session) -> None:
     scope, item = _rich_text_review(db)
     tools = AgentToolService(db, scope)
@@ -537,9 +566,9 @@ def test_proposal_is_validated_persisted_and_never_applied(db: Session) -> None:
     assert run.status == "succeeded"
     assert run.cost_source == "provider"
     assert run.pricing_model_key == "fixture/contract-fixture"
-    assert run.prompt_version == "1.2"
+    assert run.prompt_version == "1.3"
     assert run.output_schema_version == "agent-proposal-1.1"
-    assert run.config_version == "agent-config-1.2"
+    assert run.config_version == "agent-config-1.3"
     assert run.budget["preflight_max_cost_microusd"] is None
     assert 0 < run.budget["input_envelope_bytes"] < 4_000
     assert proposal is not None and proposal.needs_human

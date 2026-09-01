@@ -128,6 +128,10 @@ evidências, 1.200 caracteres por trecho, dez alternativas de 500 caracteres e r
 canônico enviado. O contexto atômico deixou de repetir `plain` e carrega somente os inlines
 necessários. Prompts 1.2, configuração 1.1 e bundle de instruções 1.1 foram versionados.
 
+O contrato posterior `assistive-input-1.2` substitui esse limite truncante para valores longos:
+transporta até 8.000 caracteres em segmentos lossless de 500, com hashes individuais e agregado.
+Prompts 1.3 instruem a remontagem ordenada. Valores curtos preservam o formato 1.1 por compatibilidade.
+
 Essa redução se aplica ao conteúdo controlado pela aplicação; o overhead do system prompt interno
 do OpenClaw só poderá ser medido quando os testes de agentes forem retomados. Nenhum agente foi
 executado neste incremento, e o v1.2 foi substituído pelo v1.3 antes de qualquer medição.
@@ -144,8 +148,8 @@ bloqueado e a Fase 7 não deve começar. Ordem recomendada de desenvolvimento:
 
 1. adjudicar com revisores as seis divergências bibliográficas quando houver disponibilidade;
 2. [concluído] definir patch atômico para `RichText`, preservando `plain` e `inlines` juntos;
-3. [concluído no envelope da aplicação] reforçar structured output/evidence binding e reduzir
-   conteúdo redundante; medir o overhead total do OpenClaw somente nos testes futuros;
+3. [concluído] reforçar structured output/evidence binding e substituir truncamento por evidência
+   segmentada completa, com hash individual e agregado; o corpus v1.4 passou 10/10 alvos offline;
 4. [concluído] observar/bloquear custo por tarifa oficial exata, cache, preflight e teto agregado;
    manter agentes desligados até existir gateway dedicado/restrito;
 5. criar profile/style mapping RBEdu somente quando a expansão de template for autorizada;

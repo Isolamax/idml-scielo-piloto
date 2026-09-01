@@ -49,13 +49,14 @@ com `enabled=false` e nenhuma Skill carregada.
 ## Fluxo e invariantes
 
 1. O backend lê e sanitiza somente o recorte autorizado.
-2. O backend monta `assistive-input-1.1`, sem IDs de snapshot repetidos nem cópia separada das
-   validações já presentes em evidências; mensagens, alternativas, quantidade de evidências e
-   trechos possuem limites explícitos.
+2. O backend monta `assistive-input-1.1` para evidência curta legada ou `assistive-input-1.2` para
+   evidência segmentada, sem IDs de snapshot repetidos nem cópia separada das validações já presentes
+   em evidências. Conteúdo longo não é truncado: cada segmento e o conjunto completo são autenticados,
+   e estouro do limite total falha fechado.
 3. O provider recebe prompt e JSON Schema versionados, allowlist e timeout.
 4. A saída é validada novamente pelo backend.
-5. Cada referência de evidência deve coincidir em ID, tipo, locator e hash, e cada operação deve
-   declarar quais dessas evidências a sustentam.
+5. Cada referência de evidência deve coincidir em ID, tipo, locator e hash legado ou conjunto
+   ordenado de hashes individuais mais hash agregado; cada operação declara quais evidências a sustentam.
 6. O patch deve ficar no domínio e no campo do item de revisão.
 7. Uma alteração em `RichText` deve substituir `plain.value` e o array completo `inlines` na mesma
    proposta; patch escalar, parcial ou com caminhos duplicados é rejeitado antes do build.

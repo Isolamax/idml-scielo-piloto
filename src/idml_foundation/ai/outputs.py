@@ -38,13 +38,41 @@ class AgentPatchOperation(BaseModel):
         return self
 
 
+class AgentEvidenceSegmentReference(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    segment_id: str = Field(min_length=1, max_length=240)
+    position: int = Field(ge=0, le=15)
+    text_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
 class AgentEvidenceReference(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     evidence_id: str = Field(min_length=1, max_length=200)
     source_kind: Literal["idml", "pdf", "validation", "canonical"]
     locator: str = Field(min_length=1, max_length=500)
-    excerpt_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    excerpt_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    segments: tuple[AgentEvidenceSegmentReference, ...] = Field(default=(), max_length=16)
+    aggregate_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+
+    @model_validator(mode="after")
+    def exactly_one_evidence_representation(self) -> Self:
+        legacy = self.excerpt_sha256 is not None
+        segmented = bool(self.segments) or self.aggregate_sha256 is not None
+        if legacy == segmented:
+            raise ValueError("evidence reference must use exactly one representation")
+        if segmented:
+            if not self.segments or self.aggregate_sha256 is None:
+                raise ValueError("segmented evidence reference is incomplete")
+            if tuple(segment.position for segment in self.segments) != tuple(
+                range(len(self.segments))
+            ):
+                raise ValueError("evidence segments must be contiguous and ordered")
+            ids = tuple(segment.segment_id for segment in self.segments)
+            if len(ids) != len(set(ids)):
+                raise ValueError("evidence segment references must be unique")
+        return self
 
 
 class AgentProposalOutput(BaseModel):

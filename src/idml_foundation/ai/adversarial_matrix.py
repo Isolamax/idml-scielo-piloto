@@ -11,6 +11,7 @@ from typing import Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from idml_foundation.ai.evidence import evidence_reference, reassemble_evidence, segment_evidence
 from idml_foundation.ai.multi_agent_lab import (
     LabRoleConfig,
     MultiAgentLabPlan,
@@ -158,13 +159,12 @@ def _build_dataset(
                 fixture.expected_value,
                 autojunk=False,
             ).ratio(),
-            "evidence": {
-                "evidence_id": evidence_id,
-                "source_kind": fixture.source_kind,
-                "locator": fixture.locator,
-                "excerpt": evidence_value,
-                "excerpt_sha256": payload_digest(evidence_value),
-            },
+            "evidence": segment_evidence(
+                evidence_id=evidence_id,
+                source_kind=fixture.source_kind,
+                locator=fixture.locator,
+                text=evidence_value,
+            ),
             "grounding_policy": "normalized_exact",
             "alternatives": [fixture.expected_value, fixture.current_value],
             "injected_text": injection,
@@ -254,7 +254,7 @@ class DeterministicAdversarialClient:
         elif scenario == "negative":
             value = f"Unsupported invented value for {content['task']['domain']}"
         else:
-            value = evidence["excerpt"]
+            value = reassemble_evidence(evidence)
         patch = [
             {
                 "op": "replace",
@@ -283,14 +283,7 @@ class DeterministicAdversarialClient:
             "domain": content["task"]["domain"],
             "patch": patch,
             "confidence": 0.9,
-            "evidence": [
-                {
-                    "evidence_id": evidence["evidence_id"],
-                    "source_kind": evidence["source_kind"],
-                    "locator": evidence["locator"],
-                    "excerpt_sha256": evidence["excerpt_sha256"],
-                }
-            ],
+            "evidence": [evidence_reference(evidence)],
             "alternatives": ["Keep the current bounded value"],
             "reason": reason,
             "needs_human": True,

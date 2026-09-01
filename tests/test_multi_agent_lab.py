@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
+from idml_foundation.ai.evidence import evidence_reference, reassemble_evidence, segment_evidence
 from idml_foundation.ai.multi_agent_lab import (
     execute_multi_agent_lab,
     load_lab_plan,
@@ -194,7 +195,7 @@ class _FixtureLabClient:
             value = (
                 content["current"]["value"]
                 if content["task"]["domain"] == "references"
-                else evidence["excerpt"]
+                else reassemble_evidence(evidence)
             )
             if self.invented_value:
                 value = "Invented content absent from the trusted evidence"
@@ -223,26 +224,18 @@ class _FixtureLabClient:
                         "evidence_ids": [evidence["evidence_id"]],
                     }
                 )
+            reference = evidence_reference(evidence)
+            if self.corrupt_evidence_hash:
+                hash_name = (
+                    "aggregate_sha256" if "aggregate_sha256" in reference else "excerpt_sha256"
+                )
+                reference[hash_name] = "0" * 64
             payload = {
                 "schema_version": "agent-proposal-1.1",
                 "domain": content["task"]["domain"],
                 "patch": patch,
                 "confidence": 0.91,
-                "evidence": [
-                    {
-                        key: (
-                            "0" * 64
-                            if key == "excerpt_sha256" and self.corrupt_evidence_hash
-                            else evidence[key]
-                        )
-                        for key in (
-                            "evidence_id",
-                            "source_kind",
-                            "locator",
-                            "excerpt_sha256",
-                        )
-                    }
-                ],
+                "evidence": [reference],
                 "alternatives": ["Keep current value"],
                 "reason": "The scoped evidence supports this bounded evaluation proposal.",
                 "needs_human": True,
@@ -424,6 +417,58 @@ def test_multi_agent_lab_still_rejects_divergent_evidence_metadata(tmp_path: Pat
         case["error_code"] == "PROPOSAL_DETERMINISTIC_REJECTED_EVIDENCE_EXACT"
         for case in result["cases"]
     )
+
+
+def test_multi_agent_lab_accepts_complete_segmented_evidence(tmp_path: Path) -> None:
+    plan_path, _, dataset = _files(tmp_path)
+    case = dataset["cases"][0]
+    expected = "Complete reference evidence: " + ("segment-boundary-safe " * 35)
+    case["expected_value"] = expected
+    case["baseline_similarity"] = SequenceMatcher(
+        None, case["current_value"], expected, autojunk=False
+    ).ratio()
+    case["evidence"] = segment_evidence(
+        evidence_id=case["evidence"]["evidence_id"],
+        source_kind="canonical",
+        locator=case["evidence"]["locator"],
+        text=expected,
+    )
+
+    result = asyncio.run(
+        execute_multi_agent_lab(
+            load_lab_plan(plan_path),
+            dataset,
+            client=_FixtureLabClient(),
+            run_id="multi-agent-segmented-001",
+        )
+    )
+
+    metadata = result["cases"][0]
+    assert len(case["evidence"]["segments"]) == 2
+    assert metadata["final_decision"] == "accepted_for_human_review"
+    assert metadata["deterministic_checks"]["evidence_exact"] is True
+    assert metadata["deterministic_checks"]["evidence_grounded"] is True
+
+
+def test_multi_agent_manifest_rejects_tampered_segment(tmp_path: Path) -> None:
+    plan_path, dataset_path, dataset = _files(tmp_path)
+    case = dataset["cases"][0]
+    case["evidence"] = segment_evidence(
+        evidence_id=case["evidence"]["evidence_id"],
+        source_kind="canonical",
+        locator=case["evidence"]["locator"],
+        text=case["expected_value"] * 30,
+    )
+    case["evidence"]["segments"][0]["text"] += "tampered"
+    dataset_path.write_text(json.dumps(dataset), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="segment content, order, or hash is invalid"):
+        prepare_lab_manifest(
+            load_lab_plan(plan_path),
+            dataset,
+            plan_path=plan_path,
+            dataset_path=dataset_path,
+        )
 
 
 class _UnavailableLabClient:

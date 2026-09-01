@@ -422,3 +422,17 @@ integral em oito dos dez alvos ESA. Duas referências excedem a janela de evidê
 e ficam bloqueadas até a ampliação segura dessa janela. Isso é um requisito de evidência, não um erro
 a ser contornado pelo agente. O relatório sanitizado é
 `benchmarks/agents/reports/grounding-corpus-v1-report.json`.
+
+## Incremento de evidência segmentada v1.4
+
+O limite destrutivo de 500 caracteres foi removido do corpus e o limite de 1.200 caracteres do
+envelope assistivo deixou de truncar valores longos. Evidências longas são transportadas em até 16
+segmentos de 500 caracteres, com teto total de 8.000, hash individual e hash agregado que vincula
+metadados, ordem, contagem, tamanho e todos os segmentos. O backend remonta o conteúdo exatamente e
+rejeita alteração, reordenação, omissão, mistura de formatos ou estouro antes dos críticos.
+
+O corpus privado ESA v1.4 contém dez casos e 12 segmentos. Os dois casos longos de referências agora
+têm sustentação integral; o resultado passou de 8/10 para 10/10 sem inferência, provider ou custo. O
+relatório sanitizado é `benchmarks/agents/reports/grounding-corpus-v2-report.json`. A janela v3 foi
+preparada para validar esse contrato no OpenClaw, mas não foi executada nesta etapa. O G6-T continua
+pendente por confiabilidade do JSON real e casos reais autorizados de estrutura e matemática.

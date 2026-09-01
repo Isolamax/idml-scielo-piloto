@@ -51,6 +51,15 @@ O dataset e o manifesto ficam privados em `benchmarks/private/input`; resultados
 sanitizado ficam em `benchmarks/private/output`, todos em modo 600. O relatório público contém apenas
 métricas, códigos de decisão, hashes e custo — nunca trechos, valores propostos ou respostas brutas.
 
+## Janela v3 — evidência completa segmentada
+
+A configuração `config/openclaw-multi-agent-lab-v3.json` usa os mesmos dez casos reais com o dataset
+privado v1.4. Cada evidência é dividida em segmentos de até 500 caracteres, limitada a 16 segmentos
+e 8.000 caracteres. Cada segmento tem hash próprio; o hash agregado vincula identidade, locator,
+ordem, contagem, tamanho e todos os hashes. A remontagem é sem separadores e deve reproduzir o texto
+integral. Ausência, reordenação, alteração, mistura com o formato legado ou estouro do limite falha
+antes de qualquer chamada ao agente.
+
 ## Operação na VPS
 
 Preparar e validar o manifesto, sem inferência:
@@ -75,6 +84,15 @@ cd /opt/idml-platform
 ./ops/openclaw-multi-agent-lab.sh prepare multi-agent-full-corpus v2
 IDML_CONFIRM_AGENT_EXECUTION=RUN_IDML_OPENCLAW_MULTI_AGENT_LAB_V2 \
   ./ops/openclaw-multi-agent-lab.sh execute multi-agent-full-corpus v2
+```
+
+A janela v3 usa dataset v1.4 e confirmação distinta:
+
+```sh
+cd /opt/idml-platform
+./ops/openclaw-multi-agent-lab.sh prepare multi-agent-segmented-corpus v3
+IDML_CONFIRM_AGENT_EXECUTION=RUN_IDML_OPENCLAW_MULTI_AGENT_LAB_V3 \
+  ./ops/openclaw-multi-agent-lab.sh execute multi-agent-segmented-corpus v3
 ```
 
 O script verifica zero `agent_runs`/`agent_proposals`, faz backup e restore test, ativa o provider
@@ -148,8 +166,10 @@ integralmente com o trecho autorizado após apenas normalização Unicode NFKC, 
 deshifenização de quebra de linha. Maiúsculas, conteúdo adicional, reescrita semântica e valores não
 textuais não são aceitos. A regra não consulta o alvo oculto e não pode ser anulada por consenso.
 
-No corpus ESA atual, oito dos dez alvos automáticos têm sustentação integral no trecho armazenado.
-Duas referências são maiores que a janela de evidência de 500 caracteres e, corretamente, passam a
-falhar fechado até que a captura de evidência seja ampliada. O sistema não completa o trecho por
-inferência. O agregado sanitizado está em
-`benchmarks/agents/reports/grounding-corpus-v1-report.json`.
+O dataset ESA v1.4 removeu truncamento sem ampliar o texto por inferência. Os dez alvos automáticos
+têm sustentação integral: são 12 segmentos em dez casos, duas referências usam múltiplos segmentos
+e o maior valor tem 734 caracteres. Hashes individuais, hash agregado e remontagem passaram; nenhum
+trecho aparece no relatório público. O histórico de 8/10 permanece em
+`benchmarks/agents/reports/grounding-corpus-v1-report.json`; o resultado atual está em
+`benchmarks/agents/reports/grounding-corpus-v2-report.json`. Isso resolve a completude evidencial,
+mas não a saída JSON real nem a ausência de casos reais de estrutura e matemática.

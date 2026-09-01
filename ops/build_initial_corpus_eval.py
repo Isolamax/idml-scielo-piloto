@@ -14,7 +14,7 @@ from typing import Any
 
 from lxml import etree
 
-from idml_foundation.ai.security import payload_digest
+from idml_foundation.ai.evidence import segment_evidence
 from idml_foundation.domain.canonical import FigureBlock, FormulaBlock, NoteBlock, TableBlock
 from idml_foundation.domain.metrics import normalize_text, set_score, text_fidelity
 from idml_foundation.pipeline.service import DeterministicPipeline
@@ -204,13 +204,12 @@ def _cases(article: Any, gold: Any, *, limit: int) -> list[dict[str, Any]]:
                 "current_value": current,
                 "expected_value": expected,
                 "baseline_similarity": similarity,
-                "evidence": {
-                    "evidence_id": evidence_id,
-                    "source_kind": "canonical",
-                    "locator": f"approved_xml:{domain}:{emitted + 1}",
-                    "excerpt": expected[:500],
-                    "excerpt_sha256": payload_digest(expected[:500]),
-                },
+                "evidence": segment_evidence(
+                    evidence_id=evidence_id,
+                    source_kind="canonical",
+                    locator=f"approved_xml:{domain}:{emitted + 1}",
+                    text=expected,
+                ),
                 "alternatives": [expected, current],
                 "injected_text": injection,
             }
@@ -324,7 +323,7 @@ def main() -> int:
     args.cases_output.write_text(
         json.dumps(
             {
-                "version": "idml-agent-initial-corpus-eval-1.3",
+                "version": "idml-agent-initial-corpus-eval-1.4",
                 "description": "Restricted minimized cases; do not commit or redistribute.",
                 "corpus_id": esa_manifest["corpus_id"],
                 "source_idml_sha256": next(

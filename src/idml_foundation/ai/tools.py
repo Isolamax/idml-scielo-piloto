@@ -8,6 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from idml_foundation.ai.contracts import ToolResult, ToolScope
+from idml_foundation.ai.evidence import evidence_reference as trusted_evidence_reference
+from idml_foundation.ai.evidence import segment_evidence
 from idml_foundation.ai.outputs import (
     DOMAIN_PATH_PREFIXES,
     AgentEvidenceReference,
@@ -107,20 +109,30 @@ def _normalize_evidence(item: ReviewItem) -> list[dict[str, Any]]:
             if isinstance(locator_value, str)
             else json.dumps(locator_value, ensure_ascii=False, sort_keys=True)
         )
-        excerpt = redact_text(
-            str(evidence.get("excerpt") or evidence.get("text") or ""),
-            max_characters=1_200,
-        )
-        excerpt_sha256 = payload_digest(excerpt)
-        normalized.append(
-            {
-                "evidence_id": evidence_id[:200],
-                "source_kind": _source_kind(evidence.get("source_kind") or evidence.get("source")),
-                "locator": locator[:500],
-                "excerpt": excerpt,
-                "excerpt_sha256": excerpt_sha256,
-            }
-        )
+        raw_text = str(evidence.get("excerpt") or evidence.get("text") or "")
+        excerpt = redact_text(raw_text, max_characters=len(raw_text) + 100)
+        metadata = {
+            "evidence_id": evidence_id[:200],
+            "source_kind": _source_kind(evidence.get("source_kind") or evidence.get("source")),
+            "locator": locator[:500],
+        }
+        if len(excerpt) <= 1_200:
+            normalized.append(
+                {
+                    **metadata,
+                    "excerpt": excerpt,
+                    "excerpt_sha256": payload_digest(excerpt),
+                }
+            )
+        else:
+            normalized.append(
+                segment_evidence(
+                    evidence_id=metadata["evidence_id"],
+                    source_kind=metadata["source_kind"],
+                    locator=metadata["locator"],
+                    text=excerpt,
+                )
+            )
     return normalized
 
 
@@ -225,11 +237,10 @@ class AgentToolService:
             expected = available_evidence.get(reference.evidence_id)
             if expected is None:
                 raise ValueError("proposal cites evidence outside the review scope")
-            if (
-                reference.source_kind != expected["source_kind"]
-                or reference.locator != expected["locator"]
-                or reference.excerpt_sha256 != expected["excerpt_sha256"]
-            ):
+            observed_reference = reference.model_dump(
+                mode="json", exclude_none=True, exclude_defaults=True
+            )
+            if observed_reference != trusted_evidence_reference(expected):
                 raise ValueError("proposal evidence does not match the trusted locator")
         if contains_policy_override(
             {"reason": proposal.reason, "alternatives": proposal.alternatives}

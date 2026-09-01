@@ -20,11 +20,14 @@ Propriedades adicionais são rejeitadas.
 | `reason` | 20–2000 caracteres, sem instruções para mudar política/release |
 | `needs_human` | obrigatório; deve ser verdadeiro abaixo de 0,85 |
 
-Uma evidência contém `evidence_id`, `source_kind`, `locator` e `excerpt_sha256`. Não basta o formato
-ser válido: os quatro valores são comparados com a evidência tenant-bound entregue pelo backend.
+Uma referência usa `evidence_id`, `source_kind` e `locator`, mais exatamente uma representação:
+`excerpt_sha256` para evidência histórica curta; ou `segments` ordenados com `segment_id`, `position`
+e `text_sha256`, acompanhados de `aggregate_sha256`. Não basta o formato ser válido: todos os valores
+são comparados com a evidência tenant-bound entregue pelo backend. Segmentos devem ser contíguos,
+únicos e completos; o hash agregado vincula metadados, ordem, contagem, tamanho e hashes individuais.
 O conjunto de IDs citado nas operações deve ser exatamente igual ao conjunto declarado em
 `evidence`: evidência ausente, externa, duplicada ou declarada sem uso rejeita toda a proposta.
-O hash é recalculado pelo backend sobre o trecho sanitizado efetivamente entregue ao agente.
+Os hashes são recalculados pelo backend sobre o conteúdo sanitizado efetivamente entregue ao agente.
 
 ## Domínios e caminhos
 
