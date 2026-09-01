@@ -12,13 +12,20 @@ Documento arquitetural de referência:
 PLANO_ANALISE_CODEX_SCIELO_IDML_OPENCLAW_SWARM.md
 ```
 
+Plano obrigatório de testes e homologação:
+
+```text
+docs/XML_VALIDATION_MASTER_PLAN.md
+```
+
 ## 2. Estado geral
 
 ```text
-PROJECT_STATUS: PHASE_6_TECHNICAL_EVALUATION_BLOCKED
-CURRENT_PHASE: FASE 6 com primeira janela controlada concluída — G6 aguarda baseline e adjudicação humana
-IMPLEMENTATION_AUTHORIZED: PHASE_6_AUTHORIZED — PHASE_7_NOT_AUTHORIZED
-PRODUCTION_DEPLOYMENT_AUTHORIZED: NO
+PROJECT_STATUS: PHASE_6_MULTI_AGENT_VALIDATION_PLANNED
+CURRENT_PHASE: FASE 6 — próxima ação: laboratório multiagente e cobertura completa do corpus autorizado
+CURRENT_IMPLEMENTATION_AUTHORIZED: PHASE_6
+DEVELOPMENT_ROADMAP_AUTHORIZED: THROUGH_PHASE_8_PRODUCTION_READINESS
+PRODUCTION_ACTIVATION_AUTHORIZED: NO — REQUIRES XML_EXPERT_FINAL_ACCEPTANCE
 ARCHITECTURE_STATUS: APPROVED_WITH_CHANGES
 INFRASTRUCTURE_STATUS: IN_USE_WITH_CONSTRAINTS
 ```
@@ -114,10 +121,33 @@ Antes de qualquer implantação futura na VPS:
 | 3 | Pipeline determinístico mínimo | IDML → modelo → XML válido sem IA | Concluída — Gate G3 aprovado |
 | 4 | Validação, fidelidade e pacote | Pacote validado e política de release | Implementada — Gate G4 bloqueado por validadores externos/crossrefs |
 | 5 | Revisão humana e interface mínima | Correção humana auditável | Concluída — Gate G5 aprovado |
-| 6 | IA assistiva e OpenClaw | Assistência semântica controlada | Primeira janela real concluída; provider desligado — Gate G6 bloqueado por qualidade/baseline humano |
-| 7 | Homologação e piloto | Qualidade comprovada no periódico piloto | Não iniciada — não autorizada |
-| 8 | Produção e operação | Operação segura e recuperável | Não iniciada |
+| 6 | IA assistiva e OpenClaw | Assistência semântica controlada | Primeira janela concluída; validação multiagente planejada — G6-T pendente |
+| 7 | Homologação automatizada e piloto simulado | Sistema completo validado antes da revisão humana | Não iniciada — roadmap aprovado, início ainda sujeito ao G6-T |
+| 8 | Prontidão, homologação humana e produção | RC operacional, aceite do especialista e rollout | Não iniciada — ativação real bloqueada pelo G8-H |
 | 9 | Expansão controlada | Novos periódicos e casos complexos | Não iniciada |
+
+---
+
+## 5.1 Estratégia revisada de homologação
+
+O desenvolvimento seguirá até uma Release Candidate operacionalmente pronta antes de solicitar a
+homologação do especialista em XML. A ausência temporária desse especialista não bloqueia os gates
+técnicos G6-T e G7-T nem o desenvolvimento da prontidão G8-RC. Esses gates exigem evidências
+determinísticas e multiagente, mas não autorizam produção.
+
+Fluxo obrigatório:
+
+1. Codex e agentes OpenClaw executam testes técnicos, semânticos, adversariais e comparativos;
+2. validadores determinísticos têm precedência sobre qualquer conclusão de IA;
+3. o sistema completo é implantado como RC em ambiente controlado, sem tráfego editorial real;
+4. código, corpus, prompts, modelos, schemas e infraestrutura são congelados;
+5. o especialista em XML testa a RC e registra os ajustes necessários;
+6. cada apontamento gera correção, teste de regressão e nova execução integral;
+7. o Gate Humano Final G8-H autoriza ou rejeita a ativação de produção;
+8. o início da produção permanece acompanhado e com revisão humana por artigo.
+
+O catálogo, os critérios e as evidências estão definidos em
+`docs/XML_VALIDATION_MASTER_PLAN.md`. Nenhuma métrica ou consenso de agentes substitui o G8-H.
 
 ---
 
@@ -525,7 +555,8 @@ Permitir que pessoas autorizadas resolvam ambiguidades no modelo canônico com e
 
 ## Objetivo
 
-Adicionar IA somente onde houver ganho mensurável sobre o pipeline determinístico e a revisão humana.
+Adicionar IA somente onde houver ganho técnico mensurável, evidência válida e abstenção segura,
+preparando a comparação editorial humana para a RC final.
 
 ## Pacote 6.1 — Contratos de ferramentas
 
@@ -563,7 +594,7 @@ Adicionar IA somente onde houver ganho mensurável sobre o pipeline determiníst
 - [x] References.
 - [x] Figures e tables.
 - [x] Math e notes, somente se o piloto exigir (contrato pronto; recurso inativo).
-- [ ] Medir cada domínio contra baseline humano.
+- [ ] Medir cada domínio contra corpus automático congelado, regras determinísticas e consenso crítico.
 - [x] Executar proxy técnico provisório no corpus autorizado sem substituir baseline humano.
 
 ## Pacote 6.5 — Segurança e avaliação de agentes
@@ -595,57 +626,82 @@ Adicionar IA somente onde houver ganho mensurável sobre o pipeline determiníst
 - [x] Reproduzir o manifesto em dry-run local e na VPS sem executar agentes.
 - [x] Executar a primeira janela controlada após autorização explícita, com custo e cleanup verificados.
 - [x] Comparar as propostas com os alvos automáticos sem promover esses alvos a baseline humano.
-- [ ] Adjudicar o caso de referências e medir os domínios contra baseline humano autorizado.
+- [-] Adjudicar o caso de referências por humano nesta fase — transferido para o Gate G8-H.
 
 ## Pacote 6.6 — QA e repair assistidos
 
-- [ ] Adicionar auditoria assistida somente após baseline.
+- [ ] Adicionar auditoria assistida após baseline automático multiagente congelado.
 - [ ] Adicionar repair semântico com limite de ciclos.
 - [x] Manter Release Judge apenas consultivo.
 - [x] Encaminhar baixa confiança para humano.
 
-## Gate de saída G6
+## Pacote 6.7 — Laboratório multiagente de qualidade XML
+
+- [ ] Implementar papéis separados de proponente, crítico XML, crítico editorial e adjudicador.
+- [ ] Impedir compartilhamento de raciocínio privado entre sessões e registrar somente saídas estruturadas.
+- [ ] Executar os domínios restantes do corpus ESA com custo, tokens e latência contabilizados.
+- [ ] Criar casos positivos, negativos, ambíguos, de abstenção e de prompt injection por domínio.
+- [ ] Comparar propostas com fonte, XML aprovado, regras determinísticas e alvos automáticos.
+- [ ] Medir falso consenso entre agentes e impedir que concordância substitua evidência.
+- [ ] Transformar todo defeito confirmado em fixture de regressão.
+- [ ] Produzir relatório sanitizado por domínio, sem promover o resultado a baseline humano.
+
+## Gate técnico de saída G6-T
 
 - [x] Desativar Swarm não interrompe o pipeline principal.
-- [ ] IA melhora métrica definida sem elevar risco além do limite.
+- [ ] Todos os domínios passam nos contratos e nas métricas técnicas predefinidas.
+- [ ] Nenhuma proposta sem evidência, invenção ou falso consenso crítico é aceita.
 - [x] Nenhum patch é aplicado sem schema, evidência e validação.
 - [x] Prompt injection não altera ferramentas ou políticas.
 - [x] Orçamento de tokens e custo monetário agregado por artigo é respeitado.
 - [x] Release continua sendo determinístico.
+- [ ] Relatório técnico permite iniciar a Fase 7 sem autorizar produção.
 
 ---
 
-# FASE 7 — Homologação e piloto
+# FASE 7 — Homologação automatizada e piloto simulado
 
 ## Objetivo
 
-Validar o sistema completo em corpus separado e operação editorial controlada.
+Validar o sistema completo em corpus separado e operação editorial simulada, preparando uma RC para
+o especialista sem depender de revisão humana intermediária.
 
 ## Pacote 7.1 — Testes completos
 
-- [ ] Unit tests.
+- [ ] Executar integralmente V-01 a V-11 do plano mestre.
+- [ ] Unit tests e metas específicas para módulos críticos.
 - [ ] Golden tests sem exigir igualdade byte a byte quando inadequada.
-- [ ] Integration tests.
+- [ ] Property, metamorphic, fuzz e mutation tests.
+- [ ] Integration e end-to-end tests.
 - [ ] Contract tests de validadores e OpenClaw.
-- [ ] Testes de segurança e autorização.
-- [ ] Fault injection.
-- [ ] Restore e disaster recovery.
+- [ ] Testes de segurança, autorização e isolamento multiempresa.
+- [ ] Fault injection, restore e disaster recovery.
 
 ## Pacote 7.2 — Homologação do corpus
 
 - [ ] Executar corpus não usado no desenvolvimento.
+- [ ] Congelar `regression`, `adversarial`, `holdout-ai` e reservar `holdout-human`.
 - [ ] Medir qualidade por tipo de artigo.
 - [ ] Comparar resultados com XML aprovado.
 - [ ] Classificar falsos positivos e falsos negativos.
-- [ ] Medir revisão humana e ciclos de reparo.
+- [ ] Medir concordância, falso consenso, abstenção e ciclos de reparo dos agentes.
+- [ ] Impedir acesso dos agentes proponentes aos alvos do holdout.
 
-## Pacote 7.3 — Piloto editorial
+## Pacote 7.3 — Piloto editorial simulado
 
-- [ ] Selecionar usuários e responsabilidades.
-- [ ] Treinar operadores e revisores.
-- [ ] Definir canal de incidentes.
-- [ ] Executar artigos reais sem release automático inicial.
-- [ ] Obter aceite editorial e técnico.
+- [ ] Simular usuários, empresas, responsabilidades e segregação de funções.
+- [ ] Executar upload, conversão, revisão, aprovação e pacote ponta a ponta.
+- [ ] Executar artigos autorizados sem release automático.
+- [ ] Testar operação degradada sem IA e recuperação de incidentes.
+- [ ] Validar interface, mensagens, auditoria e downloads controlados.
+
+## Pacote 7.4 — Release Candidate técnica
+
+- [ ] Corrigir todos os defeitos blocker, critical e major encontrados automaticamente.
+- [ ] Executar integralmente V-12 a V-14 do plano mestre.
+- [ ] Produzir matriz de cobertura e rastreabilidade requisito → teste → evidência.
+- [ ] Congelar código, corpus, prompts, modelos, schemas, profiles e validadores.
+- [ ] Produzir relatório de riscos residuais e pacote de homologação humana.
 
 ## Métricas mínimas a reportar
 
@@ -654,29 +710,34 @@ Validar o sistema completo em corpus separado e operação editorial controlada.
 - Reference, Figure, Table e CrossRef Accuracy.
 - Validation Pass Rate.
 - Straight Through Processing Rate.
-- Human Review Rate.
+- Projected Human Review Rate, estimada pelas abstenções e discordâncias dos agentes.
+- Agent Agreement, False Consensus e Abstention Rate.
 - Failure Rate.
 - Average Repair Passes.
 - Average Cost per Article.
 - Processing Time.
 
-## Gate de saída G7
+## Gate técnico de saída G7-T
 
 - [ ] Métricas mínimas foram atingidas.
+- [ ] Todos os testes bloqueadores e críticos do plano mestre passaram.
+- [ ] XMLs do corpus estão well-formed e sem erro crítico nos validadores aplicáveis.
+- [ ] Não existe perda, duplicação ou invenção conhecida de conteúdo.
 - [ ] Não existem bloqueadores de segurança.
 - [ ] Restore foi testado.
 - [ ] Operação degradada sem IA foi comprovada.
-- [ ] Equipe editorial aprovou o fluxo.
 - [ ] Capacidade da infraestrutura de produção foi dimensionada.
 - [ ] Plano de rollback foi aprovado.
+- [ ] RC técnica está pronta para o desenvolvimento de prontidão G8-RC, sem ativação real.
 
 ---
 
-# FASE 8 — Produção e operação
+# FASE 8 — Prontidão, homologação humana e produção
 
 ## Objetivo
 
-Colocar o piloto aprovado em produção com isolamento, monitoramento e recuperação.
+Concluir a prontidão operacional, submeter a RC completa ao especialista em XML, corrigir seus
+apontamentos e somente então realizar o rollout gradual de produção.
 
 ## Pacote 8.1 — Infraestrutura de produção
 
@@ -688,6 +749,7 @@ Colocar o piloto aprovado em produção com isolamento, monitoramento e recupera
 - [ ] Configurar secret management.
 - [ ] Configurar storage e backups.
 - [ ] Testar restore no ambiente alvo.
+- [ ] Executar V-12 a V-15 do plano mestre na configuração candidata.
 
 ## Pacote 8.2 — Deploy
 
@@ -707,14 +769,56 @@ Colocar o piloto aprovado em produção com isolamento, monitoramento e recupera
 - [ ] Definir revisão periódica de acessos.
 - [ ] Definir atualização controlada de SPS, dependências e modelos.
 
-## Gate de saída G8
+## Gate de prontidão G8-RC
 
-- [ ] Produção aprovada por responsável técnico e editorial.
-- [ ] Rollback e restore comprovados.
-- [ ] Alertas e runbooks testados.
-- [ ] Acessos revisados.
+- [ ] Sistema funcional e operacionalmente completo em ambiente controlado.
+- [ ] Zero blocker, critical ou major conhecido.
+- [ ] Rollback, restore, alertas, runbooks e modo degradado comprovados.
+- [ ] Segurança, acessos, capacidade, custo e observabilidade aprovados tecnicamente.
+- [ ] RC congelada e reproduzível com pacote completo de evidências.
+- [ ] Nenhum tráfego editorial real ou release automático foi habilitado.
+
+## Pacote 8.4 — Homologação do especialista em XML
+
+- [ ] Disponibilizar ambiente isolado e corpus `holdout-human` nunca usado no desenvolvimento.
+- [ ] Entregar fontes, XMLs, diffs semânticos, relatórios e matriz de rastreabilidade.
+- [ ] Permitir testes livres e roteiros de casos críticos pelo especialista.
+- [ ] Classificar apontamentos como blocker, critical, major, minor ou melhoria.
+- [ ] Registrar evidência e reprodução de cada apontamento.
+- [ ] Converter todo defeito confirmado em teste automático de regressão.
+
+## Pacote 8.5 — Correções e requalificação da RC
+
+- [ ] Corrigir todos os blockers, criticals e majors apontados.
+- [ ] Reexecutar integralmente a suíte e os validadores após cada ciclo relevante.
+- [ ] Gerar nova RC sem alterar silenciosamente corpus, prompt, modelo ou profile.
+- [ ] Reapresentar ao especialista os casos corrigidos e as evidências de regressão.
+
+## Gate Humano Final G8-H
+
+- [ ] Especialista em XML homologou a RC final.
+- [ ] Produção aprovada pelos responsáveis técnico e editorial.
+- [ ] Zero blocker/critical e todos os major corrigidos.
+- [ ] Riscos minor/residuais foram aceitos explicitamente.
+- [ ] Rollback, restore, alertas e runbooks foram comprovados.
+- [ ] Acessos foram revisados.
+
+Somente a aprovação deste gate autoriza o início do rollout de produção.
+
+## Pacote 8.6 — Ativação acompanhada
+
+- [ ] Executar rollout gradual acompanhado, inicialmente com revisão humana por artigo.
+- [ ] Manter kill switch, rollback e modo determinístico disponíveis.
+- [ ] Produzir o primeiro pacote com acompanhamento humano.
+- [ ] Monitorar o período inicial e interromper/reverter diante de violação dos limites.
+
+## Gate operacional G8-O
+
 - [ ] Primeiro pacote produzido com acompanhamento humano.
 - [ ] Período inicial de operação estabilizado.
+- [ ] Nenhum incidente crítico ou regressão editorial ficou aberto.
+- [ ] Métricas operacionais permaneceram dentro dos SLOs aprovados.
+- [ ] Evidências finais de produção foram arquivadas.
 
 ---
 
@@ -773,6 +877,10 @@ Cada novo periódico deve possuir corpus, profile, style mapping, métricas, hom
 | R-16 | Segredo do OpenClaw compartilhado exposto em comando de inicialização | Alto | Não reutilizar no IDML; rotacionar separadamente em janela do sistema existente | Aberto no sistema legado; isolado do IDML |
 | R-17 | Credencial OpenAI reutilizada entre o OpenClaw existente e o staging IDML | Médio/Alto | Injetar apenas no overlay opt-in, nunca em API/worker; manter kill switch; coordenar rotação e separar a chave se o acoplamento se tornar operacionalmente inadequado | Aceito pelo usuário; mitigado tecnicamente e monitorado |
 | R-18 | Harness de benchmark contorna intencionalmente o fluxo persistido da aplicação | Alto | Dois casos minimizados, dupla confirmação, flags falsas, nenhuma aplicação de patch, output privado, orçamento agregado, tentativa única e reset final do gateway | Mitigado para avaliação; proibido como caminho de produção |
+| R-19 | Agentes correlacionados produzirem falso consenso | Crítico | Sessões/prompts separados, alvos ocultos, críticos independentes e juiz determinístico com abstenção | Aberto; medir no laboratório multiagente |
+| R-20 | Homologação humana tardia encontrar erro arquitetural caro | Alto | Corpus holdout, testes V-01 a V-15, RC reproduzível e correções com regressão antes do go-live | Aceito pelo usuário; mitigação planejada |
+| R-21 | Overfitting ao único artigo/template ESA | Crítico | Particionar corpus, gerar casos adversariais e reservar novos artigos para `holdout-human` | Aberto até ampliar o corpus |
+| R-22 | Atualização de SPS/JATS/validadores invalidar evidências | Alto | Fixar versões, monitorar mudanças, executar regressão e manter rollback de profile | Aberto; controle planejado |
 
 # 8. Definition of Done global
 
@@ -787,7 +895,8 @@ Um item somente é considerado concluído quando:
 - [ ] não existem secrets em código ou logs;
 - [ ] evidências estão vinculadas ao item;
 - [ ] riscos residuais estão documentados;
-- [ ] revisão necessária foi realizada.
+- [ ] revisão técnica automatizada/multiagente necessária foi realizada.
+- [ ] para RC final, homologação do especialista em XML foi realizada e seus defeitos foram regredidos.
 
 # 9. Critério final de READY_FOR_SCIELO
 
@@ -809,6 +918,7 @@ Condições conceituais:
 - [ ] Package Builder e ConversionManifest aprovados.
 - [ ] Usuário ou processo de release possui autorização válida.
 - [ ] Auditoria completa disponível.
+- [ ] Gate Humano Final G8-H aprovado pelo especialista em XML e responsáveis.
 
 # 10. Registro de decisões
 
@@ -834,6 +944,7 @@ ADRs iniciais esperados:
 - [x] ADR-005 — abstração de orquestração e fallback.
 - [x] ADR-012 — política determinística de release.
 - [x] ADR-013 — egress controlado do provider OpenClaw.
+- [ ] ADR-014 — gates técnicos, RC e homologação humana final.
 
 # 11. Histórico deste plano
 
@@ -858,3 +969,4 @@ ADRs iniciais esperados:
 | 2026-08-28 | Staging controlado do provider preparado com chave reutilizada por autorização explícita, proxy allowlist, saída direta bloqueada e kill switch testado; nenhum agente ou chamada autenticada foi executado e o estado final voltou a ficar desligado | Codex |
 | 2026-08-31 | Harness do benchmark real v1.3 preparado com dois casos, teto agregado, confirmação explícita, runner isolado e reset final; dry-run reproduzido localmente/VPS, execução sem confirmação bloqueada e nenhum agente chamado | Codex |
 | 2026-09-01 | Primeira janela OpenClaw concluída em dois casos reais minimizados; custo de 13.024 micro-USD, contratos e cleanup aprovados; metadado exato e referência inconclusiva sem baseline humano; G6 permanece bloqueado | Codex |
+| 2026-09-01 | Governança revisada: desenvolvimento planejado até a prontidão de produção; quinze famílias de testes e validação multiagente precedem a RC; homologação do especialista em XML transferida para o Gate Humano Final G8-H antes do go-live | Codex |

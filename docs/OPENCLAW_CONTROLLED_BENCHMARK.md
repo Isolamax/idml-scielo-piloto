@@ -95,5 +95,5 @@ saudáveis, este último com zero reinicializações.
 
 O backup da janela `/opt/idml-platform/backups/20260901T134823Z` e o backup final
 `/opt/idml-platform/backups/20260901T135404Z` passaram checksums e restore isolado com 21 tabelas,
-um artefato e 14 arquivos de estado OpenClaw. O Gate G6 continua bloqueado pela ausência de baseline
-e adjudicação humana por domínio.
+um artefato e 14 arquivos de estado OpenClaw. O gate técnico G6-T continua pendente pela cobertura
+multiagente dos demais domínios. A adjudicação humana foi transferida para o G8-H da RC final.

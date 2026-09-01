@@ -67,7 +67,8 @@ Exige protocolo separado, janela observada e autorização explícita. Antes da 
   impacto na VPS.
 
 A primeira janela autorizada foi executada em 2026-09-01 e está documentada no relatório sanitizado.
-A aprovação do Gate G6 continua dependendo de ganho mensurável e baseline humano autorizado.
+O gate técnico G6-T depende agora de ganho mensurável e cobertura multiagente; a homologação humana
+obrigatória ocorrerá no G8-H, após a RC completa e antes da produção.
 
 O harness da primeira janela está descrito em `docs/OPENCLAW_CONTROLLED_BENCHMARK.md`. A preparação
 desse harness não autoriza novas execuções: o comando exige confirmação transitória explícita e

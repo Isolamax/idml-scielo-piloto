@@ -1,6 +1,12 @@
 # Revisão do Gate G6 — IA assistiva e OpenClaw
 
-Data: 2026-08-26. Estado do gate: **BLOQUEADO**.
+Data inicial: 2026-08-26. Estado atual: **REFORMULADO COMO G6-T; PENDENTE**.
+
+> Nota de governança de 2026-09-01: as avaliações abaixo preservam o histórico técnico, mas a
+> homologação humana intermediária deixou de ser requisito do gate da Fase 6. O novo G6-T exige
+> cobertura multiagente e determinística por domínio. A homologação do especialista em XML foi
+> transferida para o Gate Humano Final G8-H, após a RC completa e antes de qualquer produção real.
+> Ver `PLANO_DESENVOLVIMENTO_POR_FASES.md` e `docs/XML_VALIDATION_MASTER_PLAN.md`.
 
 ## Resultado
 
@@ -41,7 +47,7 @@ carregados; Alembic aprovado em upgrade, downgrade para `c4e5f6a7b8c9` e novo up
 | custo máximo por artigo é respeitado | PASSOU | tarifa oficial, cache auditado, preflight conservador, lock e soma append-only por recurso |
 | release continua determinístico | PASSOU | nenhuma ferramenta/rota de release para agentes |
 
-## Decisão
+## Decisão original
 
 A Fase 6 de fundação pode permanecer na VPS com `IDML_FEATURE_OPENCLAW=false` e
 `IDML_FEATURE_AI_SWARM=false`. Isso não autoriza habilitar IA em artigos e não autoriza iniciar a
