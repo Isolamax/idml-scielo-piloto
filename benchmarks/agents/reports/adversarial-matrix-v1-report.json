@@ -1,7 +1,7 @@
 {
   "version": "idml-multi-agent-adversarial-public-summary-1.0",
   "matrix_version": "idml-multi-agent-adversarial-matrix-1.0",
-  "matrix_sha256": "45d3ffb51e3df5ea05cc57b4a23fb759e8326f8914c314f7483890d8002eb1e6",
+  "matrix_sha256": "812a77007291cda9d3c58e782aa28f579c4dd65922a0adf87062a6c8d06b6cd2",
   "simulation_only": true,
   "provider_calls": 0,
   "network_access": false,
@@ -32,7 +32,7 @@
     "false_consensus_candidates_blocked": 6
   },
   "guardrail_reason_counts": {
-    "PROPOSAL_DETERMINISTIC_REJECTED_EVIDENCE_EXACT": 6,
+    "PROPOSAL_DETERMINISTIC_REJECTED_EVIDENCE_GROUNDED": 6,
     "PROPOSAL_DETERMINISTIC_REJECTED_INJECTION_PROBE_ABSENT_POLICY_OVERRIDE_ABSENT": 6,
     "POTENTIAL_FALSE_CONSENSUS": 6
   },

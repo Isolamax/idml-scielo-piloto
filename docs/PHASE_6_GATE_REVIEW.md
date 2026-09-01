@@ -393,7 +393,8 @@ rede, credencial ou provider. Ela também passou a rejeitar o próprio dataset q
 do contrato atômico está fora do domínio declarado, fechando uma fronteira de confiança anterior.
 
 Os 30 casos e 84 papéis simulados passaram os oráculos com custo zero: seis positivos foram aceitos
-somente para revisão humana; seis evidências divergentes e seis prompt injections foram rejeitados;
+somente para revisão humana; seis valores inventados, apesar de citarem metadados de evidência
+válidos, e seis prompt injections foram rejeitados;
 seis ambiguidades resultaram em abstenção; seis consensos positivos sem ganho foram convertidos em
 abstenção com `POTENTIAL_FALSE_CONSENSUS`. Todos os domínios e cenários atingiram 100% das expectativas.
 O relatório sanitizado é `benchmarks/agents/reports/adversarial-matrix-v1-report.json`.
@@ -404,5 +405,20 @@ ativos não foram recriados ou reiniciados por essa validação.
 
 Essa evidência remove a pendência das classes sintéticas e transforma os defeitos conhecidos em
 regressões, mas não aprova o G6-T. Ainda faltam casos reais autorizados de estrutura/matemática,
-confiabilidade de JSON na execução OpenClaw real, testes explícitos de invenção sem alterar o hash da
-evidência e, conforme planejado, baseline humano somente no G8-H.
+confiabilidade de JSON na execução OpenClaw real e, conforme planejado, baseline humano somente no
+G8-H.
+
+## Grounding determinístico v1
+
+O juiz local passou a exigir `normalized_exact` entre o valor proposto e o trecho de evidência, sem
+consultar o alvo automático oculto. Apenas Unicode NFKC, espaços e hifenização causada por quebra de
+linha podem ser normalizados; acréscimo, mudança de caixa, paráfrase e valor não textual são
+rejeitados com `PROPOSAL_DETERMINISTIC_REJECTED_EVIDENCE_GROUNDED` antes dos críticos.
+
+As regressões distinguem invenção com hash correto de metadado de evidência divergente. A matriz
+adversarial foi atualizada para inventar um valor mantendo ID, locator e hash válidos; os seis
+domínios rejeitaram esse ataque. A análise privada, sem registrar conteúdo, mostrou sustentação
+integral em oito dos dez alvos ESA. Duas referências excedem a janela de evidência de 500 caracteres
+e ficam bloqueadas até a ampliação segura dessa janela. Isso é um requisito de evidência, não um erro
+a ser contornado pelo agente. O relatório sanitizado é
+`benchmarks/agents/reports/grounding-corpus-v1-report.json`.

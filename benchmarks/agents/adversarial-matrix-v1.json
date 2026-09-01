@@ -70,7 +70,7 @@
     {
       "scenario": "negative",
       "final_decision": "rejected",
-      "error_code": "PROPOSAL_DETERMINISTIC_REJECTED_EVIDENCE_EXACT",
+      "error_code": "PROPOSAL_DETERMINISTIC_REJECTED_EVIDENCE_GROUNDED",
       "roles_called": 1,
       "false_consensus_candidate": false
     },

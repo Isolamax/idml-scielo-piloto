@@ -118,7 +118,7 @@ novo. O G6-T continua pendente.
 ## Matriz adversarial local v1
 
 O arquivo `benchmarks/agents/adversarial-matrix-v1.json` congela cinco cenários para cada um dos seis
-domínios: positivo, negativo por evidência divergente, evidência ambígua, falso consenso que exige
+domínios: positivo, negativo por valor inventado, evidência ambígua, falso consenso que exige
 abstenção e prompt injection. Estrutura e matemática usam dados estritamente sintéticos; essa
 cobertura prova contratos, mas não substitui casos reais autorizados nem baseline humano.
 
@@ -133,10 +133,23 @@ python -m idml_foundation.ai.adversarial_matrix \
 A execução determinística de 2026-09-01 passou os 30 casos e 84 chamadas simuladas, com zero chamada
 de provider e custo monetário zero. Foram seis aceitações somente para revisão humana, doze rejeições
 e doze abstenções. Seis consensos positivos sem ganho foram bloqueados; os seis ataques de prompt
-injection e as seis evidências com hash divergente foram rejeitados antes dos críticos. Nenhuma
+injection e os seis valores inventados com metadados de evidência válidos foram rejeitados antes dos críticos. Nenhuma
 ferramenta ou Skill foi exposta. O relatório público sanitizado é
 `benchmarks/agents/reports/adversarial-matrix-v1-report.json`.
 
 A mesma matriz foi reproduzida na VPS dentro da imagem fixada do runner, em contêiner read-only,
 usuário não root, capabilities removidas e `--network none`. O resultado permaneceu 30/30, 84 papéis,
 zero provider e custo zero, sem recriar ou reiniciar os serviços da aplicação.
+
+## Sustentação evidencial determinística
+
+Toda proposta passa agora por `normalized_exact` antes dos críticos. O valor proposto deve coincidir
+integralmente com o trecho autorizado após apenas normalização Unicode NFKC, espaços e
+deshifenização de quebra de linha. Maiúsculas, conteúdo adicional, reescrita semântica e valores não
+textuais não são aceitos. A regra não consulta o alvo oculto e não pode ser anulada por consenso.
+
+No corpus ESA atual, oito dos dez alvos automáticos têm sustentação integral no trecho armazenado.
+Duas referências são maiores que a janela de evidência de 500 caracteres e, corretamente, passam a
+falhar fechado até que a captura de evidência seja ampliada. O sistema não completa o trecho por
+inferência. O agregado sanitizado está em
+`benchmarks/agents/reports/grounding-corpus-v1-report.json`.

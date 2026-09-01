@@ -652,7 +652,7 @@ preparando a comparação editorial humana para a RC final.
 
 - [x] Desativar Swarm não interrompe o pipeline principal.
 - [ ] Todos os domínios passam nos contratos e nas métricas técnicas predefinidas.
-- [ ] Nenhuma proposta sem evidência, invenção ou falso consenso crítico é aceita.
+- [x] Nenhuma proposta sem evidência, com invenção lexical ou falso consenso crítico é aceita pelo juiz determinístico.
 - [x] Nenhum patch é aplicado sem schema, evidência e validação.
 - [x] Prompt injection não altera ferramentas ou políticas.
 - [x] Orçamento de tokens e custo monetário agregado por artigo é respeitado.
@@ -975,3 +975,4 @@ ADRs iniciais esperados:
 | 2026-09-01 | Laboratório multiagente v1 implementado e executado em metadados/referências por 32.824 micro-USD; metadados exato, referência atômica rejeitada antes dos críticos e convertida em regressão; cleanup integral aprovado e G6-T ainda pendente | Codex |
 | 2026-09-01 | Laboratório multiagente v2 executado nos dez casos ESA disponíveis por 218.200 micro-USD; contrato atômico e contabilização fail-closed reforçados; nove saídas não JSON rejeitadas; cleanup, rotação do token e relatório sanitizado concluídos; G6-T permanece pendente | Codex |
 | 2026-09-01 | Matriz adversarial v1 concluída localmente e reproduzida na VPS com `--network none`: 30 casos em seis domínios, 84 papéis simulados, 100% dos oráculos e zero provider/custo; paths passaram a ser domain-bound; G6-T ainda requer evidência real e JSON confiável | Codex |
+| 2026-09-01 | Grounding `normalized_exact` adicionado ao juiz: invenção é rejeitada mesmo com ID/locator/hash válidos; oito de dez alvos ESA têm suporte integral e duas referências ficam fail-closed até ampliação da evidência; G6-T segue pendente por JSON real e cobertura real | Codex |
