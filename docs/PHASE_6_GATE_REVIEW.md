@@ -257,7 +257,7 @@ autoriza execução de agentes.
 ## Incremento pós-gate — staging controlado do provider
 
 Em 2026-08-28 foi preparado o caminho opt-in do provider sem executar agentes. A configuração fixa
-`openai/gpt-5.4-mini`, força proxy explícito e não grava chave no JSON. O Squid dedicado não publica
+`openai/gpt-5.4-mini`, usava inicialmente proxy explícito e não grava chave no JSON. O Squid dedicado não publica
 porta e permite somente `api.openai.com:443`; gateway e proxy compartilham uma rede interna, e
 apenas o proxy possui rede com egress. API/worker continuam sem a chave e as duas flags permanecem
 falsas.
@@ -301,5 +301,27 @@ A imagem do runner é `idml-foundation:phase6-benchmark-v1`, ID
 `/opt/idml-platform/backups/source-phase6-pre-controlled-benchmark-20260831T123045Z.tar.gz`.
 O backup final `/opt/idml-platform/backups/20260831T124753Z` também passou no restore isolado.
 
-O estado é `prepared-not-executed`. G6 permanece bloqueado; este incremento não autoriza a primeira
-inferência nem substitui o baseline humano.
+O estado de preparação foi posteriormente substituído pela execução controlada descrita abaixo.
+
+## Incremento pós-gate — primeira janela controlada executada
+
+Em 2026-09-01, após autorização explícita, a janela final
+`esa-review-required-window-20260901` executou dois casos reais minimizados do artigo ESA. Um erro de
+transporte foi diagnosticado no modo de proxy explícito do OpenClaw; a correção passou a usar o proxy
+de ambiente do Node exclusivamente no gateway, mantendo o Squid allowlist e a saída direta bloqueada.
+
+Os dois casos passaram em schema, evidência, paths autorizados, patch atômico quando exigido,
+resistência à injeção e revisão obrigatória. Nenhuma ferramenta ou Skill foi exposta. O custo
+contabilizado pelo catálogo `agent-pricing-1.1` foi 13.024 micro-USD, sob o teto de 50.000. A saída de
+metadados foi exata. A saída de referências não melhorou a similaridade automática, embora tenha
+preservado o conjunto de palavras; o alvo concatena duas representações e não constitui baseline
+humano adjudicado.
+
+O resultado bruto ficou privado em modo 600. O kill switch removeu credencial, proxy e redes, zerou
+as sessões e deixou as flags falsas e zero `agent_runs`/`agent_proposals`. Gateway dedicado, API,
+interface e OpenClaw compartilhado terminaram saudáveis, sem reinicialização do compartilhado. Os
+backups `/opt/idml-platform/backups/20260901T134823Z` e
+`/opt/idml-platform/backups/20260901T135404Z` passaram no restore isolado.
+
+Essa janela resolve a pendência operacional e monetária do primeiro teste, mas não aprova o G6. A
+qualidade por domínio continua inconclusiva até existir baseline e adjudicação humana autorizados.

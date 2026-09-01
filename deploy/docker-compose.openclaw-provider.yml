@@ -38,6 +38,9 @@ services:
   openclaw-idml:
     environment:
       OPENAI_API_KEY: ${IDML_OPENAI_API_KEY:?define the authorized OpenAI provider key}
+      NODE_USE_ENV_PROXY: "1"
+      HTTPS_PROXY: http://openclaw-egress-proxy:3128
+      NO_PROXY: 127.0.0.1,localhost,openclaw-idml
     networks:
       - idml_openclaw
       - idml_openclaw_provider

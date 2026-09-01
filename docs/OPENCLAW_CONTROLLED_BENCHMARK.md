@@ -1,6 +1,6 @@
 # Benchmark controlado do OpenClaw dedicado
 
-Data: 2026-08-31. Estado: **preparado, não executado**.
+Data: 2026-09-01. Estado: **primeira janela concluída; revisão humana ainda obrigatória**.
 
 ## Escopo da primeira janela
 
@@ -62,21 +62,38 @@ O runner não usa a aplicação multiempresa e não representa ativação de pro
 restrito de avaliação. A resposta deverá ser validada e comparada localmente antes de qualquer
 decisão sobre o Gate G6.
 
-## Evidência de preparação
+## Evidência de preparação e execução
 
-O relatório sanitizado está em
-`benchmarks/agents/reports/controlled-benchmark-preflight-v1.json`. O dry-run local e o da VPS
-produziram o mesmo manifesto
-`84feaa6d94bea033d6c53300c0ba742e4b51d5edd69a9736e376f45f6711956d`.
+Os relatórios sanitizados estão em
+`benchmarks/agents/reports/controlled-benchmark-preflight-v1.json` e
+`benchmarks/agents/reports/controlled-benchmark-execution-v1.json`. O dry-run e a execução usaram o
+manifesto `f2fe477db189f47caee7c4503fa6ef4c4a080028c06ac36514ad1edfbe81856f`.
 
-A imagem preparada é `idml-foundation:phase6-benchmark-v1`, ID
-`sha256:7e559fa2a0cbdb527b75e5db3beb644e98bafaea83e7ac9e228f7a381cc6215f`.
-O teste sem confirmação bloqueou `execute` antes do staging. O reset opt-in do estado foi testado e
-deixou gateway dedicado healthy, zero sessões, nenhum proxy/rede de provider e chave ausente do
-runtime. API/worker, banco e OpenClaw compartilhado permaneceram saudáveis.
+A imagem executada é `idml-foundation:phase6-benchmark-v1`, ID
+`sha256:1f6611faa7d04bc422749998139185310e563cbb7e5bac35dfe0e1ebedde3d13`.
+O teste sem confirmação continuou bloqueando `execute` antes do staging.
 
-O backup pré-implantação `/opt/idml-platform/backups/20260831T123026Z` passou no restore isolado. O
-snapshot de código anterior é
-`/opt/idml-platform/backups/source-phase6-pre-controlled-benchmark-20260831T123045Z.tar.gz`.
-O backup final `/opt/idml-platform/backups/20260831T124753Z` também passou checksums e restore com
-21 tabelas, um artefato e 14 arquivos de estado OpenClaw.
+Na primeira tentativa completa, o transporte de proxy explícito do OpenClaw retornou timeout. O
+gateway passou a usar o suporte de proxy por variáveis de ambiente do Node, ainda atravessando o
+mesmo Squid com allowlist. API e worker não recebem essas variáveis. O modelo, a chave e a rota foram
+validados sem expor credenciais.
+
+A janela final `esa-review-required-window-20260901` concluiu dois casos sequenciais. Ambos passaram
+no schema `agent-proposal-1.1`, vínculo de evidência, patch permitido, resistência à injeção e
+`needs_human=true`, sem ferramentas ou Skills expostas. Foram contabilizados 8.532 tokens de entrada,
+1.472 de saída e 13.024 micro-USD pelo catálogo exato versionado, abaixo do teto de 50.000.
+
+O metadado proposto foi exatamente igual ao alvo automático. Em referências, o agente preservou o
+texto corrente: a similaridade permaneceu 0,694194 e o conjunto normalizado de palavras foi idêntico
+ao alvo. Como o alvo automático concatena representações textual e estruturada, esse resultado não
+comprova perda nem ganho editorial e precisa de adjudicação humana.
+
+O resultado bruto permanece privado, modo 600. O kill switch deixou o gateway dedicado saudável,
+zero sessões, nenhum proxy/rede de provider, nenhuma chave ou variável de proxy no runtime e zero
+runs/propostas no banco. As flags continuaram falsas; API, interface e OpenClaw compartilhado ficaram
+saudáveis, este último com zero reinicializações.
+
+O backup da janela `/opt/idml-platform/backups/20260901T134823Z` e o backup final
+`/opt/idml-platform/backups/20260901T135404Z` passaram checksums e restore isolado com 21 tabelas,
+um artefato e 14 arquivos de estado OpenClaw. O Gate G6 continua bloqueado pela ausência de baseline
+e adjudicação humana por domínio.

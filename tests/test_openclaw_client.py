@@ -1,12 +1,19 @@
 from __future__ import annotations
 
 import asyncio
+import io
+import json
 from typing import Any
+from urllib.error import HTTPError
 
 import pytest
 
 from idml_foundation.ai.contracts import ALLOWED_TOOLS
-from idml_foundation.ai.openclaw_client import OpenClawResponsesClient
+from idml_foundation.ai.openclaw_client import (
+    OpenClawResponsesClient,
+    UrllibJsonPostTransport,
+)
+from idml_foundation.ai.orchestration import ProviderUnavailable
 
 
 class _FixtureTransport:
@@ -97,9 +104,7 @@ def test_openclaw_client_builds_restricted_request_and_parses_usage() -> None:
     [
         (lambda value: value.pop("usage"), "no usage metadata"),
         (
-            lambda value: value["usage"]["input_tokens_details"].update(
-                {"cached_tokens": 121}
-            ),
+            lambda value: value["usage"]["input_tokens_details"].update({"cached_tokens": 121}),
             "cached input exceeds",
         ),
         (lambda value: value.update({"output": []}), "exactly one JSON output"),
@@ -148,4 +153,60 @@ def test_openclaw_client_rejects_unsafe_configuration() -> None:
             base_url="https://gateway.example.test",
             token="short",
             expected_model_key="openai/gpt-5.4-mini",
+        )
+
+
+class _HttpErrorOpener:
+    def __init__(self, status: int, body: dict[str, Any] | None = None) -> None:
+        self.status = status
+        self.body = body
+
+    def open(self, request: Any, timeout: int) -> None:
+        del request, timeout
+        raise HTTPError(
+            url="https://gateway.example.test/v1/responses",
+            code=self.status,
+            msg="redacted",
+            hdrs=None,
+            fp=io.BytesIO(json.dumps(self.body).encode()) if self.body else None,
+        )
+
+
+@pytest.mark.parametrize(
+    "status, body, expected_exception, expected_code",
+    [
+        (400, None, RuntimeError, "OPENCLAW_HTTP_400"),
+        (
+            408,
+            {
+                "error": {
+                    "type": "request_timeout",
+                    "code": "upstream.timeout",
+                    "message": "must never be copied into the exception",
+                }
+            },
+            RuntimeError,
+            "OPENCLAW_HTTP_408_REQUEST_TIMEOUT_UPSTREAM_TIMEOUT",
+        ),
+        (502, None, ProviderUnavailable, "OPENCLAW_HTTP_502"),
+    ],
+)
+def test_gateway_http_errors_expose_only_safe_status_code(
+    monkeypatch: pytest.MonkeyPatch,
+    status: int,
+    body: dict[str, Any] | None,
+    expected_exception: type[Exception],
+    expected_code: str,
+) -> None:
+    monkeypatch.setattr(
+        "idml_foundation.ai.openclaw_client.build_opener",
+        lambda *args: _HttpErrorOpener(status, body),
+    )
+
+    with pytest.raises(expected_exception, match=f"^{expected_code}$"):
+        UrllibJsonPostTransport().post_json(
+            url="https://gateway.example.test/v1/responses",
+            headers={"Authorization": "Bearer redacted"},
+            payload={"model": "openclaw"},
+            timeout_seconds=1,
         )

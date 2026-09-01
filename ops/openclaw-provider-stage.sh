@@ -48,10 +48,7 @@ assert agent["heartbeat"]["every"] == "0m"
 assert agent["tools"]["allow"] == []
 assert agent["tools"]["deny"] == ["*"]
 assert provider["agentRuntime"]["id"] == "openclaw"
-assert provider["request"]["proxy"] == {
-    "mode": "explicit-proxy",
-    "url": "http://openclaw-egress-proxy:3128",
-}
+assert provider["request"] == {"allowPrivateNetwork": False}
 assert "apiKey" not in provider
 PY
 
@@ -72,6 +69,8 @@ assert data["services"]["api"]["environment"]["IDML_FEATURE_OPENCLAW"] == "false
 assert data["services"]["api"]["environment"]["IDML_FEATURE_AI_SWARM"] == "false"
 assert "OPENAI_API_KEY" not in data["services"]["api"]["environment"]
 assert "OPENAI_API_KEY" not in data["services"]["worker"]["environment"]
+assert data["services"]["openclaw-idml"]["environment"]["NODE_USE_ENV_PROXY"] == "1"
+assert data["services"]["openclaw-idml"]["environment"]["HTTPS_PROXY"] == "http://openclaw-egress-proxy:3128"
 '
 
 provider build openclaw-egress-proxy

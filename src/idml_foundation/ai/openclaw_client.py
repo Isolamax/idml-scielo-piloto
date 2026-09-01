@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from dataclasses import dataclass
 from typing import Any, Protocol
 from urllib.error import HTTPError, URLError
@@ -12,6 +13,8 @@ from idml_foundation.ai.orchestration import ProviderResponse, ProviderUnavailab
 from idml_foundation.domain.common import canonical_bytes
 
 MAX_GATEWAY_RESPONSE_BYTES = 2 * 1024 * 1024
+MAX_GATEWAY_ERROR_BYTES = 64 * 1024
+_SAFE_ERROR_FRAGMENT = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]{0,63}$")
 
 
 class JsonPostTransport(Protocol):
@@ -63,9 +66,10 @@ class UrllibJsonPostTransport:
                     raise RuntimeError("OpenClaw gateway returned an unsupported content type")
                 raw = response.read(MAX_GATEWAY_RESPONSE_BYTES + 1)
         except HTTPError as exc:
+            error_code = _gateway_http_error_code(exc)
             if exc.code >= 500 or exc.code == 429:
-                raise ProviderUnavailable("OpenClaw gateway is temporarily unavailable") from exc
-            raise RuntimeError("OpenClaw gateway rejected the request") from exc
+                raise ProviderUnavailable(error_code) from exc
+            raise RuntimeError(error_code) from exc
         except (TimeoutError, URLError) as exc:
             raise ProviderUnavailable("OpenClaw gateway is unavailable") from exc
         if len(raw) > MAX_GATEWAY_RESPONSE_BYTES:
@@ -77,6 +81,25 @@ class UrllibJsonPostTransport:
         if not isinstance(decoded, dict):
             raise RuntimeError("OpenClaw gateway response must be an object")
         return decoded
+
+
+def _gateway_http_error_code(exc: HTTPError) -> str:
+    fragments = ["OPENCLAW", "HTTP", str(exc.code)]
+    try:
+        raw = exc.read(MAX_GATEWAY_ERROR_BYTES + 1)
+        if len(raw) <= MAX_GATEWAY_ERROR_BYTES:
+            decoded = json.loads(raw)
+            error = decoded.get("error") if isinstance(decoded, dict) else None
+            if isinstance(error, dict):
+                for field in ("type", "code"):
+                    value = error.get(field)
+                    if isinstance(value, str) and _SAFE_ERROR_FRAGMENT.fullmatch(value):
+                        fragment = re.sub(r"[^A-Za-z0-9]", "_", value).upper()
+                        if fragment not in fragments:
+                            fragments.append(fragment)
+    except (AttributeError, UnicodeDecodeError, json.JSONDecodeError, OSError):
+        pass
+    return "_".join(fragments)[:100]
 
 
 @dataclass(frozen=True)

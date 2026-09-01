@@ -16,7 +16,7 @@ PLANO_ANALISE_CODEX_SCIELO_IDML_OPENCLAW_SWARM.md
 
 ```text
 PROJECT_STATUS: PHASE_6_TECHNICAL_EVALUATION_BLOCKED
-CURRENT_PHASE: FASE 6 com benchmark controlado preparado e travado — próxima ação: primeira janela somente após autorização explícita
+CURRENT_PHASE: FASE 6 com primeira janela controlada concluída — G6 aguarda baseline e adjudicação humana
 IMPLEMENTATION_AUTHORIZED: PHASE_6_AUTHORIZED — PHASE_7_NOT_AUTHORIZED
 PRODUCTION_DEPLOYMENT_AUTHORIZED: NO
 ARCHITECTURE_STATUS: APPROVED_WITH_CHANGES
@@ -114,7 +114,7 @@ Antes de qualquer implantação futura na VPS:
 | 3 | Pipeline determinístico mínimo | IDML → modelo → XML válido sem IA | Concluída — Gate G3 aprovado |
 | 4 | Validação, fidelidade e pacote | Pacote validado e política de release | Implementada — Gate G4 bloqueado por validadores externos/crossrefs |
 | 5 | Revisão humana e interface mínima | Correção humana auditável | Concluída — Gate G5 aprovado |
-| 6 | IA assistiva e OpenClaw | Assistência semântica controlada | Harness real preparado e não executado; provider desligado — Gate G6 bloqueado por qualidade/baseline |
+| 6 | IA assistiva e OpenClaw | Assistência semântica controlada | Primeira janela real concluída; provider desligado — Gate G6 bloqueado por qualidade/baseline humano |
 | 7 | Homologação e piloto | Qualidade comprovada no periódico piloto | Não iniciada — não autorizada |
 | 8 | Produção e operação | Operação segura e recuperável | Não iniciada |
 | 9 | Expansão controlada | Novos periódicos e casos complexos | Não iniciada |
@@ -593,7 +593,9 @@ Adicionar IA somente onde houver ganho mensurável sobre o pipeline determiníst
 - [x] Implementar runner com confirmação explícita, output privado e interrupção no primeiro erro.
 - [x] Implementar limpeza final com kill switch e reset validado do estado OpenClaw dedicado.
 - [x] Reproduzir o manifesto em dry-run local e na VPS sem executar agentes.
-- [ ] Executar a primeira janela controlada somente após nova autorização explícita.
+- [x] Executar a primeira janela controlada após autorização explícita, com custo e cleanup verificados.
+- [x] Comparar as propostas com os alvos automáticos sem promover esses alvos a baseline humano.
+- [ ] Adjudicar o caso de referências e medir os domínios contra baseline humano autorizado.
 
 ## Pacote 6.6 — QA e repair assistidos
 
@@ -855,3 +857,4 @@ ADRs iniciais esperados:
 | 2026-08-27 | Gateway OpenClaw dedicado implantado com digest fixo, token próprio, rede interna sem egress, endpoint mínimo, estado/backup próprios e zero sessões; flags de IA permanecem desligadas | Codex |
 | 2026-08-28 | Staging controlado do provider preparado com chave reutilizada por autorização explícita, proxy allowlist, saída direta bloqueada e kill switch testado; nenhum agente ou chamada autenticada foi executado e o estado final voltou a ficar desligado | Codex |
 | 2026-08-31 | Harness do benchmark real v1.3 preparado com dois casos, teto agregado, confirmação explícita, runner isolado e reset final; dry-run reproduzido localmente/VPS, execução sem confirmação bloqueada e nenhum agente chamado | Codex |
+| 2026-09-01 | Primeira janela OpenClaw concluída em dois casos reais minimizados; custo de 13.024 micro-USD, contratos e cleanup aprovados; metadado exato e referência inconclusiva sem baseline humano; G6 permanece bloqueado | Codex |

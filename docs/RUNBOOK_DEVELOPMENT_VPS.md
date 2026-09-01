@@ -161,7 +161,7 @@ ops/openclaw-provider-disable.sh
 Ao terminar qualquer diagnóstico, deixar o estado desligado e confirmar zero sessões,
 `agent_runs` e `agent_proposals`.
 
-### Benchmark controlado preparado
+### Benchmark controlado
 
 Seguir `docs/OPENCLAW_CONTROLLED_BENCHMARK.md`. O modo padrão é somente preparação:
 
@@ -171,5 +171,6 @@ ops/openclaw-controlled-benchmark.sh prepare controlled-first-window
 ```
 
 Ele deve deixar proxy e redes de provider ausentes, gateway sem chave, flags falsas e zero sessões,
-runs e propostas. O modo `execute` é bloqueado sem confirmação explícita na mesma invocação e não
-deve ser usado até a autorização da janela real.
+runs e propostas. O modo `execute` é bloqueado sem confirmação explícita na mesma invocação. A
+primeira janela foi concluída em 2026-09-01; qualquer nova janela deve manter os mesmos limites,
+produzir relatório sanitizado e terminar pelo kill switch.

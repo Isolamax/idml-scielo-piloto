@@ -20,6 +20,11 @@ from idml_foundation.ai.registry import load_prompt, load_registry, repository_r
 from idml_foundation.ai.security import payload_digest, untrusted_envelope
 
 _RUN_ID = re.compile(r"^[a-z0-9][a-z0-9-]{7,79}$")
+_SAFE_ERROR_CODE = re.compile(r"^[A-Z][A-Z0-9_]{2,99}$")
+_CONTROLLED_REVIEW_INSTRUCTION = (
+    "Controlled evaluation policy: set needs_human to true. "
+    "This benchmark never authorizes automatic application or release."
+)
 
 
 class BenchmarkClient(Protocol):
@@ -279,6 +284,22 @@ def _private_json(path: Path, payload: dict[str, Any]) -> None:
     path.chmod(stat.S_IRUSR | stat.S_IWUSR)
 
 
+def _safe_error_code(exc: Exception) -> str:
+    message = str(exc)
+    if _SAFE_ERROR_CODE.fullmatch(message):
+        return message
+    return type(exc).__name__.upper()
+
+
+def _all_cases_succeeded(result: dict[str, Any], *, expected_cases: int) -> bool:
+    cases = result.get("cases")
+    return (
+        isinstance(cases, list)
+        and len(cases) == expected_cases
+        and all(isinstance(case, dict) and case.get("status") == "succeeded" for case in cases)
+    )
+
+
 async def execute_benchmark(
     plan: ControlledBenchmarkPlan,
     dataset: dict[str, Any],
@@ -342,7 +363,7 @@ async def execute_benchmark(
             response = await client.run_agent(
                 agent_id=plan.agent_id,
                 session_key=f"idml-benchmark:{run_id}:{case['case_id']}",
-                system_prompt=load_prompt(profile),
+                system_prompt=f"{load_prompt(profile)}\n\n{_CONTROLLED_REVIEW_INSTRUCTION}",
                 input_envelope=_case_envelope(case),
                 output_schema=output_json_schema(domain),
                 tool_allowlist=frozenset(),
@@ -351,24 +372,33 @@ async def execute_benchmark(
             )
             if f"{response.provider}/{response.model}" != plan.model_key:
                 raise RuntimeError("MODEL_IDENTITY_MISMATCH")
-            resolved = catalog.resolve(
-                provider=response.provider,
-                model=response.model,
-                input_tokens=response.input_tokens,
-                output_tokens=response.output_tokens,
-                cached_input_tokens=response.cached_input_tokens,
-                provider_cost_microusd=response.cost_microusd,
-            )
+            pricing_version: str | None
+            if response.input_tokens == 0 and response.output_tokens == 0:
+                cost_microusd = preflight
+                cost_source = "preflight_upper_bound"
+                pricing_version = catalog.version
+            else:
+                resolved = catalog.resolve(
+                    provider=response.provider,
+                    model=response.model,
+                    input_tokens=response.input_tokens,
+                    output_tokens=response.output_tokens,
+                    cached_input_tokens=response.cached_input_tokens,
+                    provider_cost_microusd=response.cost_microusd,
+                )
+                cost_microusd = resolved.microusd
+                cost_source = resolved.source
+                pricing_version = resolved.pricing_version
             record.update(
                 input_tokens=response.input_tokens,
                 cached_input_tokens=response.cached_input_tokens,
                 output_tokens=response.output_tokens,
-                cost_microusd=resolved.microusd,
-                cost_source=resolved.source,
-                pricing_version=resolved.pricing_version,
+                cost_microusd=cost_microusd,
+                cost_source=cost_source,
+                pricing_version=pricing_version,
                 output=response.payload,
             )
-            total_cost += resolved.microusd
+            total_cost += cost_microusd
             if response.input_tokens > plan.max_input_tokens_per_case:
                 raise RuntimeError("INPUT_TOKEN_BUDGET_EXCEEDED")
             if response.output_tokens > plan.max_output_tokens_per_case:
@@ -382,8 +412,7 @@ async def execute_benchmark(
                 raise ValueError("BENCHMARK_PROPOSAL_POLICY_REJECTED")
             record.update(status="succeeded", error_code=None)
         except (PermissionError, RuntimeError, TimeoutError, ValueError) as exc:
-            code = str(exc) if str(exc).isupper() else type(exc).__name__.upper()
-            record["error_code"] = code[:100]
+            record["error_code"] = _safe_error_code(exc)
         record["duration_ms"] = int((time.monotonic() - started) * 1000)
         records.append(record)
         if record["status"] != "succeeded":
@@ -470,6 +499,7 @@ def main() -> int:
     )
     result = asyncio.run(execute_benchmark(plan, dataset, client=client, run_id=args.run_id))
     _private_json(args.results_output, result)
+    all_succeeded = _all_cases_succeeded(result, expected_cases=plan.max_cases)
     print(
         json.dumps(
             {
@@ -477,12 +507,12 @@ def main() -> int:
                 "run_id": result["run_id"],
                 "cases_recorded": len(result["cases"]),
                 "total_cost_microusd": result["total_cost_microusd"],
-                "all_succeeded": all(case["status"] == "succeeded" for case in result["cases"]),
+                "all_succeeded": all_succeeded,
             },
             sort_keys=True,
         )
     )
-    return 0
+    return 0 if all_succeeded else 1
 
 
 if __name__ == "__main__":

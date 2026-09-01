@@ -106,7 +106,7 @@ Mapalead permaneceram em execução. A raiz continuou em 79%, com 21 GiB livres.
 ## Evidência do staging controlado do provider
 
 Em 2026-08-28 foi adicionado um overlay opt-in com provider OpenAI fixado em
-`openai/gpt-5.4-mini` e proxy explícito. O gateway recebe a credencial somente no staging; API e
+`openai/gpt-5.4-mini` e proxy de ambiente do Node direcionado ao Squid allowlist. O gateway recebe a credencial somente no staging; API e
 worker nunca a recebem. A rede gateway/proxy é interna e apenas o proxy entra em uma rede com
 egress. A ACL aceita somente `CONNECT api.openai.com:443`; não há porta publicada.
 

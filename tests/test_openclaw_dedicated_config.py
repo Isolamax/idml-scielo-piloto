@@ -60,13 +60,7 @@ def test_openai_provider_is_pinned_and_forced_through_the_proxy() -> None:
     assert provider["api"] == "openai-responses"
     assert provider["auth"] == "api-key"
     assert provider["agentRuntime"] == {"id": "openclaw"}
-    assert provider["request"] == {
-        "proxy": {
-            "mode": "explicit-proxy",
-            "url": "http://openclaw-egress-proxy:3128",
-        },
-        "allowPrivateNetwork": False,
-    }
+    assert provider["request"] == {"allowPrivateNetwork": False}
     assert "apiKey" not in provider
     assert provider["models"] == [
         {
@@ -107,6 +101,8 @@ def test_provider_overlay_uses_a_separate_allowlisted_proxy() -> None:
     dockerfile = (ROOT / "deploy" / "Dockerfile.openclaw-egress-proxy").read_text(encoding="utf-8")
 
     assert "OPENAI_API_KEY: ${IDML_OPENAI_API_KEY:?" in overlay
+    assert 'NODE_USE_ENV_PROXY: "1"' in overlay
+    assert "HTTPS_PROXY: http://openclaw-egress-proxy:3128" in overlay
     assert "ports:" not in overlay
     assert "/proc/net/tcp6" in overlay
     assert "squidclient" not in overlay

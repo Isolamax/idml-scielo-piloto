@@ -1,6 +1,6 @@
 # Ativação controlada do provider OpenClaw
 
-Data: 2026-08-28. Estado operacional: **desligado**. Nenhum agente foi executado.
+Data: 2026-09-01. Estado operacional: **desligado após benchmark controlado**.
 
 ## Finalidade e fronteira
 
@@ -9,6 +9,7 @@ gateway dedicado sem chave e apenas na rede interna. O overlay
 `deploy/docker-compose.openclaw-provider.yml` adiciona temporariamente:
 
 - `OPENAI_API_KEY` somente ao `openclaw-idml`, a partir de `IDML_OPENAI_API_KEY` no `.env` modo 600;
+- `NODE_USE_ENV_PROXY=1` e `HTTPS_PROXY` somente ao gateway durante a janela;
 - rede interna exclusiva entre gateway e proxy;
 - Squid read-only, sem capabilities ou porta publicada;
 - rede de egress presente somente no proxy;
@@ -38,7 +39,7 @@ O script valida configuração e Compose sem exibir segredos, constrói o proxy 
 6. conexão direta do gateway ao provider bloqueada;
 7. zero sessões OpenClaw.
 
-O comando prepara conectividade, mas não autoriza testes de agentes nem produção.
+O comando prepara conectividade, mas não autoriza isoladamente testes de agentes nem produção.
 
 ## Kill switch
 
@@ -65,11 +66,23 @@ Exige protocolo separado, janela observada e autorização explícita. Antes da 
 - desligar pelo kill switch ao exceder orçamento, ocorrer erro de schema, egress inesperado ou
   impacto na VPS.
 
+A primeira janela autorizada foi executada em 2026-09-01 e está documentada no relatório sanitizado.
 A aprovação do Gate G6 continua dependendo de ganho mensurável e baseline humano autorizado.
 
 O harness da primeira janela está descrito em `docs/OPENCLAW_CONTROLLED_BENCHMARK.md`. A preparação
-desse harness não autoriza a execução: o comando exige confirmação transitória explícita e encerra
-sempre com o kill switch e reset do estado dedicado.
+desse harness não autoriza novas execuções: o comando exige confirmação transitória explícita e
+encerra sempre com o kill switch e reset do estado dedicado.
+
+## Evidência da primeira janela — 2026-09-01
+
+O modo de proxy explícito na configuração do provider causou timeout upstream tanto no OpenClaw
+fixado quanto em uma versão estável candidata. A conectividade, a chave e o modelo foram validados
+separadamente. O transporte foi corrigido para o proxy nativo por variáveis de ambiente do Node,
+mantendo o Squid allowlist como único ponto de egress e preservando `allowPrivateNetwork=false`.
+
+A janela final concluiu dois casos com custo contabilizado de 13.024 micro-USD, resposta válida e
+revisão humana obrigatória. O kill switch removeu chave, variáveis de proxy, contêiner e redes de
+provider; o gateway dedicado foi recriado com zero sessões. O resultado bruto permanece privado.
 
 ## Evidência de 2026-08-28
 

@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from idml_foundation.ai.benchmark import (
+    _all_cases_succeeded,
     _private_json,
     execute_benchmark,
     load_benchmark_plan,
@@ -112,8 +113,10 @@ def test_selected_dataset_contains_only_the_first_window(tmp_path: Path) -> None
 
 
 class _FixtureClient:
-    def __init__(self) -> None:
+    def __init__(self, *, input_tokens: int = 100, output_tokens: int = 20) -> None:
         self.calls: list[dict[str, Any]] = []
+        self.input_tokens = input_tokens
+        self.output_tokens = output_tokens
 
     async def run_agent(self, **kwargs: Any) -> ProviderResponse:
         self.calls.append(kwargs)
@@ -149,9 +152,9 @@ class _FixtureClient:
             },
             provider="openai",
             model="gpt-5.4-mini",
-            input_tokens=100,
+            input_tokens=self.input_tokens,
             cached_input_tokens=0,
-            output_tokens=20,
+            output_tokens=self.output_tokens,
         )
 
 
@@ -169,10 +172,29 @@ def test_execute_benchmark_is_sequential_and_accounts_aggregate_cost(tmp_path: P
 
     assert len(client.calls) == 2
     assert all(call["tool_allowlist"] == frozenset() for call in client.calls)
+    assert all("set needs_human to true" in call["system_prompt"] for call in client.calls)
     assert all(case["status"] == "succeeded" for case in result["cases"])
     assert result["total_cost_microusd"] == 330
     assert result["cost_accounted"] is True
     assert result["application_flags_enabled"] is False
+
+
+def test_execute_benchmark_uses_preflight_upper_bound_when_usage_is_missing(
+    tmp_path: Path,
+) -> None:
+    plan_path, _, dataset = _files(tmp_path)
+    result = asyncio.run(
+        execute_benchmark(
+            load_benchmark_plan(plan_path),
+            dataset,
+            client=_FixtureClient(input_tokens=0, output_tokens=0),
+            run_id="controlled-zero-usage",
+        )
+    )
+
+    assert result["total_cost_microusd"] == 36_000
+    assert all(case["cost_microusd"] == 18_000 for case in result["cases"])
+    assert all(case["cost_source"] == "preflight_upper_bound" for case in result["cases"])
 
 
 def test_private_result_writer_uses_owner_only_permissions(tmp_path: Path) -> None:
@@ -182,3 +204,26 @@ def test_private_result_writer_uses_owner_only_permissions(tmp_path: Path) -> No
     assert json.loads(output.read_text(encoding="utf-8")) == {"safe": True}
     if os.name != "nt":
         assert stat.S_IMODE(output.stat().st_mode) == 0o600
+
+
+class _FailingClient:
+    async def run_agent(self, **kwargs: Any) -> ProviderResponse:
+        del kwargs
+        raise RuntimeError("OPENCLAW_HTTP_400")
+
+
+def test_execute_benchmark_stops_and_preserves_safe_failure_code(tmp_path: Path) -> None:
+    plan_path, _, dataset = _files(tmp_path)
+    result = asyncio.run(
+        execute_benchmark(
+            load_benchmark_plan(plan_path),
+            dataset,
+            client=_FailingClient(),
+            run_id="controlled-failure-001",
+        )
+    )
+
+    assert len(result["cases"]) == 1
+    assert result["cases"][0]["error_code"] == "OPENCLAW_HTTP_400"
+    assert _all_cases_succeeded(result, expected_cases=2) is False
+    assert _all_cases_succeeded({"cases": [{"status": "succeeded"}]}, expected_cases=1)
