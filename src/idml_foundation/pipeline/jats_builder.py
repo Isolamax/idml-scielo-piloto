@@ -314,7 +314,14 @@ class JatsBuilder:
                 self._rich(paragraph, block.content, registry)
             elif isinstance(block, FormulaBlock):
                 formula = _add(element, "disp-formula", id=registry.resolve(block.id))
-                _add(formula, "tex-math", block.source.value or "")
+                if block.representation == "image" and block.asset_id:
+                    _add(
+                        formula,
+                        "graphic",
+                        **{f"{{{XLINK_NS}}}href": asset_names[block.asset_id]},
+                    )
+                else:
+                    _add(formula, "tex-math", block.source.value or "")
             elif isinstance(block, NoteBlock):
                 note = _add(element, "boxed-text", id=registry.resolve(block.id))
                 paragraph = _add(note, "p")

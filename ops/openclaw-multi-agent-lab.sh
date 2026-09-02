@@ -60,8 +60,14 @@ case "$lab_version" in
     manifest_name=multi-agent-manifest-v8.json
     expected_confirmation=RUN_IDML_OPENCLAW_MULTI_AGENT_LAB_V8
     ;;
+  v9)
+    plan_name=openclaw-multi-agent-lab-v9.json
+    dataset_name=dataset-real-domains-v1.0.json
+    manifest_name=multi-agent-manifest-v9.json
+    expected_confirmation=RUN_IDML_OPENCLAW_MULTI_AGENT_LAB_V9
+    ;;
   *)
-    echo "lab-version must be v1, v2, v3, v4, v5, v6, v7, or v8" >&2
+    echo "lab-version must be v1, v2, v3, v4, v5, v6, v7, v8, or v9" >&2
     exit 2
     ;;
 esac
@@ -74,7 +80,7 @@ report="$output_dir/multi-agent-report-$run_id.json"
 case "$mode" in
   prepare|execute) ;;
   *)
-    echo "usage: $0 [prepare|execute] [run-id] [v1|v2|v3|v4|v5|v6|v7|v8]" >&2
+    echo "usage: $0 [prepare|execute] [run-id] [v1|v2|v3|v4|v5|v6|v7|v8|v9]" >&2
     exit 2
     ;;
 esac

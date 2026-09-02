@@ -39,6 +39,41 @@ def test_mapper_records_missing_and_ambiguities_without_using_gold_xml() -> None
     assert "external_assets_require_package_resolution" in article.review_reasons
 
 
+def test_mapper_nests_level_two_sections_under_the_preceding_level_one() -> None:
+    raw = IdmlParser().parse(
+        synthetic_idml(include_subsection=True),
+        logical_name="ESA_2024001_AOP.idml",
+    )
+    article = CanonicalMapper(load_profile()).map(raw)
+
+    assert len(article.body) == 2
+    introduction = article.body[0]
+    assert introduction.title.value == "Introduction"
+    assert len(introduction.children) == 1
+    assert introduction.children[0].level == 2
+    assert introduction.children[0].title.value == "Nested method details"
+    assert introduction.children[0].blocks[0].content.plain.value == "Nested content"
+
+
+def test_pipeline_preserves_anchored_pdf_formula_as_reviewable_image() -> None:
+    result = DeterministicPipeline().run(
+        synthetic_idml(include_formula=True),
+        logical_name="ESA_2024001_AOP.idml",
+    )
+    root = etree.fromstring(result.xml)
+
+    formula = result.canonical.body[0].blocks[-1]
+    assert formula.kind == "formula"
+    assert formula.representation == "image"
+    assert formula.source.value == "Equations.pdf"
+    assert any(
+        reason.startswith("formula_requires_mathml_transcription:")
+        for reason in result.canonical.review_reasons
+    )
+    assert root.xpath("count(body//disp-formula/graphic)") == 1.0
+    assert result.validation.valid
+
+
 def test_pipeline_is_byte_deterministic_and_offline_dtd_valid() -> None:
     pipeline = DeterministicPipeline()
     first = pipeline.run(synthetic_idml(), logical_name="ESA_2024001_AOP.idml")

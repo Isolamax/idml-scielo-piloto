@@ -2,7 +2,12 @@ from io import BytesIO
 from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile, ZipInfo
 
 
-def synthetic_idml(*, include_table: bool = False) -> bytes:
+def synthetic_idml(
+    *,
+    include_table: bool = False,
+    include_subsection: bool = False,
+    include_formula: bool = False,
+) -> bytes:
     design = b"""<?xml version="1.0" encoding="UTF-8"?>
 <Document Self="doc" DOMVersion="20.3" StoryList="u1 u2 u3 u4"/>"""
     styles = b"""<?xml version="1.0" encoding="UTF-8"?>
@@ -11,6 +16,7 @@ def synthetic_idml(*, include_table: bool = False) -> bytes:
     <ParagraphStyle Self="ParagraphStyle/01.0.title" Name="01.0.title"/>
     <ParagraphStyle Self="ParagraphStyle/02.0.author" Name="02.0.author"/>
     <ParagraphStyle Self="ParagraphStyle/04.0.section" Name="04.0.section"/>
+    <ParagraphStyle Self="ParagraphStyle/04.1.subsection" Name="04.1.subsection"/>
     <ParagraphStyle Self="ParagraphStyle/05.0.text" Name="05.0.text"/>
     <ParagraphStyle Self="ParagraphStyle/06.1.references" Name="06.1.references"/>
     <ParagraphStyle Self="ParagraphStyle/07.0.caption" Name="07.0.caption"/>
@@ -46,6 +52,16 @@ def synthetic_idml(*, include_table: bool = False) -> bytes:
         if include_table
         else ""
     )
+    formula = (
+        '<ParagraphStyleRange AppliedParagraphStyle="ParagraphStyle/05.0.text">'
+        '<CharacterStyleRange AppliedCharacterStyle="CharacterStyle/none"><Br/>'
+        '<Rectangle Self="formula-rectangle"><PDF><Link Self="formula-link" '
+        'LinkResourceURI="file:C:/private/source/Equations.pdf" '
+        'LinkResourceFormat="$ID/Adobe Portable Document Format (PDF)"/>'
+        '</PDF></Rectangle></CharacterStyleRange></ParagraphStyleRange>'
+        if include_formula
+        else ""
+    )
     stories = {
         "Stories/Story_u1.xml": story(
             "u1",
@@ -56,7 +72,14 @@ def synthetic_idml(*, include_table: bool = False) -> bytes:
             "u2",
             paragraph("04.0.section", "Introduction")
             + paragraph("05.0.text", "Plain ")
-            + paragraph("05.0.text", "emphasis", "italico"),
+            + paragraph("05.0.text", "emphasis", "italico")
+            + (
+                paragraph("04.1.subsection", "Nested method details")
+                + paragraph("05.0.text", "Nested content")
+                if include_subsection
+                else ""
+            )
+            + formula,
             table,
         ),
         "Stories/Story_u3.xml": story(

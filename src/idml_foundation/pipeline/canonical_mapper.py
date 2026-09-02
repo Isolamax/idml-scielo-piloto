@@ -13,6 +13,7 @@ from idml_foundation.domain.canonical import (
     ContributorName,
     FieldState,
     FigureBlock,
+    FormulaBlock,
     FrontMatter,
     Identifier,
     InlineKind,
@@ -33,7 +34,13 @@ from idml_foundation.domain.common import (
     canonical_bytes,
     stable_id,
 )
-from idml_foundation.domain.raw import RawArticle, RawParagraph, RawStory
+from idml_foundation.domain.raw import (
+    RawAnchoredObject,
+    RawArticle,
+    RawObjectKind,
+    RawParagraph,
+    RawStory,
+)
 from idml_foundation.pipeline.citation_resolver import resolve_citations
 from idml_foundation.pipeline.idml_parser import style_prefix
 from idml_foundation.pipeline.profile import JournalProfile
@@ -376,12 +383,27 @@ class CanonicalMapper:
         ]
         body_items.sort(key=lambda item: (raw.reading_order.index(item[0].id), item[1].position))
         sections: list[dict[str, object]] = []
+        section_stack: list[dict[str, object]] = []
         citation_review_reasons: list[str] = []
+        formula_review_reasons: list[str] = []
+        raw_assets = {asset.id: asset for asset in raw.assets}
+        formulas_by_run: defaultdict[str, list[RawAnchoredObject]] = defaultdict(list)
+        for anchored_object in raw.anchored_objects:
+            if (
+                anchored_object.kind == RawObjectKind.FORMULA
+                and anchored_object.anchor_run_id is not None
+            ):
+                formulas_by_run[anchored_object.anchor_run_id].append(anchored_object)
         current: dict[str, object] | None = None
         for story, paragraph, role in body_items:
             runs = {run.id: run for run in story.runs}
             text = "".join(runs[item].text for item in paragraph.text_run_ids).strip()
-            if not text:
+            formula_objects = [
+                formula
+                for run_id in paragraph.text_run_ids
+                for formula in formulas_by_run.get(run_id, ())
+            ]
+            if not text and not formula_objects:
                 continue
             if role.startswith("section-level"):
                 level = 1 if role.endswith("1") else 2
@@ -390,9 +412,22 @@ class CanonicalMapper:
                     "title": _present(text, paragraph.evidence_ids, f"style-role:{role}"),
                     "level": level,
                     "blocks": [],
+                    "children": [],
                     "evidence_ids": paragraph.evidence_ids,
                 }
-                sections.append(current)
+                while section_stack:
+                    parent_level = section_stack[-1]["level"]
+                    assert isinstance(parent_level, int)
+                    if parent_level < level:
+                        break
+                    section_stack.pop()
+                if section_stack:
+                    children = section_stack[-1]["children"]
+                    assert isinstance(children, list)
+                    children.append(current)
+                else:
+                    sections.append(current)
+                section_stack.append(current)
             else:
                 if current is None:
                     current = {
@@ -400,27 +435,51 @@ class CanonicalMapper:
                         "title": _missing("body-content-before-section-heading"),
                         "level": 1,
                         "blocks": [],
+                        "children": [],
                         "evidence_ids": (),
                     }
                     sections.append(current)
+                    section_stack.append(current)
                 blocks = current["blocks"]
                 assert isinstance(blocks, list)
-                paragraph_id = stable_id(article_id, "paragraph", paragraph.id)
-                citation_resolution = resolve_citations(
-                    self._rich_text(story, paragraph, character_names, article_id),
-                    references,
-                    article_id=article_id,
-                    paragraph_id=paragraph_id,
-                )
-                blocks.append(
-                    Paragraph(
-                        id=paragraph_id,
-                        content=citation_resolution.content,
-                        cross_references=citation_resolution.cross_references,
-                        evidence_ids=paragraph.evidence_ids,
+                if text:
+                    paragraph_id = stable_id(article_id, "paragraph", paragraph.id)
+                    citation_resolution = resolve_citations(
+                        self._rich_text(story, paragraph, character_names, article_id),
+                        references,
+                        article_id=article_id,
+                        paragraph_id=paragraph_id,
                     )
-                )
-                citation_review_reasons.extend(citation_resolution.review_reasons)
+                    blocks.append(
+                        Paragraph(
+                            id=paragraph_id,
+                            content=citation_resolution.content,
+                            cross_references=citation_resolution.cross_references,
+                            evidence_ids=paragraph.evidence_ids,
+                        )
+                    )
+                    citation_review_reasons.extend(citation_resolution.review_reasons)
+                for formula in formula_objects:
+                    asset_id = formula.asset_ids[0] if formula.asset_ids else None
+                    asset = raw_assets.get(asset_id or "")
+                    source = asset.logical_path if asset is not None else "unresolved-formula-asset"
+                    blocks.append(
+                        FormulaBlock(
+                            id=stable_id(article_id, "formula", formula.id),
+                            display=True,
+                            source=_present(
+                                source,
+                                formula.evidence_ids,
+                                "anchored-pdf-formula",
+                            ),
+                            representation="image",
+                            asset_id=asset_id,
+                            evidence_ids=formula.evidence_ids,
+                        )
+                    )
+                    formula_review_reasons.append(
+                        f"formula_requires_mathml_transcription:{formula.id}"
+                    )
 
         raw_tables = {table.id: table for table in raw.tables}
         table_story = {
@@ -435,7 +494,10 @@ class CanonicalMapper:
         }
         captions = by_role["caption"]
         graphic_blocks: list[FigureBlock | TableBlock] = []
-        graphic_review_reasons: list[str] = list(citation_review_reasons)
+        graphic_review_reasons: list[str] = [
+            *citation_review_reasons,
+            *formula_review_reasons,
+        ]
         used_tables: set[str] = set()
         used_assets: set[str] = set()
         run_lookup = {run.id: run for item in raw.stories for run in item.runs}
@@ -583,6 +645,7 @@ class CanonicalMapper:
                     ),
                     "level": 1,
                     "blocks": graphic_blocks,
+                    "children": [],
                     "evidence_ids": (),
                 }
             )

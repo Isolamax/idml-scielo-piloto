@@ -335,6 +335,7 @@ class IdmlParser:
         runs: list[RawTextRun] = []
         paragraphs: list[RawParagraph] = []
         run_ids_by_cell: defaultdict[str, list[str]] = defaultdict(list)
+        anchor_run_by_link: dict[str, str] = {}
 
         def cell_key(cell: etree._Element) -> str:
             table = next(
@@ -395,6 +396,24 @@ class IdmlParser:
                 paragraph_run_ids.append(run_id)
                 if cell is not None:
                     run_ids_by_cell[cell_key(cell)].append(run_id)
+            anchored_links = _elements(paragraph_range, "Link")
+            if anchored_links and not paragraph_run_ids:
+                position = len(runs)
+                run_id = stable_id(article_key, "run", f"{source_self}:{position}")
+                runs.append(
+                    RawTextRun(
+                        id=run_id,
+                        text="",
+                        paragraph_style_id=paragraph_style_id,
+                        position=position,
+                        evidence_ids=(paragraph_evidence.id,),
+                    )
+                )
+                paragraph_run_ids.append(run_id)
+            if paragraph_run_ids:
+                for anchored_link in anchored_links:
+                    if link_self := anchored_link.get("Self"):
+                        anchor_run_by_link[link_self] = paragraph_run_ids[-1]
             paragraph_id = stable_id(article_key, "paragraph", paragraph_locator)
             cell_id = (
                 stable_id(
@@ -500,6 +519,7 @@ class IdmlParser:
                         if name.casefold().endswith(".pdf")
                         else RawObjectKind.FIGURE
                     ),
+                    anchor_run_id=anchor_run_by_link.get(link_self),
                     asset_ids=(asset_id,),
                     evidence_ids=(link_evidence.id,),
                 )
