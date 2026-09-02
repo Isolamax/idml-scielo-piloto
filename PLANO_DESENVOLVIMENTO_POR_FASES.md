@@ -22,7 +22,7 @@ docs/XML_VALIDATION_MASTER_PLAN.md
 
 ```text
 PROJECT_STATUS: PHASE_6_MULTI_AGENT_VALIDATION_IN_PROGRESS
-CURRENT_PHASE: FASE 6 — próxima ação: tornar o JSON real do OpenClaw confiável e obter corpus real de estrutura/matemática
+CURRENT_PHASE: FASE 6 — próxima ação: corrigir fidelidade de referências longas e obter corpus real de estrutura/matemática
 CURRENT_IMPLEMENTATION_AUTHORIZED: PHASE_6
 DEVELOPMENT_ROADMAP_AUTHORIZED: THROUGH_PHASE_8_PRODUCTION_READINESS
 PRODUCTION_ACTIVATION_AUTHORIZED: NO — REQUIRES XML_EXPERT_FINAL_ACCEPTANCE
@@ -647,6 +647,7 @@ preparando a comparação editorial humana para a RC final.
 - [x] Transformar os defeitos confirmados até esta janela em fixtures de regressão.
 - [x] Produzir relatório sanitizado para os quatro domínios reais disponíveis, sem promover o resultado a baseline humano.
 - [x] Substituir evidência truncada por transporte segmentado, completo, limitado e autenticado por hash individual e agregado.
+- [x] Tornar a saída estruturada real confiável nos quatro papéis com function call terminal, schema revalidado e zero ferramenta executável.
 - [ ] Ampliar o relatório quando houver evidência real autorizada de estrutura e matemática.
 
 ## Gate técnico de saída G6-T
@@ -978,3 +979,4 @@ ADRs iniciais esperados:
 | 2026-09-01 | Matriz adversarial v1 concluída localmente e reproduzida na VPS com `--network none`: 30 casos em seis domínios, 84 papéis simulados, 100% dos oráculos e zero provider/custo; paths passaram a ser domain-bound; G6-T ainda requer evidência real e JSON confiável | Codex |
 | 2026-09-01 | Grounding `normalized_exact` adicionado ao juiz: invenção é rejeitada mesmo com ID/locator/hash válidos; oito de dez alvos ESA têm suporte integral e duas referências ficam fail-closed até ampliação da evidência; G6-T segue pendente por JSON real e cobertura real | Codex |
 | 2026-09-02 | Evidência segmentada v1.4 implementada e implantada sem truncamento: 10/10 alvos ESA sustentados, 12 segmentos autenticados, duas referências longas remontadas integralmente; formato legado preservado, janela OpenClaw v3 preparada localmente/VPS sem provider; G6-T segue pendente por JSON real e corpus real de estrutura/matemática | Codex |
+| 2026-09-02 | Saída estruturada OpenClaw validada por function call terminal: quatro papéis reais concluídos no caso de metadados, referência de 734 caracteres rejeitada fail-closed por prefixo incompleto, contexto dedicado ampliado para 32 mil, custo acumulado conservador de 627.552 micro-USD e cleanup integral; G6-T segue pendente por fidelidade longa e corpus real de estrutura/matemática | Codex |

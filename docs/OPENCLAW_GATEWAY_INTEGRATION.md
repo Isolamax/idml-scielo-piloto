@@ -13,13 +13,16 @@ workspace. O cliente `OpenClawResponsesClient`:
 - usa chave de sessão tenant-bound;
 - envia envelope canônico minimizado e schema fechado;
 - não segue redirects e aceita somente JSON até 2 MiB;
-- exige exatamente uma saída textual contendo um objeto JSON;
+- força exatamente uma chamada à função terminal não executável
+  `submit_idml_structured_output`, sem texto adjacente, e revalida seus argumentos pelo schema
+  completo; JSON textual exato permanece apenas como compatibilidade legada;
 - rejeita ausência/invalidade de usage, token negativo e cache maior que a entrada;
 - não registra token do gateway nem conteúdo bruto em mensagens de erro.
 
-O gateway não recebe ferramentas nativas. As leituras tenant-bound já foram realizadas pelo
-backend e estão no envelope; a proposta retornada continua passando pelo schema e pelos validadores
-determinísticos da aplicação.
+O gateway não recebe ferramentas nativas ou executáveis. Ele recebe somente a função terminal de
+saída estruturada, que não é executada e não concede capacidade. As leituras tenant-bound já foram
+realizadas pelo backend e estão no envelope; a proposta retornada continua passando pelo schema e
+pelos validadores determinísticos da aplicação.
 
 ## Uso e custo
 
@@ -28,10 +31,11 @@ O OpenClaw normaliza contadores OpenAI em `usage.input_tokens`, `usage.output_to
 persiste os três contadores e calcula o custo pelo catálogo próprio, sem depender da estimativa
 visual do OpenClaw.
 
-O modelo foi fixado no registro `agent-config-1.2`. A tarifa oficial verificada está em
+O modelo foi fixado no registro `agent-config-1.3`. A tarifa oficial verificada está em
 `agent-pricing-1.1`: US$ 0,75/M entrada, US$ 0,075/M entrada em cache e US$ 4,50/M saída. Com os
-limites iniciais de 12 mil tokens de entrada e 2 mil de saída, o preflight conservador é de
-18.000 micro-USD (US$ 0,018), abaixo do teto por artigo de 50.000 micro-USD (US$ 0,05).
+limite de 12 mil tokens de entrada e saída entre 1 mil e 4 mil por papel, cada janela calcula seu
+preflight conservador antes da chamada. O agente dedicado usa 32 mil tokens de contexto operacional
+para acomodar a reserva interna do OpenClaw, sem ampliar os limites monetários ou de entrada.
 
 O preflight ocorre antes da chamada e assume zero cache. O serviço bloqueia novos runs quando a
 soma append-only do artigo consumiu o teto; a linha do recurso é bloqueada na transação para evitar

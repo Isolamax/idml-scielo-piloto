@@ -441,3 +441,26 @@ anterior ficou em `/opt/idml-platform/backups/source-phase6-pre-segmented-v1.tar
 os dois OpenClaw ficaram healthy com restart zero, flags falsas, zero runs/propostas e sem redes do
 provider. O G6-T continua pendente por confiabilidade do JSON real e casos reais autorizados de
 estrutura e matemática.
+
+## Saída estruturada terminal e orçamento de contexto
+
+Em 2026-09-02, o cliente OpenResponses passou a forçar uma única function call terminal
+`submit_idml_structured_output`. A função não é executada, nenhuma ferramenta operacional é exposta
+e o backend continua revalidando o schema Pydantic completo. O schema enviado ao provider foi
+reduzido ao subconjunto conservador aceito por function calling, sem relaxar a validação autoritativa.
+
+Os primeiros ensaios revelaram `context-overflow-precheck`: o prompt longo tinha estimativa de 6.903
+tokens, enquanto `contextTokens=12000` deixava orçamento de 6.000 depois da reserva interna do
+OpenClaw. O contexto operacional exclusivo foi ampliado para 32.000, mantendo entrada máxima de
+12.000, saída máxima de 4.000 e janela declarada de 400.000. Depois da correção, o caso longo produziu
+saída estruturada válida, mas o juiz rejeitou fail-closed um prefixo de 383/734 caracteres por
+`EVIDENCE_GROUNDED`, sem chamar críticos.
+
+A janela complementar `multi-agent-structured-all-roles` comprovou o canal nos quatro papéis reais:
+todos tiveram contrato válido; oito checks determinísticos passaram; o candidato de metadados foi
+exato, ambos os críticos aprovaram e o adjudicador aceitou unanimemente apenas para revisão humana.
+Custou 22.042 micro-USD; o caso longo custou 10.689. O acumulado conservador ficou em 627.552
+micro-USD, abaixo do US$ 1 autorizado. Cleanup confirmou flags falsas, zero runs/propostas, ausência
+de credencial/proxy/redes transitórias e saúde da aplicação e dos dois OpenClaw. O transporte JSON
+deixa de ser pendência do G6-T; fidelidade em referências longas e corpus real de estrutura/matemática
+permanecem pendentes.

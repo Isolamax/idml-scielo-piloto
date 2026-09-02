@@ -43,9 +43,13 @@ atômico de `RichText` fornece template completo, exige inlines não vazios, pre
 IDs e permite alterar somente o texto, cuja concatenação deve reproduzir exatamente o valor plain.
 
 O endpoint OpenResponses da versão OpenClaw fixada não aceita o campo `text.format` do Responses API.
-Por isso o cliente mantém o schema nas instruções, aceita JSON puro ou um único fence Markdown que
-contenha somente JSON e rejeita qualquer texto externo. Falha de contrato rejeita apenas o caso e
-reserva o custo máximo do papel; falha operacional ou de política encerra a janela inteira.
+O cliente passou então a fornecer uma única função terminal não executável,
+`submit_idml_structured_output`, e força `tool_choice` para essa função. O schema completo permanece
+nas instruções e na revalidação Pydantic do backend; o schema entregue ao provider usa somente o
+subconjunto conservador aceito por function calling. Exatamente uma chamada, sem texto adjacente, é
+aceita. JSON puro ou um único fence exato continuam disponíveis apenas para compatibilidade legada.
+Falha de contrato rejeita apenas o caso e reserva o custo máximo do papel; falha operacional ou de
+política encerra a janela inteira.
 
 O dataset e o manifesto ficam privados em `benchmarks/private/input`; resultados brutos e relatório
 sanitizado ficam em `benchmarks/private/output`, todos em modo 600. O relatório público contém apenas
@@ -59,6 +63,18 @@ e 8.000 caracteres. Cada segmento tem hash próprio; o hash agregado vincula ide
 ordem, contagem, tamanho e todos os hashes. A remontagem é sem separadores e deve reproduzir o texto
 integral. Ausência, reordenação, alteração, mistura com o formato legado ou estouro do limite falha
 antes de qualquer chamada ao agente.
+
+## Janelas v4–v6 — saída estruturada real
+
+As janelas v4 e v5 isolaram as duas referências longas e o maior caso, respectivamente. O diagnóstico
+do primeiro V5 mostrou que o OpenClaw reservava internamente 16.384 tokens para geração: com
+`contextTokens=12000`, restavam apenas 6.000 para um prompt estimado em 6.903. O agente dedicado foi
+ajustado para 32.000 tokens de contexto operacional, mantendo 12.000 como limite de entrada do
+laboratório, 4.000 como maior saída por papel e 400.000 como janela declarada do modelo.
+
+A janela v6 seleciona o caso curto real de metadados para comprovar o novo canal nos quatro papéis.
+Ela permite no máximo quatro chamadas, tentativa única e 58.500 micro-USD. Nenhuma função operacional,
+ferramenta nativa ou Skill é exposta; a única função é um envelope terminal sem execução.
 
 ## Operação na VPS
 
@@ -93,6 +109,15 @@ cd /opt/idml-platform
 ./ops/openclaw-multi-agent-lab.sh prepare multi-agent-segmented-corpus v3
 IDML_CONFIRM_AGENT_EXECUTION=RUN_IDML_OPENCLAW_MULTI_AGENT_LAB_V3 \
   ./ops/openclaw-multi-agent-lab.sh execute multi-agent-segmented-corpus v3
+```
+
+A comprovação estruturada dos quatro papéis usa a janela v6:
+
+```sh
+cd /opt/idml-platform
+./ops/openclaw-multi-agent-lab.sh prepare multi-agent-structured-all-roles v6
+IDML_CONFIRM_AGENT_EXECUTION=RUN_IDML_OPENCLAW_MULTI_AGENT_LAB_V6 \
+  ./ops/openclaw-multi-agent-lab.sh execute multi-agent-structured-all-roles v6
 ```
 
 O script verifica zero `agent_runs`/`agent_proposals`, faz backup e restore test, ativa o provider
@@ -179,3 +204,24 @@ Em 2026-09-02, a preparação v3 foi reproduzida na VPS: manifesto
 somente estimadas e teto de 585.000 micro-USD. A regressão isolada com `--network none` repetiu
 30/30 casos e 84 papéis simulados, com zero provider e custo. Não houve execução do laboratório:
 `agent_runs` e `agent_proposals` permaneceram em zero, e proxy/redes transitórias ficaram ausentes.
+
+## Evidência de saída estruturada v1
+
+Em 2026-09-02, `multi-agent-structured-longest-v2` comprovou uma chamada estruturada válida no maior
+caso, com 5.456 tokens de entrada, 1.466 de saída e custo de 10.689 micro-USD. O juiz local rejeitou
+corretamente a proposta antes dos críticos: ela continha apenas um prefixo de 383 dos 734 caracteres
+autorizados. A falha semântica não foi confundida com falha JSON nem teve conteúdo completado pelo
+backend.
+
+Na sequência, `multi-agent-structured-all-roles` executou proponente, crítico XML, crítico editorial
+e adjudicador pelo canal terminal. Os quatro contratos passaram; as oito verificações determinísticas
+foram verdadeiras; os críticos aprovaram e o adjudicador aceitou por unanimidade somente para futura
+revisão humana. O candidato foi exato e melhorou o baseline automático. O custo foi 22.042
+micro-USD. O relatório público sanitizado está em
+`benchmarks/agents/reports/structured-output-validation-v1.json`.
+
+O custo conservador acumulado do artigo ficou em 627.552 micro-USD, abaixo do limite autorizado de
+1.000.000. Após as duas janelas, flags permaneceram falsas, banco continuou com zero runs/propostas,
+credencial e redes transitórias ficaram ausentes e os dois OpenClaw terminaram saudáveis. A
+confiabilidade do transporte estruturado deixa de bloquear o G6-T; continuam pendentes a fidelidade
+das referências longas e casos reais autorizados de estrutura e matemática.
