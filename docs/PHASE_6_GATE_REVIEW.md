@@ -486,3 +486,9 @@ O relatório sanitizado é `benchmarks/agents/reports/evidence-intent-validation
 200, flags falsas, zero runs/propostas/sessões, ausência de chave, proxy e redes transitórias, além
 dos dois OpenClaw saudáveis com zero reinicializações. A fidelidade longa deixa de ser pendência do
 G6-T; permanecem os casos reais autorizados de estrutura e matemática.
+
+A correção final está na imagem `idml-foundation:phase6-evidence-intent-v3`
+(`sha256:619eeda01f434cd372c95710c80e1de6fc025e41d71786360d3f19db58c1d523`). API e worker
+ficaram healthy com zero reinicializações. O rollback de código é
+`/opt/idml-platform/backups/source-phase6-pre-evidence-intent-v3.tar.gz`; a cópia protegida do `.env`
+permanece em modo 600. O hash do pacote implantado foi conferido entre a estação e a VPS.

@@ -57,6 +57,12 @@
   ],
   "cumulative_conservative_cost_microusd": 685949,
   "authorized_article_limit_microusd": 1000000,
+  "deployment": {
+    "application_image": "idml-foundation:phase6-evidence-intent-v3",
+    "application_image_id": "sha256:619eeda01f434cd372c95710c80e1de6fc025e41d71786360d3f19db58c1d523",
+    "source_rollback": "/opt/idml-platform/backups/source-phase6-pre-evidence-intent-v3.tar.gz",
+    "data_backup": "/opt/idml-platform/backups/20260902T180021Z"
+  },
   "postconditions": {
     "application_ready": true,
     "application_http_status": 200,
