@@ -79,6 +79,17 @@ _CONTRACT_RUNTIME_ERRORS = {
     "OpenClaw gateway returned unsupported output content": "AGENT_OUTPUT_CONTENT_UNSUPPORTED",
     "OpenClaw gateway output text is invalid": "AGENT_OUTPUT_TEXT_INVALID",
     "OpenClaw gateway must return exactly one JSON output": "AGENT_OUTPUT_COUNT_INVALID",
+    "OpenClaw gateway must return exactly one structured output": (
+        "AGENT_STRUCTURED_OUTPUT_COUNT_INVALID"
+    ),
+    "OpenClaw gateway returned an unexpected output function": (
+        "AGENT_STRUCTURED_OUTPUT_FUNCTION_INVALID"
+    ),
+    "OpenClaw gateway function arguments are invalid": "AGENT_STRUCTURED_ARGUMENTS_INVALID",
+    "OpenClaw gateway function arguments is not JSON": "AGENT_STRUCTURED_ARGUMENTS_NOT_JSON",
+    "OpenClaw gateway function arguments must be a JSON object": (
+        "AGENT_STRUCTURED_ARGUMENTS_NOT_OBJECT"
+    ),
     "OpenClaw gateway output is not JSON": "AGENT_OUTPUT_NOT_JSON",
     "OpenClaw gateway output must be a JSON object": "AGENT_OUTPUT_NOT_OBJECT",
 }
@@ -381,6 +392,12 @@ def prepare_lab_manifest(
         "client": _sha256_path(root / "src" / "idml_foundation" / "ai" / "openclaw_client.py"),
         "pricing": _sha256_path(root / "config" / "agent-pricing-v1.json"),
         "gateway_config": _sha256_path(root / "config" / "openclaw-idml-dedicated.json"),
+        "workspace:AGENTS": _sha256_path(
+            root / "openclaw" / "idml-evaluator-workspace" / "AGENTS.md"
+        ),
+        "workspace:SOUL": _sha256_path(
+            root / "openclaw" / "idml-evaluator-workspace" / "SOUL.md"
+        ),
         "prompt:xml_critic": _sha256_path(_role_prompt_path("xml_critic")),
         "prompt:editorial_critic": _sha256_path(_role_prompt_path("editorial_critic")),
         "prompt:adjudicator": _sha256_path(_role_prompt_path("adjudicator")),
@@ -424,6 +441,8 @@ def prepare_lab_manifest(
         "max_attempts": plan.max_attempts,
         "human_review_required": plan.require_human_review,
         "application_flags_required_false": plan.require_application_flags_false,
+        "structured_output_channel": "forced_terminal_function_call",
+        "executable_tools_exposed": 0,
         "cases": manifest_cases,
         "artifact_hashes": artifact_hashes,
         "execution_authorized": False,

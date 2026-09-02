@@ -19,6 +19,7 @@ _JSON_FENCE = re.compile(
     r"\A```(?:json)?[ \t]*\r?\n(?P<body>[\s\S]*?)\r?\n```[ \t]*\Z",
     re.IGNORECASE,
 )
+_STRUCTURED_OUTPUT_FUNCTION = "submit_idml_structured_output"
 
 
 class JsonPostTransport(Protocol):
@@ -151,12 +152,38 @@ def _parse_usage(payload: dict[str, Any]) -> ParsedUsage:
     )
 
 
+def _parse_json_object(candidate: str, *, error_prefix: str) -> dict[str, Any]:
+    try:
+        decoded = json.loads(candidate)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"{error_prefix} is not JSON") from exc
+    if not isinstance(decoded, dict):
+        raise RuntimeError(f"{error_prefix} must be a JSON object")
+    return decoded
+
+
 def _parse_output(payload: dict[str, Any]) -> dict[str, Any]:
-    if payload.get("status") not in {None, "completed"}:
-        raise RuntimeError("OpenClaw gateway response did not complete")
     output = payload.get("output")
     if not isinstance(output, list):
         raise RuntimeError("OpenClaw gateway response has no output items")
+    function_calls = [
+        item for item in output if isinstance(item, dict) and item.get("type") == "function_call"
+    ]
+    if function_calls:
+        if len(output) != 1 or len(function_calls) != 1:
+            raise RuntimeError("OpenClaw gateway must return exactly one structured output")
+        call = function_calls[0]
+        if call.get("name") != _STRUCTURED_OUTPUT_FUNCTION:
+            raise RuntimeError("OpenClaw gateway returned an unexpected output function")
+        arguments = call.get("arguments")
+        if not isinstance(arguments, str):
+            raise RuntimeError("OpenClaw gateway function arguments are invalid")
+        if payload.get("status") not in {None, "completed", "incomplete"}:
+            raise RuntimeError("OpenClaw gateway response did not complete")
+        return _parse_json_object(arguments, error_prefix="OpenClaw gateway function arguments")
+
+    if payload.get("status") not in {None, "completed"}:
+        raise RuntimeError("OpenClaw gateway response did not complete")
     texts: list[str] = []
     for item in output:
         if not isinstance(item, dict) or item.get("type") != "message":
@@ -177,13 +204,7 @@ def _parse_output(payload: dict[str, Any]) -> dict[str, Any]:
     fenced = _JSON_FENCE.fullmatch(candidate)
     if fenced is not None:
         candidate = fenced.group("body").strip()
-    try:
-        decoded = json.loads(candidate)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError("OpenClaw gateway output is not JSON") from exc
-    if not isinstance(decoded, dict):
-        raise RuntimeError("OpenClaw gateway output must be a JSON object")
-    return decoded
+    return _parse_json_object(candidate, error_prefix="OpenClaw gateway output")
 
 
 class OpenClawResponsesClient:
@@ -239,17 +260,34 @@ class OpenClawResponsesClient:
         if not agent_id or not session_key:
             raise ValueError("OpenClaw agent and session are required")
         del tool_allowlist
-        schema_text = canonical_bytes(output_schema).decode("utf-8")
         envelope_text = canonical_bytes(input_envelope).decode("utf-8")
         request_payload: dict[str, Any] = {
             "model": f"openclaw/{agent_id}",
             "instructions": (
                 f"{system_prompt}\n\n"
-                "Return exactly one JSON object matching this schema. "
-                "No gateway tools are available or permitted.\n"
-                f"JSON schema: {schema_text}"
+                f"Call `{_STRUCTURED_OUTPUT_FUNCTION}` exactly once with the complete answer. "
+                "Do not emit assistant text before or after the call. This terminal function is "
+                "only a structured output channel: it is never executed and has no side effects. "
+                "No executable gateway tools are available or permitted."
             ),
             "input": envelope_text,
+            "tools": [
+                {
+                    "type": "function",
+                    "name": _STRUCTURED_OUTPUT_FUNCTION,
+                    "description": (
+                        "Submit the complete evidence-bound IDML evaluation output. "
+                        "This function is not executed."
+                    ),
+                    "parameters": output_schema,
+                    "strict": False,
+                }
+            ],
+            "tool_choice": {
+                "type": "function",
+                "name": _STRUCTURED_OUTPUT_FUNCTION,
+            },
+            "max_tool_calls": 1,
             "max_output_tokens": max_output_tokens,
             "user": session_key,
         }

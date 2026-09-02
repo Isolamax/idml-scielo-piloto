@@ -96,7 +96,138 @@ def test_openclaw_client_builds_restricted_request_and_parses_usage() -> None:
     assert transport.call["headers"]["x-openclaw-model"] == "openai/gpt-5.4-mini"
     assert transport.call["payload"]["model"] == "openclaw/idml-evaluator"
     assert transport.call["payload"]["max_output_tokens"] == 200
-    assert "JSON schema" in transport.call["payload"]["instructions"]
+    assert "never executed" in transport.call["payload"]["instructions"]
+    assert transport.call["payload"]["tool_choice"] == {
+        "type": "function",
+        "name": "submit_idml_structured_output",
+    }
+    assert transport.call["payload"]["tools"] == [
+        {
+            "type": "function",
+            "name": "submit_idml_structured_output",
+            "description": (
+                "Submit the complete evidence-bound IDML evaluation output. "
+                "This function is not executed."
+            ),
+            "parameters": {"type": "object"},
+            "strict": False,
+        }
+    ]
+    assert transport.call["payload"]["max_tool_calls"] == 1
+
+
+def test_openclaw_client_uses_forced_function_call_as_structured_output() -> None:
+    response = _gateway_response()
+    response["status"] = "incomplete"
+    response["output"] = [
+        {
+            "type": "function_call",
+            "id": "call_fixture",
+            "call_id": "provider_call_fixture",
+            "name": "submit_idml_structured_output",
+            "arguments": '{"schema_version":"agent-proposal-1.1"}',
+            "status": "completed",
+        }
+    ]
+    client = OpenClawResponsesClient(
+        base_url="https://gateway.example.test",
+        token="t" * 32,
+        expected_model_key="openai/gpt-5.4-mini",
+        transport=_FixtureTransport(response),
+    )
+
+    result = asyncio.run(
+        client.run_agent(
+            agent_id="idml-evaluator",
+            session_key="idml:org:review",
+            system_prompt="Return JSON.",
+            input_envelope={},
+            output_schema={"type": "object"},
+            tool_allowlist=ALLOWED_TOOLS,
+            timeout_seconds=12,
+            max_output_tokens=200,
+        )
+    )
+
+    assert result.payload == {"schema_version": "agent-proposal-1.1"}
+
+
+@pytest.mark.parametrize(
+    "output, message",
+    [
+        (
+            [
+                {
+                    "type": "function_call",
+                    "name": "wrong_function",
+                    "arguments": "{}",
+                }
+            ],
+            "unexpected output function",
+        ),
+        (
+            [
+                {
+                    "type": "function_call",
+                    "name": "submit_idml_structured_output",
+                    "arguments": "not json",
+                }
+            ],
+            "function arguments is not JSON",
+        ),
+        (
+            [
+                {
+                    "type": "function_call",
+                    "name": "submit_idml_structured_output",
+                    "arguments": "[]",
+                }
+            ],
+            "function arguments must be a JSON object",
+        ),
+        (
+            [
+                {
+                    "type": "message",
+                    "content": [{"type": "output_text", "text": "commentary"}],
+                },
+                {
+                    "type": "function_call",
+                    "name": "submit_idml_structured_output",
+                    "arguments": "{}",
+                },
+            ],
+            "exactly one structured output",
+        ),
+    ],
+)
+def test_openclaw_client_rejects_invalid_structured_output(
+    output: list[dict[str, Any]],
+    message: str,
+) -> None:
+    response = _gateway_response()
+    response["status"] = "incomplete"
+    response["output"] = output
+    client = OpenClawResponsesClient(
+        base_url="https://gateway.example.test",
+        token="t" * 32,
+        expected_model_key="openai/gpt-5.4-mini",
+        transport=_FixtureTransport(response),
+    )
+
+    with pytest.raises(RuntimeError, match=message):
+        asyncio.run(
+            client.run_agent(
+                agent_id="idml-evaluator",
+                session_key="idml:org:review",
+                system_prompt="Return JSON.",
+                input_envelope={},
+                output_schema={"type": "object"},
+                tool_allowlist=ALLOWED_TOOLS,
+                timeout_seconds=12,
+                max_output_tokens=200,
+            )
+        )
 
 
 def test_openclaw_client_accepts_only_an_exact_json_markdown_fence() -> None:
