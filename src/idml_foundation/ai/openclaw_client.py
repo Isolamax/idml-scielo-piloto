@@ -207,6 +207,56 @@ def _parse_output(payload: dict[str, Any]) -> dict[str, Any]:
     return _parse_json_object(candidate, error_prefix="OpenClaw gateway output")
 
 
+def _coarse_tool_property(schema: dict[str, Any]) -> dict[str, Any]:
+    """Reduce a validation schema to the provider's conservative function-schema subset."""
+    schema_type = schema.get("type")
+    if schema_type in {"string", "number", "integer", "boolean", "null"}:
+        reduced: dict[str, Any] = {"type": schema_type}
+        if isinstance(schema.get("enum"), list) and schema["enum"]:
+            reduced["enum"] = schema["enum"]
+        elif "const" in schema:
+            reduced["enum"] = [schema["const"]]
+        return reduced
+    if schema_type == "array":
+        items = schema.get("items")
+        if isinstance(items, dict) and items.get("type") in {
+            "string",
+            "number",
+            "integer",
+            "boolean",
+        }:
+            return {"type": "array", "items": _coarse_tool_property(items)}
+        return {
+            "type": "array",
+            "items": {"type": "object", "additionalProperties": True},
+        }
+    if schema_type == "object":
+        return {"type": "object", "additionalProperties": True}
+    return {}
+
+
+def _tool_parameters(output_schema: dict[str, Any]) -> dict[str, Any]:
+    properties = output_schema.get("properties", {})
+    required = output_schema.get("required", [])
+    if (
+        output_schema.get("type") != "object"
+        or not isinstance(properties, dict)
+        or not isinstance(required, list)
+        or any(not isinstance(name, str) or name not in properties for name in required)
+    ):
+        raise ValueError("structured output schema must be a closed root object")
+    return {
+        "type": "object",
+        "properties": {
+            str(name): _coarse_tool_property(schema)
+            for name, schema in properties.items()
+            if isinstance(schema, dict)
+        },
+        "required": required,
+        "additionalProperties": False,
+    }
+
+
 class OpenClawResponsesClient:
     """Restricted OpenResponses client. It never follows redirects or exposes secrets in errors."""
 
@@ -260,6 +310,7 @@ class OpenClawResponsesClient:
         if not agent_id or not session_key:
             raise ValueError("OpenClaw agent and session are required")
         del tool_allowlist
+        schema_text = canonical_bytes(output_schema).decode("utf-8")
         envelope_text = canonical_bytes(input_envelope).decode("utf-8")
         request_payload: dict[str, Any] = {
             "model": f"openclaw/{agent_id}",
@@ -268,7 +319,9 @@ class OpenClawResponsesClient:
                 f"Call `{_STRUCTURED_OUTPUT_FUNCTION}` exactly once with the complete answer. "
                 "Do not emit assistant text before or after the call. This terminal function is "
                 "only a structured output channel: it is never executed and has no side effects. "
-                "No executable gateway tools are available or permitted."
+                "No executable gateway tools are available or permitted. The function arguments "
+                "must also match this authoritative schema, which the backend revalidates: "
+                f"{schema_text}"
             ),
             "input": envelope_text,
             "tools": [
@@ -279,7 +332,7 @@ class OpenClawResponsesClient:
                         "Submit the complete evidence-bound IDML evaluation output. "
                         "This function is not executed."
                     ),
-                    "parameters": output_schema,
+                    "parameters": _tool_parameters(output_schema),
                     "strict": False,
                 }
             ],

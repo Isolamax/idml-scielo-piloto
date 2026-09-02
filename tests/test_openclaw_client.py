@@ -109,11 +109,77 @@ def test_openclaw_client_builds_restricted_request_and_parses_usage() -> None:
                 "Submit the complete evidence-bound IDML evaluation output. "
                 "This function is not executed."
             ),
-            "parameters": {"type": "object"},
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": False,
+            },
             "strict": False,
         }
     ]
     assert transport.call["payload"]["max_tool_calls"] == 1
+
+
+def test_openclaw_client_sends_only_a_coarse_provider_schema() -> None:
+    transport = _FixtureTransport(_gateway_response())
+    client = OpenClawResponsesClient(
+        base_url="https://gateway.example.test",
+        token="t" * 32,
+        expected_model_key="openai/gpt-5.4-mini",
+        transport=transport,
+    )
+    schema = {
+        "$defs": {"Nested": {"type": "object"}},
+        "$id": "https://example.test/full-schema.json",
+        "type": "object",
+        "properties": {
+            "kind": {"const": "proposal", "type": "string", "title": "Kind"},
+            "rows": {
+                "type": "array",
+                "items": {"$ref": "#/$defs/Nested"},
+                "uniqueItems": True,
+            },
+            "score": {"type": "number", "minimum": 0, "maximum": 1},
+        },
+        "required": ["kind", "rows", "score"],
+        "additionalProperties": False,
+    }
+
+    asyncio.run(
+        client.run_agent(
+            agent_id="idml-evaluator",
+            session_key="idml:org:review",
+            system_prompt="Return JSON.",
+            input_envelope={},
+            output_schema=schema,
+            tool_allowlist=ALLOWED_TOOLS,
+            timeout_seconds=12,
+            max_output_tokens=200,
+        )
+    )
+
+    assert transport.call is not None
+    parameters = transport.call["payload"]["tools"][0]["parameters"]
+    assert parameters == {
+        "type": "object",
+        "properties": {
+            "kind": {"type": "string", "enum": ["proposal"]},
+            "rows": {
+                "type": "array",
+                "items": {"type": "object", "additionalProperties": True},
+            },
+            "score": {"type": "number"},
+        },
+        "required": ["kind", "rows", "score"],
+        "additionalProperties": False,
+    }
+    serialized_parameters = json.dumps(parameters)
+    assert "$ref" not in serialized_parameters
+    assert "$defs" not in serialized_parameters
+    assert "uniqueItems" not in serialized_parameters
+    assert "minimum" not in serialized_parameters
+    assert "https://example.test/full-schema.json" in transport.call["payload"]["instructions"]
 
 
 def test_openclaw_client_uses_forced_function_call_as_structured_output() -> None:
