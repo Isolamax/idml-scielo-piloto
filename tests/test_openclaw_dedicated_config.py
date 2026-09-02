@@ -75,7 +75,7 @@ def test_openai_provider_is_pinned_and_forced_through_the_proxy() -> None:
                 "cacheWrite": 0,
             },
             "contextWindow": 400000,
-            "contextTokens": 12000,
+            "contextTokens": 32000,
             "maxTokens": 4000,
         }
     ]
