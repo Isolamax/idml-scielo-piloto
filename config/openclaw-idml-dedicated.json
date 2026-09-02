@@ -37,7 +37,7 @@
             },
             "contextWindow": 400000,
             "contextTokens": 12000,
-            "maxTokens": 2000
+            "maxTokens": 4000
           }
         ]
       }

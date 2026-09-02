@@ -114,7 +114,7 @@ class LabRoleConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     role: LabRole
-    max_output_tokens: int = Field(ge=200, le=2_000)
+    max_output_tokens: int = Field(ge=200, le=4_000)
 
 
 class MultiAgentLabPlan(BaseModel):

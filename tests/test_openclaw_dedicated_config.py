@@ -76,7 +76,7 @@ def test_openai_provider_is_pinned_and_forced_through_the_proxy() -> None:
             },
             "contextWindow": 400000,
             "contextTokens": 12000,
-            "maxTokens": 2000,
+            "maxTokens": 4000,
         }
     ]
 
