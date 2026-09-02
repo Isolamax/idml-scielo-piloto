@@ -173,3 +173,9 @@ trecho aparece no relatório público. O histórico de 8/10 permanece em
 `benchmarks/agents/reports/grounding-corpus-v1-report.json`; o resultado atual está em
 `benchmarks/agents/reports/grounding-corpus-v2-report.json`. Isso resolve a completude evidencial,
 mas não a saída JSON real nem a ausência de casos reais de estrutura e matemática.
+
+Em 2026-09-02, a preparação v3 foi reproduzida na VPS: manifesto
+`88565dc4c86a96ee2c3dd54c24e02581a5d994de7d790b197876a6785b9d8233`, dez casos, 40 chamadas
+somente estimadas e teto de 585.000 micro-USD. A regressão isolada com `--network none` repetiu
+30/30 casos e 84 papéis simulados, com zero provider e custo. Não houve execução do laboratório:
+`agent_runs` e `agent_proposals` permaneceram em zero, e proxy/redes transitórias ficaram ausentes.

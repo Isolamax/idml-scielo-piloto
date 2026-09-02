@@ -434,5 +434,10 @@ rejeita alteração, reordenação, omissão, mistura de formatos ou estouro ant
 O corpus privado ESA v1.4 contém dez casos e 12 segmentos. Os dois casos longos de referências agora
 têm sustentação integral; o resultado passou de 8/10 para 10/10 sem inferência, provider ou custo. O
 relatório sanitizado é `benchmarks/agents/reports/grounding-corpus-v2-report.json`. A janela v3 foi
-preparada para validar esse contrato no OpenClaw, mas não foi executada nesta etapa. O G6-T continua
-pendente por confiabilidade do JSON real e casos reais autorizados de estrutura e matemática.
+preparada localmente e reproduzida na VPS, mas não foi executada nesta etapa. A imagem
+`idml-foundation:phase6-segmented-v1` (`sha256:b684a1d7fdb88b01c405f46899064191e35bb929447f00fa77583259cd4fbcc2`)
+ficou saudável; o backup `/opt/idml-platform/backups/20260901T210237Z` passou no restore e o source
+anterior ficou em `/opt/idml-platform/backups/source-phase6-pre-segmented-v1.tar.gz`. API, worker e
+os dois OpenClaw ficaram healthy com restart zero, flags falsas, zero runs/propostas e sem redes do
+provider. O G6-T continua pendente por confiabilidade do JSON real e casos reais autorizados de
+estrutura e matemática.

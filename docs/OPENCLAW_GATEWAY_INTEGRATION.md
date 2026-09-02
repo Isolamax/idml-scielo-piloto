@@ -82,6 +82,11 @@ O rollback é `idml-foundation:phase6-pre-gateway`, ID
 `/opt/idml-platform/backups/source-phase6-pre-gateway-20260827T204747Z.tar.gz`. OpenClaw e Mapalead
 continuaram healthy, a interface respondeu HTTP 200 e o volume raiz permaneceu em 79%.
 
+O incremento de evidência segmentada posterior atualizou o registro ativo para
+`agent-config-1.3` e prompts 1.3, mantendo modelo, tarifa e flags. Em 2026-09-02, API e worker foram
+implantados na imagem `idml-foundation:phase6-segmented-v1`; os gateways dedicado e compartilhado
+não foram recriados e permaneceram healthy com restart zero.
+
 ## Evidência da instância dedicada
 
 O Compose e o schema da imagem foram validados antes do deploy. Na VPS, `openclaw-idml`, API,
