@@ -338,8 +338,10 @@ def _atomic_output_contract(case: dict[str, Any]) -> dict[str, Any]:
 
 def _uses_trusted_evidence_materialization(case: dict[str, Any]) -> bool:
     atomic = case.get("atomic_rich_text")
+    segments = case["evidence"].get("segments")
     return (
-        "segments" in case["evidence"]
+        isinstance(segments, list)
+        and len(segments) > 1
         and isinstance(atomic, dict)
         and not atomic.get("current_inlines")
     )
