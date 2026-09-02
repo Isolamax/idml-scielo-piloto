@@ -76,8 +76,8 @@ _EVIDENCE_INTENT_POLICY = (
     "paths, evidence metadata, segment hashes, and aggregate hash."
 )
 _CRITIC_PROMPTS: dict[CriticRole, str] = {
-    "xml_critic": "xml_critic-1.0.md",
-    "editorial_critic": "editorial_critic-1.0.md",
+    "xml_critic": "xml_critic-1.1.md",
+    "editorial_critic": "editorial_critic-1.1.md",
 }
 _ADJUDICATOR_PROMPT = "adjudicator-1.0.md"
 _CONTRACT_RUNTIME_ERRORS = {
@@ -735,12 +735,23 @@ def _critique_envelope(
 ) -> dict[str, Any]:
     return untrusted_envelope(
         {
-            "contract_version": "multi-agent-critique-input-1.0",
+            "contract_version": "multi-agent-critique-input-1.1",
             "requested_role": role,
             "case": _case_content(case),
             "proposal": raw_proposal,
             "proposal_sha256": assessment.proposal_sha256,
             "deterministic_checks": assessment.checks,
+            "proposal_provenance": {
+                "value_origin": (
+                    "trusted_segmented_evidence"
+                    if _uses_trusted_evidence_materialization(case)
+                    else "provider_literal"
+                ),
+                "backend_materialized": _uses_trusted_evidence_materialization(case),
+                "atomic_plain_and_inlines_are_parallel_representations": bool(
+                    case.get("atomic_rich_text")
+                ),
+            },
         }
     )
 
@@ -754,7 +765,7 @@ def _adjudication_envelope(
 ) -> dict[str, Any]:
     return untrusted_envelope(
         {
-            "contract_version": "multi-agent-adjudication-input-1.0",
+            "contract_version": "multi-agent-adjudication-input-1.1",
             "case": _case_content(case),
             "proposal": raw_proposal,
             "proposal_sha256": assessment.proposal_sha256,
@@ -763,6 +774,17 @@ def _adjudication_envelope(
             "editorial_critique": editorial_raw,
             "editorial_critique_sha256": payload_digest(editorial_raw),
             "deterministic_checks": assessment.checks,
+            "proposal_provenance": {
+                "value_origin": (
+                    "trusted_segmented_evidence"
+                    if _uses_trusted_evidence_materialization(case)
+                    else "provider_literal"
+                ),
+                "backend_materialized": _uses_trusted_evidence_materialization(case),
+                "atomic_plain_and_inlines_are_parallel_representations": bool(
+                    case.get("atomic_rich_text")
+                ),
+            },
         }
     )
 

@@ -435,6 +435,21 @@ def test_segmented_reference_intent_is_materialized_before_all_critics(
         if operation["path"] == reference_case["field_path"]
     )
     assert plain == complete
+    reference_critic_calls = [
+        call
+        for call in client.calls
+        if "esa-references-001" in call["session_key"]
+        and call["session_key"].endswith(("xml_critic", "editorial_critic"))
+    ]
+    assert len(reference_critic_calls) == 2
+    for call in reference_critic_calls:
+        content = call["input_envelope"]["content"]
+        assert content["contract_version"] == "multi-agent-critique-input-1.1"
+        assert content["proposal_provenance"] == {
+            "value_origin": "trusted_segmented_evidence",
+            "backend_materialized": True,
+            "atomic_plain_and_inlines_are_parallel_representations": True,
+        }
 
 
 def test_materialization_rejects_inexact_evidence_reference() -> None:
