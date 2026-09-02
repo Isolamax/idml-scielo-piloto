@@ -56,6 +56,13 @@ strong, subscrito, sobrescrito, links, xrefs, fórmula inline e named-content. A
 concatenação dos nós precisa reproduzir exatamente o valor textual; divergência
 é inválida.
 
+Fórmulas ancoradas como PDFs externos no IDML são preservadas como `FormulaBlock`
+com `representation=image`, vínculo ao asset e revisão obrigatória. O builder as
+emite como `disp-formula/graphic`; não converte o nome do arquivo ou OCR textual
+em MathML. A transição futura para MathML deve alterar representação e conteúdo
+de forma atômica, validar o fragmento e conservar a proveniência do asset. O
+mapeamento de fórmulas inline ainda é uma lacuna explícita.
+
 ## Ausência e ambiguidade
 
 Campos usam estados explícitos:

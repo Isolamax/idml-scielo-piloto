@@ -21,8 +21,8 @@ docs/XML_VALIDATION_MASTER_PLAN.md
 ## 2. Estado geral
 
 ```text
-PROJECT_STATUS: PHASE_6_MULTI_AGENT_VALIDATION_IN_PROGRESS
-CURRENT_PHASE: FASE 6 — próxima ação: obter corpus real autorizado de estrutura/matemática
+PROJECT_STATUS: PHASE_6_MATHML_TRANSITION_IN_PROGRESS
+CURRENT_PHASE: FASE 6 — próxima ação: implementar transição atômica para MathML e fórmulas inline
 CURRENT_IMPLEMENTATION_AUTHORIZED: PHASE_6
 DEVELOPMENT_ROADMAP_AUTHORIZED: THROUGH_PHASE_8_PRODUCTION_READINESS
 PRODUCTION_ACTIVATION_AUTHORIZED: NO — REQUIRES XML_EXPERT_FINAL_ACCEPTANCE
@@ -121,7 +121,7 @@ Antes de qualquer implantação futura na VPS:
 | 3 | Pipeline determinístico mínimo | IDML → modelo → XML válido sem IA | Concluída — Gate G3 aprovado |
 | 4 | Validação, fidelidade e pacote | Pacote validado e política de release | Implementada — Gate G4 bloqueado por validadores externos/crossrefs |
 | 5 | Revisão humana e interface mínima | Correção humana auditável | Concluída — Gate G5 aprovado |
-| 6 | IA assistiva e OpenClaw | Assistência semântica controlada | Contratos e casos reais disponíveis validados — G6-T pendente por estrutura/matemática |
+| 6 | IA assistiva e OpenClaw | Assistência semântica controlada | Casos reais dos seis domínios qualificados — G6-T pendente pela aplicação MathML/inline |
 | 7 | Homologação automatizada e piloto simulado | Sistema completo validado antes da revisão humana | Não iniciada — roadmap aprovado, início ainda sujeito ao G6-T |
 | 8 | Prontidão, homologação humana e produção | RC operacional, aceite do especialista e rollout | Não iniciada — ativação real bloqueada pelo G8-H |
 | 9 | Expansão controlada | Novos periódicos e casos complexos | Não iniciada |
@@ -640,7 +640,7 @@ preparando a comparação editorial humana para a RC final.
 - [x] Implementar papéis separados de proponente, crítico XML, crítico editorial e adjudicador.
 - [x] Impedir compartilhamento de raciocínio privado entre sessões e registrar somente saídas estruturadas.
 - [x] Executar os dez casos reais disponíveis do corpus ESA, em quatro domínios, com custo, tokens e latência contabilizados.
-- [ ] Obter casos reais autorizados para os domínios de estrutura e matemática, ausentes no corpus atual.
+- [x] Obter e qualificar casos autorizados derivados do artigo real para estrutura e matemática; a estrutura usa omissão controlada e o caso matemático permanece não aplicável até a transição MathML.
 - [x] Criar matriz sintética com casos positivos, negativos, ambíguos, de abstenção e de prompt injection nos seis domínios.
 - [x] Comparar propostas da primeira janela com fonte, regras determinísticas e alvos automáticos ocultos dos agentes.
 - [x] Medir falso consenso na primeira janela e impedir que concordância substitua evidência.
@@ -650,12 +650,12 @@ preparando a comparação editorial humana para a RC final.
 - [x] Tornar a saída estruturada real confiável nos quatro papéis com function call terminal, schema revalidado e zero ferramenta executável.
 - [x] Materializar referências longas multissegmento por intent autenticado e validar fidelidade exata nos quatro papéis.
 - [x] Alinhar críticos ao contrato atômico sem reduzir a precedência das oito verificações determinísticas.
-- [ ] Ampliar o relatório quando houver evidência real autorizada de estrutura e matemática.
+- [x] Ampliar o relatório sanitizado com estrutura e matemática reais, sem texto do artigo e sem promover o caso matemático a aplicação.
 
 ## Gate técnico de saída G6-T
 
 - [x] Desativar Swarm não interrompe o pipeline principal.
-- [ ] Todos os domínios passam nos contratos e nas métricas técnicas predefinidas.
+- [~] Os seis domínios passam no laboratório; matemática ainda requer contrato de aplicação atômica para MathML e fórmulas inline.
 - [x] Nenhuma proposta sem evidência, com invenção lexical ou falso consenso crítico é aceita pelo juiz determinístico.
 - [x] Nenhum patch é aplicado sem schema, evidência e validação.
 - [x] Prompt injection não altera ferramentas ou políticas.
@@ -983,3 +983,4 @@ ADRs iniciais esperados:
 | 2026-09-02 | Evidência segmentada v1.4 implementada e implantada sem truncamento: 10/10 alvos ESA sustentados, 12 segmentos autenticados, duas referências longas remontadas integralmente; formato legado preservado, janela OpenClaw v3 preparada localmente/VPS sem provider; G6-T segue pendente por JSON real e corpus real de estrutura/matemática | Codex |
 | 2026-09-02 | Saída estruturada OpenClaw validada por function call terminal: quatro papéis reais concluídos no caso de metadados, referência de 734 caracteres rejeitada fail-closed por prefixo incompleto, contexto dedicado ampliado para 32 mil, custo acumulado conservador de 627.552 micro-USD e cleanup integral; G6-T segue pendente por fidelidade longa e corpus real de estrutura/matemática | Codex |
 | 2026-09-02 | Referência real de 734 caracteres validada por intent autenticado e materialização atômica: fidelidade/Jaccard 1,0, oito checks, dois críticos e adjudicador aprovados; 148 testes com cobertura 84,86%, custo acumulado 685.949 micro-USD e cleanup integral; G6-T segue pendente apenas pelo corpus real autorizado de estrutura/matemática | Codex |
+| 2026-09-02 | Estrutura hierárquica e 15 fórmulas PDF do artigo autorizado preservadas deterministicamente; V9 validou casos reais derivados de estrutura/matemática nos quatro papéis por 44.523 micro-USD, 153 testes atingiram 85,02% e o cleanup integral passou; G6-T segue pendente pela transição atômica para MathML e pelo mapeamento inline | Codex |

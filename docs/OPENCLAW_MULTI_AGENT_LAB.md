@@ -90,6 +90,18 @@ paralelas de `RichText` como duplicação ou normalização divergente. A v8 pas
 proveniência da materialização e explicita que os checks determinísticos do backend são
 autoritativos; ela não relaxa nenhum check nem altera o conteúdo.
 
+## Janela v9 — estrutura e matemática do artigo autorizado
+
+A v9 usa o dataset privado `idml-agent-real-domain-eval-1.0`. O caso de estrutura aplica uma omissão
+controlada a um título real de subseção, sem inventar um cenário editorial. O caso de matemática
+registra a lacuna observada entre um recorte PDF ancorado no IDML e a fórmula aprovada. Esse segundo
+caso é exclusivamente avaliativo e carrega `application_ready=false`: aceitar a transcrição no
+laboratório não autoriza gravá-la no Canonical Model nem tratá-la como MathML nativo.
+
+São dois casos, quatro papéis por caso, tentativa única e teto de 117.000 micro-USD. O manifesto,
+dataset e relatório bruto permanecem privados em modo 600; somente métricas sanitizadas podem ser
+versionadas.
+
 ## Operação na VPS
 
 Preparar e validar o manifesto, sem inferência:
@@ -141,6 +153,15 @@ cd /opt/idml-platform
 ./ops/openclaw-multi-agent-lab.sh prepare multi-agent-evidence-intent-critics-v2 v8
 IDML_CONFIRM_AGENT_EXECUTION=RUN_IDML_OPENCLAW_MULTI_AGENT_LAB_V8 \
   ./ops/openclaw-multi-agent-lab.sh execute multi-agent-evidence-intent-critics-v2 v8
+```
+
+A qualificação controlada de estrutura e matemática usa a janela v9:
+
+```sh
+cd /opt/idml-platform
+./ops/openclaw-multi-agent-lab.sh prepare multi-agent-real-domains-v1 v9
+IDML_CONFIRM_AGENT_EXECUTION=RUN_IDML_OPENCLAW_MULTI_AGENT_LAB_V9 \
+  ./ops/openclaw-multi-agent-lab.sh execute multi-agent-real-domains-v1 v9
 ```
 
 O script verifica zero `agent_runs`/`agent_proposals`, faz backup e restore test, ativa o provider
@@ -267,3 +288,21 @@ O relatório público sanitizado é
 zero runs/propostas/sessões, ausência de chave, proxy e redes transitórias, HTTP 200 e os dois
 OpenClaw saudáveis com zero reinicializações. A fidelidade de referências longas deixa de bloquear o
 G6-T; continuam faltando casos reais autorizados de estrutura e matemática.
+
+## Evidência real de estrutura e matemática v1
+
+Em 2026-09-02, `multi-agent-real-domains-v1` concluiu os dois casos V9 e as oito chamadas por 44.523
+micro-USD. Ambos os candidatos coincidiram exatamente com a evidência autorizada; os 16 checks
+determinísticos passaram, os dois críticos de cada caso deram `pass` e os adjudicadores aceitaram
+unanimemente somente para futura revisão humana. A taxa de falso consenso foi zero e nenhuma
+ferramenta ou Skill foi exposta.
+
+O custo observado acumulado do artigo ficou em 730.472 micro-USD. O relatório sanitizado está em
+`benchmarks/agents/reports/real-domain-validation-v1.json`. O pós-teste confirmou flags falsas, zero
+runs/propostas, ausência de chave, proxy e redes transitórias, HTTP 200 e serviços healthy; o
+OpenClaw compartilhado não foi recriado. A cobertura local passou a 153 testes e 85,02%.
+
+Essa evidência encerra a ausência de casos autorizados nos seis domínios, mas não aprova o G6-T. A
+estrutura é uma mutação controlada de campo real. A matemática comprova comparação/transcrição
+assistida, porém continua não aplicável até existir contrato atômico para converter fórmula-imagem
+em MathML e mapeamento das fórmulas inline.

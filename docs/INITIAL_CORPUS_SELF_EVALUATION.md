@@ -141,19 +141,37 @@ elegíveis; o primeiro protocolo controlado selecionou apenas um caso de metadad
 referências para respeitar o teto agregado por artigo. O manifesto foi reproduzido localmente e na
 VPS sem subir provider ou executar agente. Detalhes em `docs/OPENCLAW_CONTROLLED_BENCHMARK.md`.
 
+## Qualificação posterior de estrutura e matemática
+
+O artigo ESA autorizado contém 15 fórmulas display no XML aprovado, 15 objetos de fórmula ancorados
+como PDFs no IDML e duas fórmulas inline apenas no XML aprovado. A correção determinística passou a
+preservar as 15 fórmulas-imagem e as sete subseções de nível 2; a correspondência display ficou
+15/15 e o XML gerado permaneceu válido. Isso resolve perda de conteúdo, mas ainda não reconstrói
+MathML nem recupera as fórmulas inline.
+
+O laboratório V9 avaliou uma omissão controlada de estrutura e uma lacuna real de transcrição
+matemática. Os dois casos foram exatos e aceitos somente para revisão humana futura. O caso
+matemático permanece explicitamente não aplicável. Métricas sem conteúdo do artigo estão em
+`benchmarks/agents/reports/real-domain-validation-v1.json`.
+
 ## Decisão e próximos incrementos
 
 Os resultados mantêm `IDML_FEATURE_OPENCLAW=false` e `IDML_FEATURE_AI_SWARM=false`. G6 permanece
 bloqueado e a Fase 7 não deve começar. Ordem recomendada de desenvolvimento:
 
-1. adjudicar com revisores as seis divergências bibliográficas quando houver disponibilidade;
-2. [concluído] definir patch atômico para `RichText`, preservando `plain` e `inlines` juntos;
-3. [concluído] reforçar structured output/evidence binding e substituir truncamento por evidência
+1. [concluído] qualificar casos autorizados de estrutura e matemática, preservando hierarquia e
+   fórmulas-imagem sem promover a transcrição a aplicação;
+2. implementar uma transição atômica e validada de fórmula-imagem para MathML e mapear fórmulas
+   inline;
+3. [concluído] definir patch atômico para `RichText`, preservando `plain` e `inlines` juntos;
+4. [concluído] reforçar structured output/evidence binding e substituir truncamento por evidência
    segmentada completa, com hash individual e agregado; o corpus v1.4 passou 10/10 alvos offline;
-4. [concluído] observar/bloquear custo por tarifa oficial exata, cache, preflight e teto agregado;
+5. [concluído] observar/bloquear custo por tarifa oficial exata, cache, preflight e teto agregado;
    manter agentes desligados até existir gateway dedicado/restrito;
-5. criar profile/style mapping RBEdu somente quando a expansão de template for autorizada;
-6. repetir o benchmark com corpus maior e baseline humano assim que revisores estiverem disponíveis.
+6. reexecutar as regressões dos seis domínios e decidir o G6-T após o contrato MathML;
+7. criar profile/style mapping RBEdu somente quando a expansão de template for autorizada;
+8. reservar a adjudicação das seis divergências bibliográficas e o baseline humano para quando os
+   revisores estiverem disponíveis, conforme a estratégia de homologação final.
 
 O resolvedor bibliográfico determinístico e a correção da associação das células de tabela foram
 concluídos sem IA e sem dependência do XML aprovado em runtime. O gold é carregado somente pelo

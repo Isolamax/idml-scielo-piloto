@@ -492,3 +492,33 @@ A correção final está na imagem `idml-foundation:phase6-evidence-intent-v3`
 ficaram healthy com zero reinicializações. O rollback de código é
 `/opt/idml-platform/backups/source-phase6-pre-evidence-intent-v3.tar.gz`; a cópia protegida do `.env`
 permanece em modo 600. O hash do pacote implantado foi conferido entre a estação e a VPS.
+
+## Qualificação real de estrutura e matemática
+
+Em 2026-09-02, o artigo ESA autorizado já disponível foi reavaliado em conjunto com IDML, XML
+aprovado e PDF diagramado. O mapper passou a preservar a hierarquia: sete títulos de nível 2 agora
+ficam aninhados nas respectivas seções de nível 1. As 15 equações ancoradas no IDML, armazenadas
+como recortes de PDFs externos, deixaram de ser descartadas e são emitidas como `disp-formula` com
+`graphic`, evidência e motivo explícito de revisão. O JATS resultante permaneceu válido offline.
+
+O dataset privado `idml-agent-real-domain-eval-1.0` contém dois casos sem publicação do texto do
+artigo: uma omissão controlada em título real aninhado e uma lacuna observada entre fórmula PDF e a
+representação aprovada. A janela V9 executou oito chamadas nos quatro papéis. Os dois candidatos
+foram exatos, os 16 checks determinísticos passaram, os quatro pareceres críticos deram `pass` e os
+dois adjudicadores aceitaram unanimemente apenas para futura revisão humana. Não houve falso
+consenso, ferramenta ou Skill exposta. O custo foi 44.523 micro-USD e o acumulado observado passou a
+730.472 micro-USD, abaixo do limite de US$ 1 por artigo.
+
+Backup e restore passaram antes da execução. Depois do kill switch, flags ficaram falsas, banco
+permaneceu com zero runs/propostas, chave, proxy e redes transitórias ficaram ausentes, os serviços
+ficaram healthy e `/health/ready` retornou 200. O OpenClaw compartilhado preservou o mesmo container
+e zero reinicializações. O relatório sanitizado é
+`benchmarks/agents/reports/real-domain-validation-v1.json` e a imagem implantada é
+`idml-foundation:phase6-real-domains-v1`
+(`sha256:7551703c5db76b12dccf8aff23b36eb53577b33a7565304a0b937f864c724553`).
+
+O G6-T permanece pendente. A correspondência 15/15 comprova preservação e qualifica o ensaio, mas
+não constitui transcrição MathML nativa: o caso matemático está marcado `application_ready=false`.
+Também existem duas fórmulas inline no XML aprovado sem mapeamento correspondente. O próximo
+incremento deve implementar uma transição atômica e validada de fórmula-imagem para MathML, além do
+mapeamento inline, antes de reavaliar o gate.
