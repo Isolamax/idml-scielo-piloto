@@ -1,7 +1,9 @@
 # Schemas de saída dos agentes — Fase 6
 
-Versão ativa do contrato: `agent-proposal-1.1`. A versão 1.0 permanece somente como artefato
-histórico e não é aceita em novas execuções assistivas.
+Versão canônica do contrato: `agent-proposal-1.1`. A versão 1.0 permanece somente como artefato
+histórico e não é aceita em novas execuções assistivas. O laboratório também admite o contrato de
+transporte restrito `agent-proposal-intent-1.0`, sempre convertido e revalidado pelo backend para a
+versão canônica antes dos críticos.
 
 Há um schema fechado comum e uma especialização por domínio em `schemas/agents/`. Em runtime, o
 backend gera o schema inline a partir do mesmo modelo Pydantic e fixa `domain` no valor da tarefa.
@@ -49,6 +51,20 @@ Para `RichText`, `plain.value` e `inlines` formam um único valor semântico. Se
 simples e a outra substitui o array completo de inlines. A concatenação de `inline.text` deve ser
 exatamente igual a `plain.value`; não é permitido alterar somente um inline individual.
 As duas operações do mesmo `RichText` também devem citar a mesma lista de evidências.
+
+## Intent de evidência para RichText longo
+
+Quando uma evidência possui mais de um segmento autenticado, o alvo é `RichText` atômico e
+`current_inlines` está vazio, o proponente não precisa recopiar o texto longo. Ele retorna
+`agent-proposal-intent-1.0`, com uma operação por path e `value_source` fixado em
+`authorized_evidence` mais o `evidence_id` já declarado. Valor literal não existe nesse schema.
+
+O backend exige exatamente a referência de evidência entregue ao agente, incluindo locator, hashes,
+ordem e hash agregado; confere domínio, paths, revisão humana e ausência de override de política;
+remonta os segmentos e materializa de forma sincronizada `/plain/value` e `/inlines`. Os hashes da
+saída do provider e da proposta materializada são registrados separadamente. Evidência de um único
+segmento, inline preexistente ou template com mais de um inline permanece no contrato literal
+`agent-proposal-1.1`, evitando reconstrução automática de formatação editorial.
 
 ## Rejeição
 

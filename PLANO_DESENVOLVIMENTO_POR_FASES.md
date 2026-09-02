@@ -22,7 +22,7 @@ docs/XML_VALIDATION_MASTER_PLAN.md
 
 ```text
 PROJECT_STATUS: PHASE_6_MULTI_AGENT_VALIDATION_IN_PROGRESS
-CURRENT_PHASE: FASE 6 — próxima ação: corrigir fidelidade de referências longas e obter corpus real de estrutura/matemática
+CURRENT_PHASE: FASE 6 — próxima ação: obter corpus real autorizado de estrutura/matemática
 CURRENT_IMPLEMENTATION_AUTHORIZED: PHASE_6
 DEVELOPMENT_ROADMAP_AUTHORIZED: THROUGH_PHASE_8_PRODUCTION_READINESS
 PRODUCTION_ACTIVATION_AUTHORIZED: NO — REQUIRES XML_EXPERT_FINAL_ACCEPTANCE
@@ -121,7 +121,7 @@ Antes de qualquer implantação futura na VPS:
 | 3 | Pipeline determinístico mínimo | IDML → modelo → XML válido sem IA | Concluída — Gate G3 aprovado |
 | 4 | Validação, fidelidade e pacote | Pacote validado e política de release | Implementada — Gate G4 bloqueado por validadores externos/crossrefs |
 | 5 | Revisão humana e interface mínima | Correção humana auditável | Concluída — Gate G5 aprovado |
-| 6 | IA assistiva e OpenClaw | Assistência semântica controlada | Primeira janela concluída; validação multiagente planejada — G6-T pendente |
+| 6 | IA assistiva e OpenClaw | Assistência semântica controlada | Contratos e casos reais disponíveis validados — G6-T pendente por estrutura/matemática |
 | 7 | Homologação automatizada e piloto simulado | Sistema completo validado antes da revisão humana | Não iniciada — roadmap aprovado, início ainda sujeito ao G6-T |
 | 8 | Prontidão, homologação humana e produção | RC operacional, aceite do especialista e rollout | Não iniciada — ativação real bloqueada pelo G8-H |
 | 9 | Expansão controlada | Novos periódicos e casos complexos | Não iniciada |
@@ -648,6 +648,8 @@ preparando a comparação editorial humana para a RC final.
 - [x] Produzir relatório sanitizado para os quatro domínios reais disponíveis, sem promover o resultado a baseline humano.
 - [x] Substituir evidência truncada por transporte segmentado, completo, limitado e autenticado por hash individual e agregado.
 - [x] Tornar a saída estruturada real confiável nos quatro papéis com function call terminal, schema revalidado e zero ferramenta executável.
+- [x] Materializar referências longas multissegmento por intent autenticado e validar fidelidade exata nos quatro papéis.
+- [x] Alinhar críticos ao contrato atômico sem reduzir a precedência das oito verificações determinísticas.
 - [ ] Ampliar o relatório quando houver evidência real autorizada de estrutura e matemática.
 
 ## Gate técnico de saída G6-T
@@ -980,3 +982,4 @@ ADRs iniciais esperados:
 | 2026-09-01 | Grounding `normalized_exact` adicionado ao juiz: invenção é rejeitada mesmo com ID/locator/hash válidos; oito de dez alvos ESA têm suporte integral e duas referências ficam fail-closed até ampliação da evidência; G6-T segue pendente por JSON real e cobertura real | Codex |
 | 2026-09-02 | Evidência segmentada v1.4 implementada e implantada sem truncamento: 10/10 alvos ESA sustentados, 12 segmentos autenticados, duas referências longas remontadas integralmente; formato legado preservado, janela OpenClaw v3 preparada localmente/VPS sem provider; G6-T segue pendente por JSON real e corpus real de estrutura/matemática | Codex |
 | 2026-09-02 | Saída estruturada OpenClaw validada por function call terminal: quatro papéis reais concluídos no caso de metadados, referência de 734 caracteres rejeitada fail-closed por prefixo incompleto, contexto dedicado ampliado para 32 mil, custo acumulado conservador de 627.552 micro-USD e cleanup integral; G6-T segue pendente por fidelidade longa e corpus real de estrutura/matemática | Codex |
+| 2026-09-02 | Referência real de 734 caracteres validada por intent autenticado e materialização atômica: fidelidade/Jaccard 1,0, oito checks, dois críticos e adjudicador aprovados; 148 testes com cobertura 84,86%, custo acumulado 685.949 micro-USD e cleanup integral; G6-T segue pendente apenas pelo corpus real autorizado de estrutura/matemática | Codex |

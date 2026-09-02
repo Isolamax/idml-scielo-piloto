@@ -76,6 +76,20 @@ A janela v6 seleciona o caso curto real de metadados para comprovar o novo canal
 Ela permite no máximo quatro chamadas, tentativa única e 58.500 micro-USD. Nenhuma função operacional,
 ferramenta nativa ou Skill é exposta; a única função é um envelope terminal sem execução.
 
+## Janelas v7–v8 — intent autenticado para referência longa
+
+As janelas v7 e v8 selecionam a referência real de 734 caracteres. Para evidência com múltiplos
+segmentos, `RichText` atômico e nenhum inline preexistente, o proponente retorna somente a seleção da
+evidência e dos paths no schema fechado `agent-proposal-intent-1.0`. O backend revalida a referência,
+remonta os segmentos autenticados e produz `plain.value` e `inlines` sincronizados no contrato
+`agent-proposal-1.1`. O provider não pode fornecer valor literal nesse modo. Hashes distintos preservam
+a proveniência da intenção original e da proposta materializada.
+
+A v7 comprovou fidelidade exata, mas revelou que os dois críticos interpretavam as representações
+paralelas de `RichText` como duplicação ou normalização divergente. A v8 passa aos críticos a
+proveniência da materialização e explicita que os checks determinísticos do backend são
+autoritativos; ela não relaxa nenhum check nem altera o conteúdo.
+
 ## Operação na VPS
 
 Preparar e validar o manifesto, sem inferência:
@@ -118,6 +132,15 @@ cd /opt/idml-platform
 ./ops/openclaw-multi-agent-lab.sh prepare multi-agent-structured-all-roles v6
 IDML_CONFIRM_AGENT_EXECUTION=RUN_IDML_OPENCLAW_MULTI_AGENT_LAB_V6 \
   ./ops/openclaw-multi-agent-lab.sh execute multi-agent-structured-all-roles v6
+```
+
+A comprovação da referência longa e dos críticos alinhados usa a janela v8:
+
+```sh
+cd /opt/idml-platform
+./ops/openclaw-multi-agent-lab.sh prepare multi-agent-evidence-intent-critics-v2 v8
+IDML_CONFIRM_AGENT_EXECUTION=RUN_IDML_OPENCLAW_MULTI_AGENT_LAB_V8 \
+  ./ops/openclaw-multi-agent-lab.sh execute multi-agent-evidence-intent-critics-v2 v8
 ```
 
 O script verifica zero `agent_runs`/`agent_proposals`, faz backup e restore test, ativa o provider
@@ -223,5 +246,24 @@ micro-USD. O relatório público sanitizado está em
 O custo conservador acumulado do artigo ficou em 627.552 micro-USD, abaixo do limite autorizado de
 1.000.000. Após as duas janelas, flags permaneceram falsas, banco continuou com zero runs/propostas,
 credencial e redes transitórias ficaram ausentes e os dois OpenClaw terminaram saudáveis. A
-confiabilidade do transporte estruturado deixa de bloquear o G6-T; continuam pendentes a fidelidade
-das referências longas e casos reais autorizados de estrutura e matemática.
+confiabilidade do transporte estruturado deixa de bloquear o G6-T; naquela etapa ainda permaneciam
+pendentes a fidelidade das referências longas e casos reais autorizados de estrutura e matemática.
+
+## Evidência de intent autenticado v1
+
+Em 2026-09-02, `multi-agent-evidence-intent-longest` fez os quatro papéis concluírem e materializou a
+referência completa: os oito checks passaram, similaridade e Jaccard foram 1,0 e o ganho foi
+0,315412. Os críticos, porém, rejeitaram incorretamente as duas representações paralelas do mesmo
+`RichText`; o ensaio foi preservado como diagnóstico e não aceito.
+
+Após o alinhamento dos prompts e do envelope de proveniência, o ensaio
+`multi-agent-evidence-intent-critics-v2` repetiu a fidelidade exata. Crítico XML e editorial deram
+`pass`, o adjudicador aceitou unanimemente e o resultado ficou apenas
+`accepted_for_human_review`, sem falso consenso. O custo foi 30.841 micro-USD, após 27.556 da janela
+diagnóstica. O acumulado conservador do artigo passou a 685.949 micro-USD, abaixo de US$ 1.
+
+O relatório público sanitizado é
+`benchmarks/agents/reports/evidence-intent-validation-v1.json`. O pós-teste confirmou flags falsas,
+zero runs/propostas/sessões, ausência de chave, proxy e redes transitórias, HTTP 200 e os dois
+OpenClaw saudáveis com zero reinicializações. A fidelidade de referências longas deixa de bloquear o
+G6-T; continuam faltando casos reais autorizados de estrutura e matemática.

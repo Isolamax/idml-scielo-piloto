@@ -464,3 +464,25 @@ micro-USD, abaixo do US$ 1 autorizado. Cleanup confirmou flags falsas, zero runs
 de credencial/proxy/redes transitórias e saúde da aplicação e dos dois OpenClaw. O transporte JSON
 deixa de ser pendência do G6-T; fidelidade em referências longas e corpus real de estrutura/matemática
 permanecem pendentes.
+
+## Materialização autenticada de referência longa
+
+Em 2026-09-02, foi acrescentado o contrato restrito `agent-proposal-intent-1.0`. Ele só é elegível
+para evidência com mais de um segmento autenticado, `RichText` atômico e ausência de inlines
+preexistentes. O agente seleciona os paths e a evidência; o backend verifica integralmente a
+referência e materializa `plain.value` e `inlines` no contrato canônico, registrando hashes separados
+do output do provider e do resultado materializado. O caminho literal permanece obrigatório nos
+demais casos.
+
+A janela v7 obteve fidelidade exata na referência de 734 caracteres e passou os oito checks, mas
+detectou falso bloqueio dos críticos sobre as representações paralelas. Após versionar os prompts de
+crítica e incluir proveniência explícita, a v8 concluiu os quatro papéis: ambos os críticos passaram,
+o adjudicador aceitou unanimemente somente para futura revisão humana, similaridade e Jaccard foram
+1,0 e não houve falso consenso. As janelas custaram 27.556 e 30.841 micro-USD; o acumulado
+conservador ficou em 685.949 micro-USD.
+
+O relatório sanitizado é `benchmarks/agents/reports/evidence-intent-validation-v1.json`. Backup
+`/opt/idml-platform/backups/20260902T180021Z` e restore passaram. A auditoria final confirmou HTTP
+200, flags falsas, zero runs/propostas/sessões, ausência de chave, proxy e redes transitórias, além
+dos dois OpenClaw saudáveis com zero reinicializações. A fidelidade longa deixa de ser pendência do
+G6-T; permanecem os casos reais autorizados de estrutura e matemática.
