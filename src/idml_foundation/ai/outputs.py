@@ -38,6 +38,21 @@ class AgentPatchOperation(BaseModel):
         return self
 
 
+class AgentEvidenceValueSource(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    type: Literal["authorized_evidence"]
+    evidence_id: EvidenceId
+
+
+class AgentPatchIntentOperation(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    op: Literal["replace"]
+    path: str = Field(pattern=r"^/", min_length=2, max_length=500)
+    value_source: AgentEvidenceValueSource
+
+
 class AgentEvidenceSegmentReference(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
@@ -110,6 +125,35 @@ class AgentProposalOutput(BaseModel):
         return self
 
 
+class AgentProposalIntentOutput(BaseModel):
+    """Evidence-bound intent that the trusted backend materializes into a proposal."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    schema_version: Literal["agent-proposal-intent-1.0"]
+    domain: AgentDomain
+    patch: tuple[AgentPatchIntentOperation, ...] = Field(min_length=1, max_length=5)
+    confidence: float = Field(ge=0.0, le=1.0)
+    evidence: tuple[AgentEvidenceReference, ...] = Field(min_length=1, max_length=20)
+    alternatives: tuple[str, ...] = Field(min_length=1, max_length=10)
+    reason: str = Field(min_length=20, max_length=2000)
+    needs_human: bool
+
+    @model_validator(mode="after")
+    def intent_invariants(self) -> Self:
+        if self.confidence < 0.85 and not self.needs_human:
+            raise ValueError("low-confidence proposal intents must require human review")
+        declared = [reference.evidence_id for reference in self.evidence]
+        if len(declared) != len(set(declared)):
+            raise ValueError("proposal intent evidence references must be unique")
+        used = {operation.value_source.evidence_id for operation in self.patch}
+        if used != set(declared):
+            raise ValueError(
+                "patch value_source must use every and only declared evidence reference"
+            )
+        return self
+
+
 DOMAIN_PATH_PREFIXES: dict[AgentDomain, tuple[str, ...]] = {
     AgentDomain.METADATA: ("/front",),
     AgentDomain.CONTRIBUTORS: ("/front/contributors", "/front/affiliations"),
@@ -129,6 +173,20 @@ def output_json_schema(domain: AgentDomain) -> dict[str, Any]:
     return schema
 
 
+def proposal_intent_json_schema(domain: AgentDomain) -> dict[str, Any]:
+    schema = AgentProposalIntentOutput.model_json_schema()
+    schema["$id"] = f"https://idml.local/schemas/agents/{domain.value}-intent-1.0.json"
+    schema["title"] = f"{domain.value} evidence-bound proposal intent"
+    schema["properties"]["domain"] = {"const": domain.value, "type": "string"}
+    schema["additionalProperties"] = False
+    return schema
+
+
 def parse_agent_output(payload: dict[str, Any]) -> AgentProposalOutput:
     """Validate provider JSON while retaining strict Python-side models."""
     return AgentProposalOutput.model_validate_json(json.dumps(payload, ensure_ascii=False))
+
+
+def parse_agent_intent(payload: dict[str, Any]) -> AgentProposalIntentOutput:
+    """Validate a provider intent before trusted evidence materialization."""
+    return AgentProposalIntentOutput.model_validate_json(json.dumps(payload, ensure_ascii=False))

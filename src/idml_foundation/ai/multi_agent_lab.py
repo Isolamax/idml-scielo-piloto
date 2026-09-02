@@ -37,7 +37,9 @@ from idml_foundation.ai.outputs import (
     AgentDomain,
     AgentProposalOutput,
     output_json_schema,
+    parse_agent_intent,
     parse_agent_output,
+    proposal_intent_json_schema,
 )
 from idml_foundation.ai.pricing import PricingCatalog, load_pricing_catalog
 from idml_foundation.ai.registry import load_prompt, load_registry, repository_root
@@ -65,6 +67,13 @@ _PROPOSER_POLICY = (
     "When current.atomic_rich_text is present, output both required operations, never an empty "
     "inlines array, copy every supplied output_inlines_template field and ID, and change only "
     "inline text so its concatenation exactly equals the proposed plain value."
+)
+_EVIDENCE_INTENT_POLICY = (
+    "This case uses trusted evidence materialization. Do not copy, summarize, shorten, or rewrite "
+    "the evidence text into the patch. Return agent-proposal-intent-1.0 and set every patch "
+    "value_source.type to authorized_evidence with the exact supplied evidence_id. The trusted "
+    "backend will reconstruct the complete authenticated value only after validating domain, "
+    "paths, evidence metadata, segment hashes, and aggregate hash."
 )
 _CRITIC_PROMPTS: dict[CriticRole, str] = {
     "xml_critic": "xml_critic-1.0.md",
@@ -327,13 +336,89 @@ def _atomic_output_contract(case: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _uses_trusted_evidence_materialization(case: dict[str, Any]) -> bool:
+    atomic = case.get("atomic_rich_text")
+    return (
+        "segments" in case["evidence"]
+        and isinstance(atomic, dict)
+        and not atomic.get("current_inlines")
+    )
+
+
 def _proposal_schema(case: dict[str, Any], domain: AgentDomain) -> dict[str, Any]:
-    schema = output_json_schema(domain)
+    schema = (
+        proposal_intent_json_schema(domain)
+        if _uses_trusted_evidence_materialization(case)
+        else output_json_schema(domain)
+    )
     if "atomic_rich_text" in case:
         schema["properties"]["patch"]["minItems"] = 2
         schema["properties"]["patch"]["maxItems"] = 2
         schema["$id"] = schema["$id"].replace(".json", "-atomic.json")
     return schema
+
+
+def _materialize_proposal_intent(
+    case: dict[str, Any],
+    raw: dict[str, Any],
+) -> dict[str, Any]:
+    if not _uses_trusted_evidence_materialization(case):
+        raise ValueError("PROPOSAL_INTENT_MATERIALIZATION_NOT_ALLOWED")
+    intent = parse_agent_intent(raw)
+    expected_reference = evidence_reference(case["evidence"])
+    evidence_exact = (
+        len(intent.evidence) == 1
+        and intent.evidence[0].model_dump(
+            mode="json", exclude_none=True, exclude_defaults=True
+        )
+        == expected_reference
+    )
+    if not evidence_exact:
+        raise ValueError("PROPOSAL_INTENT_EVIDENCE_MISMATCH")
+    if intent.domain.value != case["domain"]:
+        raise ValueError("PROPOSAL_INTENT_DOMAIN_MISMATCH")
+    if not intent.needs_human:
+        raise ValueError("PROPOSAL_INTENT_HUMAN_REVIEW_REQUIRED")
+    if contains_policy_override(raw):
+        raise ValueError("PROPOSAL_INTENT_POLICY_OVERRIDE_DETECTED")
+    expected_paths = _expected_paths(case)
+    if {operation.path for operation in intent.patch} != expected_paths:
+        raise ValueError("PROPOSAL_INTENT_PATH_MISMATCH")
+
+    evidence_id = case["evidence"]["evidence_id"]
+    if any(operation.value_source.evidence_id != evidence_id for operation in intent.patch):
+        raise ValueError("PROPOSAL_INTENT_VALUE_SOURCE_MISMATCH")
+    evidence_text = reassemble_evidence(case["evidence"])
+    atomic = case["atomic_rich_text"]
+    inline_path = atomic["required_patch_paths"][1]
+    inline_template = _atomic_output_contract(case)["output_inlines_template"]
+    if len(inline_template) != 1 or inline_template[0].get("kind") != "text":
+        raise ValueError("PROPOSAL_INTENT_INLINE_MATERIALIZATION_UNSAFE")
+    inline_template[0]["text"] = evidence_text
+
+    patch: list[dict[str, Any]] = []
+    for operation in intent.patch:
+        value: Any = inline_template if operation.path == inline_path else evidence_text
+        patch.append(
+            {
+                "op": operation.op,
+                "path": operation.path,
+                "value": value,
+                "evidence_ids": [evidence_id],
+            }
+        )
+    materialized = {
+        "schema_version": "agent-proposal-1.1",
+        "domain": intent.domain.value,
+        "patch": patch,
+        "confidence": intent.confidence,
+        "evidence": [expected_reference],
+        "alternatives": list(intent.alternatives),
+        "reason": intent.reason,
+        "needs_human": intent.needs_human,
+    }
+    parse_agent_output(materialized)
+    return materialized
 
 
 def _role_prompt_path(role: LabRole) -> Path:
@@ -389,6 +474,9 @@ def prepare_lab_manifest(
         "dataset": _sha256_path(dataset_path),
         "runner": _sha256_path(Path(__file__)),
         "outputs": _sha256_path(root / "src" / "idml_foundation" / "ai" / "multi_agent_outputs.py"),
+        "proposal_outputs": _sha256_path(
+            root / "src" / "idml_foundation" / "ai" / "outputs.py"
+        ),
         "client": _sha256_path(root / "src" / "idml_foundation" / "ai" / "openclaw_client.py"),
         "pricing": _sha256_path(root / "config" / "agent-pricing-v1.json"),
         "gateway_config": _sha256_path(root / "config" / "openclaw-idml-dedicated.json"),
@@ -421,8 +509,13 @@ def prepare_lab_manifest(
                 "domain": domain.value,
                 "input_sha256": payload_digest(_case_envelope(case)),
                 "prompt_version": profile.prompt_version,
-                "proposal_schema_version": profile.output_schema_version,
+                "proposal_schema_version": (
+                    "agent-proposal-intent-1.0"
+                    if _uses_trusted_evidence_materialization(case)
+                    else profile.output_schema_version
+                ),
                 "proposal_schema_sha256": payload_digest(proposal_schema),
+                "trusted_evidence_materialization": _uses_trusted_evidence_materialization(case),
             }
         )
     base: dict[str, Any] = {
@@ -702,6 +795,9 @@ async def _call_role(
         "tools_exposed": 0,
         "skills_exposed": 0,
         "failure_class": None,
+        "output_materialized_from_evidence": False,
+        "provider_output_sha256": None,
+        "materialized_output_sha256": None,
         "output": None,
     }
     charged = 0
@@ -835,7 +931,14 @@ async def execute_multi_agent_lab(
             run_id=run_id,
             case_id=case["case_id"],
             role="proposer",
-            system_prompt=f"{load_prompt(profile)}\n\n{_PROPOSER_POLICY}",
+            system_prompt=(
+                f"{load_prompt(profile)}\n\n{_PROPOSER_POLICY}"
+                + (
+                    f"\n\n{_EVIDENCE_INTENT_POLICY}"
+                    if _uses_trusted_evidence_materialization(case)
+                    else ""
+                )
+            ),
             input_envelope=_case_envelope(case),
             output_schema=_proposal_schema(case, domain),
             catalog=catalog,
@@ -855,6 +958,14 @@ async def execute_multi_agent_lab(
                 break
             continue
         try:
+            if _uses_trusted_evidence_materialization(case):
+                proposer_record["provider_output_sha256"] = payload_digest(raw_proposal)
+                raw_proposal = _materialize_proposal_intent(case, raw_proposal)
+                proposer_record["output"] = raw_proposal
+                proposer_record["output_materialized_from_evidence"] = True
+                proposer_record["materialized_output_sha256"] = payload_digest(raw_proposal)
+            else:
+                proposer_record["output_materialized_from_evidence"] = False
             assessment = assess_proposal(case, raw_proposal)
         except ValueError as exc:
             record.update(
@@ -1030,6 +1141,9 @@ def sanitized_lab_report(result: dict[str, Any]) -> dict[str, Any]:
                     "tools_exposed",
                     "skills_exposed",
                     "failure_class",
+                    "output_materialized_from_evidence",
+                    "provider_output_sha256",
+                    "materialized_output_sha256",
                 )
             }
             for role in case["roles"]

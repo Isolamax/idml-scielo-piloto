@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from decimal import Decimal
 from typing import Any
 
@@ -27,7 +28,13 @@ from idml_foundation.ai.orchestration import (
 from idml_foundation.ai.orchestration import (
     TestOrchestrator as FixtureOrchestrator,
 )
-from idml_foundation.ai.outputs import AgentDomain, output_json_schema, parse_agent_output
+from idml_foundation.ai.outputs import (
+    AgentDomain,
+    output_json_schema,
+    parse_agent_intent,
+    parse_agent_output,
+    proposal_intent_json_schema,
+)
 from idml_foundation.ai.pricing import ModelPrice, PricingCatalog, load_pricing_catalog
 from idml_foundation.ai.registry import load_registry
 from idml_foundation.ai.security import payload_digest, untrusted_envelope
@@ -270,6 +277,52 @@ def test_closed_schema_rejects_invalid_or_unsupported_output() -> None:
     )
     with pytest.raises(ValidationError, match="every and only declared evidence"):
         parse_agent_output(unused_evidence)
+
+
+def test_evidence_bound_intent_is_closed_and_requires_declared_sources() -> None:
+    reference = {
+        "evidence_id": "ev-long-1",
+        "source_kind": "idml",
+        "locator": "Stories/Story_u1.xml#reference",
+        "segments": [
+            {"segment_id": "ev-long-1:segment:001", "position": 0, "text_sha256": "a" * 64}
+        ],
+        "aggregate_sha256": "b" * 64,
+    }
+    valid = {
+        "schema_version": "agent-proposal-intent-1.0",
+        "domain": "references",
+        "patch": [
+            {
+                "op": "replace",
+                "path": "/back/references/0/mixed/plain/value",
+                "value_source": {
+                    "type": "authorized_evidence",
+                    "evidence_id": "ev-long-1",
+                },
+            }
+        ],
+        "confidence": 0.91,
+        "evidence": [reference],
+        "alternatives": ["Keep the current reference"],
+        "reason": "The authenticated evidence is the selected complete replacement source.",
+        "needs_human": True,
+    }
+
+    assert parse_agent_intent(valid).patch[0].value_source.evidence_id == "ev-long-1"
+    schema = proposal_intent_json_schema(AgentDomain.REFERENCES)
+    assert schema["additionalProperties"] is False
+    assert schema["properties"]["domain"] == {"const": "references", "type": "string"}
+
+    with_literal_value = json.loads(json.dumps(valid))
+    with_literal_value["patch"][0]["value"] = "must not be accepted"
+    with pytest.raises(ValidationError):
+        parse_agent_intent(with_literal_value)
+
+    wrong_source = json.loads(json.dumps(valid))
+    wrong_source["patch"][0]["value_source"]["evidence_id"] = "outside-scope"
+    with pytest.raises(ValidationError, match="every and only declared evidence"):
+        parse_agent_intent(wrong_source)
 
 
 def test_assistance_payload_is_compact_and_deduplicated(db: Session) -> None:

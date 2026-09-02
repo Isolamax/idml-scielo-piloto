@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 from idml_foundation.ai.evidence import evidence_reference, reassemble_evidence, segment_evidence
 from idml_foundation.ai.multi_agent_lab import (
+    _materialize_proposal_intent,
     execute_multi_agent_lab,
     load_lab_plan,
     prepare_lab_manifest,
@@ -230,16 +231,41 @@ class _FixtureLabClient:
                     "aggregate_sha256" if "aggregate_sha256" in reference else "excerpt_sha256"
                 )
                 reference[hash_name] = "0" * 64
-            payload = {
-                "schema_version": "agent-proposal-1.1",
-                "domain": content["task"]["domain"],
-                "patch": patch,
-                "confidence": 0.91,
-                "evidence": [reference],
-                "alternatives": ["Keep current value"],
-                "reason": "The scoped evidence supports this bounded evaluation proposal.",
-                "needs_human": True,
-            }
+            schema_version = kwargs["output_schema"]["properties"]["schema_version"].get(
+                "const"
+            )
+            if schema_version == "agent-proposal-intent-1.0":
+                payload = {
+                    "schema_version": "agent-proposal-intent-1.0",
+                    "domain": content["task"]["domain"],
+                    "patch": [
+                        {
+                            "op": operation["op"],
+                            "path": operation["path"],
+                            "value_source": {
+                                "type": "authorized_evidence",
+                                "evidence_id": evidence["evidence_id"],
+                            },
+                        }
+                        for operation in patch
+                    ],
+                    "confidence": 0.91,
+                    "evidence": [reference],
+                    "alternatives": ["Keep current value"],
+                    "reason": "The scoped evidence supports this bounded evaluation proposal.",
+                    "needs_human": True,
+                }
+            else:
+                payload = {
+                    "schema_version": "agent-proposal-1.1",
+                    "domain": content["task"]["domain"],
+                    "patch": patch,
+                    "confidence": 0.91,
+                    "evidence": [reference],
+                    "alternatives": ["Keep current value"],
+                    "reason": "The scoped evidence supports this bounded evaluation proposal.",
+                    "needs_human": True,
+                }
         elif role in {"xml_critic", "editorial_critic"}:
             evidence_id = content["case"]["evidence"][0]["evidence_id"]
             proposal_hash = content["proposal_sha256"]
@@ -357,6 +383,93 @@ def test_multi_agent_lab_rejects_inconsistent_atomic_rich_text_before_critics(
     assert references["error_code"] == ("PROPOSAL_DETERMINISTIC_REJECTED_ATOMIC_VALUES_CONSISTENT")
     assert len(references["roles"]) == 1
     assert len(client.calls) == 5
+
+
+def test_segmented_reference_intent_is_materialized_before_all_critics(
+    tmp_path: Path,
+) -> None:
+    plan_path, _, dataset = _files(tmp_path)
+    complete = "Complete authenticated reference " + ("bibliographic field " * 38)
+    reference_case = dataset["cases"][1]
+    reference_case["current_value"] = "Incomplete reference"
+    reference_case["expected_value"] = complete
+    reference_case["baseline_similarity"] = SequenceMatcher(
+        None,
+        reference_case["current_value"],
+        complete,
+        autojunk=False,
+    ).ratio()
+    reference_case["evidence"] = segment_evidence(
+        evidence_id="gold-references-001",
+        source_kind="canonical",
+        locator="approved_xml:references:1",
+        text=complete,
+    )
+    client = _FixtureLabClient()
+
+    result = asyncio.run(
+        execute_multi_agent_lab(
+            load_lab_plan(plan_path),
+            dataset,
+            client=client,
+            run_id="multi-agent-materialized-001",
+        )
+    )
+
+    reference = result["cases"][1]
+    assert result["completed"] is True
+    assert reference["final_decision"] == "accepted_for_human_review"
+    assert reference["quality"]["exact"] is True
+    assert reference["deterministic_checks"]["evidence_grounded"] is True
+    assert reference["roles"][0]["output_materialized_from_evidence"] is True
+    assert reference["roles"][0]["provider_output_sha256"]
+    assert reference["roles"][0]["materialized_output_sha256"]
+    assert (
+        reference["roles"][0]["provider_output_sha256"]
+        != reference["roles"][0]["materialized_output_sha256"]
+    )
+    assert len(reference["roles"]) == 4
+    plain = next(
+        operation["value"]
+        for operation in reference["roles"][0]["output"]["patch"]
+        if operation["path"] == reference_case["field_path"]
+    )
+    assert plain == complete
+
+
+def test_materialization_rejects_inexact_evidence_reference() -> None:
+    case = _case("references", atomic=True)
+    case["evidence"] = segment_evidence(
+        evidence_id="gold-references-001",
+        source_kind="canonical",
+        locator="approved_xml:references:1",
+        text="Complete reference " + ("field " * 100),
+    )
+    reference = evidence_reference(case["evidence"])
+    reference["aggregate_sha256"] = "0" * 64
+    intent = {
+        "schema_version": "agent-proposal-intent-1.0",
+        "domain": "references",
+        "patch": [
+            {
+                "op": "replace",
+                "path": path,
+                "value_source": {
+                    "type": "authorized_evidence",
+                    "evidence_id": "gold-references-001",
+                },
+            }
+            for path in case["atomic_rich_text"]["required_patch_paths"]
+        ],
+        "confidence": 0.91,
+        "evidence": [reference],
+        "alternatives": ["Keep current value"],
+        "reason": "The authenticated evidence is the selected complete replacement source.",
+        "needs_human": True,
+    }
+
+    with pytest.raises(ValueError, match="PROPOSAL_INTENT_EVIDENCE_MISMATCH"):
+        _materialize_proposal_intent(case, intent)
 
 
 def test_multi_agent_lab_rejects_changed_atomic_inline_metadata_before_critics(
