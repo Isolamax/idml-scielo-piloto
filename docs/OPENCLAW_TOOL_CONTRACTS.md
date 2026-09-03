@@ -49,10 +49,10 @@ com `enabled=false` e nenhuma Skill carregada.
 ## Fluxo e invariantes
 
 1. O backend lê e sanitiza somente o recorte autorizado.
-2. O backend monta `assistive-input-1.1` para evidência curta legada ou `assistive-input-1.2` para
+2. O backend monta `assistive-input-1.1` para evidência curta legada, `assistive-input-1.2` para
    evidência segmentada, sem IDs de snapshot repetidos nem cópia separada das validações já presentes
-   em evidências. Conteúdo longo não é truncado: cada segmento e o conjunto completo são autenticados,
-   e estouro do limite total falha fechado.
+   em evidências, ou `assistive-input-1.3` para a transição atômica de fórmula. Conteúdo longo não é
+   truncado: cada segmento e o conjunto completo são autenticados, e estouro do limite total falha fechado.
 3. O provider recebe prompt e JSON Schema versionados, allowlist e timeout.
 4. A saída é validada novamente pelo backend.
 5. Cada referência de evidência deve coincidir em ID, tipo, locator e hash legado ou conjunto
@@ -60,9 +60,12 @@ com `enabled=false` e nenhuma Skill carregada.
 6. O patch deve ficar no domínio e no campo do item de revisão.
 7. Uma alteração em `RichText` deve substituir `plain.value` e o array completo `inlines` na mesma
    proposta; patch escalar, parcial ou com caminhos duplicados é rejeitado antes do build.
-8. O snapshot deve continuar sendo a ponta atual da linhagem.
-9. O JATS candidato é construído e validado sem persistir a alteração.
-10. Uma `AgentProposal` imutável é encaminhada para revisão humana.
+8. Uma fórmula deve substituir `source.value` e `representation` na mesma proposta; MathML aceita
+   somente elementos de apresentação permitidos, tamanho limitado, `display` compatível e nenhum DTD,
+   entidade externa, script ou atributo de navegação.
+9. O snapshot deve continuar sendo a ponta atual da linhagem.
+10. O JATS candidato é construído e validado sem persistir a alteração.
+11. Uma `AgentProposal` imutável é encaminhada para revisão humana.
 
 Não existe ferramenta de aplicar patch ou aprovar release. O endpoint público desta fase é
 consultivo: capacidades, runs e leitura tenant-bound de propostas. A CLI oficial também expõe

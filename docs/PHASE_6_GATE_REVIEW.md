@@ -522,3 +522,34 @@ não constitui transcrição MathML nativa: o caso matemático está marcado `ap
 Também existem duas fórmulas inline no XML aprovado sem mapeamento correspondente. O próximo
 incremento deve implementar uma transição atômica e validada de fórmula-imagem para MathML, além do
 mapeamento inline, antes de reavaliar o gate.
+
+## Transição atômica MathML e janela V10
+
+Em 2026-09-03, Raw 1.2 e Canonical 1.1 passaram a registrar posição/rótulo de fórmulas e a exigir a
+troca simultânea de `source.value` e `representation`. O parser MathML aceita somente apresentação
+allowlisted, limita tamanho, fixa `display` e rejeita DTD, entidades externas, elementos fora do
+namespace e atributos de navegação. O builder gera MathML display/inline válido; imagens inline usam
+`inline-graphic`. Um candidato real com a primeira das 15 fórmulas convertida passou o modelo, o
+builder e a DTD sem persistência.
+
+Na fonte autorizada, as 15 âncoras display foram preservadas em ordem e com rótulos; as duas fórmulas
+inline não existem como objetos no IDML, mas as duas lacunas foram detectadas deterministicamente. O
+dataset privado v1.1 transformou o caso matemático em `application_ready=true` e exigiu patch atômico.
+
+A janela `multi-agent-mathml-v1` concluiu os quatro papéis por 31.747 micro-USD. A proposta foi exata,
+os oito checks passaram e os dois críticos deram `pass`. O adjudicador registrou concordância dos
+críticos, porém se absteve com confiança 0,99 por `CORRELATED_CONSENSUS_RISK`, pois todos os papéis
+usam o mesmo modelo. O acumulado observado ficou em 762.219 micro-USD. A abstenção foi preservada;
+não houve aplicação nem aprovação automática.
+
+Backup/restore e cleanup passaram. Flags, banco e credencial ficaram inertes; proxy e redes
+transitórias foram removidos; API, worker e OpenClaw ficaram saudáveis. O OpenClaw compartilhado
+manteve ID e zero reinicializações. A imagem é `idml-foundation:phase6-mathml-contract-v1`
+(`sha256:c0cee3c3723f1855745df4e20249cbb944b668ea8126661b5c0848d63e149bbe`) e o rollback de código é
+`/opt/idml-platform/backups/source-phase6-pre-mathml-20260903T120954Z.tar.gz`.
+
+A suíte local concluiu 164 testes com 85,04% de cobertura; Ruff e mypy passaram sem achados.
+
+O G6-T permanece pendente: falta gerar MathML a partir da fonte visual sem usar o XML aprovado como
+entrada e preencher as duas fórmulas inline; a avaliação também precisa mitigar a correlação entre
+papéis. O relatório sanitizado é `benchmarks/agents/reports/atomic-mathml-validation-v1.json`.

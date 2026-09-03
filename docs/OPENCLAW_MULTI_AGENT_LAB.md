@@ -306,3 +306,26 @@ Essa evidência encerra a ausência de casos autorizados nos seis domínios, mas
 estrutura é uma mutação controlada de campo real. A matemática comprova comparação/transcrição
 assistida, porém continua não aplicável até existir contrato atômico para converter fórmula-imagem
 em MathML e mapeamento das fórmulas inline.
+
+## Janela V10 — aplicação MathML atômica
+
+A V10 usa `idml-agent-real-domain-eval-1.1` e seleciona somente o caso matemático:
+
+```sh
+./ops/openclaw-multi-agent-lab.sh prepare multi-agent-mathml-v1 v10
+IDML_CONFIRM_AGENT_EXECUTION=RUN_IDML_OPENCLAW_MULTI_AGENT_LAB_V10 \
+  ./ops/openclaw-multi-agent-lab.sh execute multi-agent-mathml-v1 v10
+```
+
+O envelope `assistive-input-1.3` expõe `atomic_formula`, os dois caminhos obrigatórios, display e
+asset imutáveis. O juiz exige MathML seguro, `representation=mathml`, evidência idêntica nos dois
+caminhos, grounding exato e JATS candidato válido antes de qualquer persistência.
+
+Em 2026-09-03, os quatro papéis concluíram por 31.747 micro-USD. A proposta coincidiu com os 556
+caracteres de MathML autorizado, os oito checks passaram e ambos os críticos deram `pass`. O
+adjudicador se absteve por `CORRELATED_CONSENSUS_RISK` apesar de `unanimous_accept` entre críticos;
+essa decisão fail-closed é o resultado correto enquanto os papéis dependerem do mesmo modelo. O
+relatório está em `benchmarks/agents/reports/atomic-mathml-validation-v1.json`.
+
+O custo acumulado observado do artigo ficou em 762.219 micro-USD. O cleanup removeu chave, proxy e
+redes, manteve flags falsas e banco sem runs/propostas e não reiniciou o OpenClaw compartilhado.

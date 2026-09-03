@@ -1,4 +1,4 @@
-# Raw Article 1.1.0 e Canonical Article 1.0.0
+# Raw Article 1.2.0 e Canonical Article 1.1.0
 
 ## Limites de responsabilidade
 
@@ -56,12 +56,13 @@ strong, subscrito, sobrescrito, links, xrefs, fórmula inline e named-content. A
 concatenação dos nós precisa reproduzir exatamente o valor textual; divergência
 é inválida.
 
-Fórmulas ancoradas como PDFs externos no IDML são preservadas como `FormulaBlock`
-com `representation=image`, vínculo ao asset e revisão obrigatória. O builder as
-emite como `disp-formula/graphic`; não converte o nome do arquivo ou OCR textual
-em MathML. A transição futura para MathML deve alterar representação e conteúdo
-de forma atômica, validar o fragmento e conservar a proveniência do asset. O
-mapeamento de fórmulas inline ainda é uma lacuna explícita.
+Fórmulas ancoradas como PDFs externos no IDML são preservadas na posição de origem,
+com rótulo, `representation=image`, vínculo ao asset e revisão obrigatória. Fórmulas
+entre quebras viram `disp-formula/graphic`; âncoras no fluxo textual viram
+`inline-formula/inline-graphic`. A transição para MathML substitui `source.value` e
+`representation` no mesmo patch, valida uma allowlist MathML sem DTD, entidades ou
+atributos de navegação e conserva o asset/proveniência. Lacunas inline sem âncora no
+IDML são detectadas, mas continuam pendentes de transcrição visual.
 
 ## Ausência e ambiguidade
 
@@ -81,11 +82,12 @@ conteúdo. Dados obrigatórios ausentes permanecem ausentes.
 mesmo artigo/localizador produz o mesmo ID entre retries; localizadores distintos
 produzem IDs distintos.
 
-Raw usa `schema_version=1.1.0`; Canonical permanece em `1.0.0`. O incremento Raw
-adiciona parágrafos e a decisão auditável de reading order. JSON canônico usa
+Raw usa `schema_version=1.2.0`; Canonical usa `1.1.0`. O incremento Raw 1.2
+adiciona posição e rótulo de objetos ancorados; o Canonical 1.1 formaliza a
+representação das fórmulas display/inline e sua validação MathML. JSON canônico usa
 chaves ordenadas e SHA-256 do conteúdo. Os JSON Schemas ficam em `schemas/`.
-Migrations explícitas encadeiam Raw `0.1.0 -> 1.0.0 -> 1.1.0` e recusam versões
-desconhecidas.
+Migrations explícitas encadeiam Raw `0.1.0 -> 1.0.0 -> 1.1.0 -> 1.2.0` e
+Canonical `0.1.0 -> 1.0.0 -> 1.1.0`, recusando versões desconhecidas.
 
 `DomainSnapshot` persiste payload imutável por empresa, recurso, tipo, revisão,
 hash, artefato fonte e snapshot pai. Unicidade impede revisão duplicada e o

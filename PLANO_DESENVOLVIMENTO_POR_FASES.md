@@ -21,8 +21,8 @@ docs/XML_VALIDATION_MASTER_PLAN.md
 ## 2. Estado geral
 
 ```text
-PROJECT_STATUS: PHASE_6_MATHML_TRANSITION_IN_PROGRESS
-CURRENT_PHASE: FASE 6 — próxima ação: implementar transição atômica para MathML e fórmulas inline
+PROJECT_STATUS: PHASE_6_VISUAL_FORMULA_TRANSCRIPTION_IN_PROGRESS
+CURRENT_PHASE: FASE 6 — próxima ação: extrair/transcrever fontes visuais e preencher fórmulas inline
 CURRENT_IMPLEMENTATION_AUTHORIZED: PHASE_6
 DEVELOPMENT_ROADMAP_AUTHORIZED: THROUGH_PHASE_8_PRODUCTION_READINESS
 PRODUCTION_ACTIVATION_AUTHORIZED: NO — REQUIRES XML_EXPERT_FINAL_ACCEPTANCE
@@ -121,7 +121,7 @@ Antes de qualquer implantação futura na VPS:
 | 3 | Pipeline determinístico mínimo | IDML → modelo → XML válido sem IA | Concluída — Gate G3 aprovado |
 | 4 | Validação, fidelidade e pacote | Pacote validado e política de release | Implementada — Gate G4 bloqueado por validadores externos/crossrefs |
 | 5 | Revisão humana e interface mínima | Correção humana auditável | Concluída — Gate G5 aprovado |
-| 6 | IA assistiva e OpenClaw | Assistência semântica controlada | Casos reais dos seis domínios qualificados — G6-T pendente pela aplicação MathML/inline |
+| 6 | IA assistiva e OpenClaw | Assistência semântica controlada | MathML atômico validado — G6-T pendente por transcrição visual/inline e independência crítica |
 | 7 | Homologação automatizada e piloto simulado | Sistema completo validado antes da revisão humana | Não iniciada — roadmap aprovado, início ainda sujeito ao G6-T |
 | 8 | Prontidão, homologação humana e produção | RC operacional, aceite do especialista e rollout | Não iniciada — ativação real bloqueada pelo G8-H |
 | 9 | Expansão controlada | Novos periódicos e casos complexos | Não iniciada |
@@ -573,6 +573,7 @@ preparando a comparação editorial humana para a RC final.
 - [x] Definir confidence, evidence, alternatives e reason.
 - [x] Rejeitar saída inválida ou sem evidência.
 - [x] Exigir patch atômico de `RichText` para `plain.value` e `inlines`.
+- [x] Exigir patch atômico de fórmula para `source.value` e `representation=mathml`.
 - [x] Vincular cada operação às evidências exatas e rejeitar evidência declarada sem uso.
 - [x] Produzir `docs/AGENT_OUTPUT_SCHEMAS.md`.
 
@@ -593,7 +594,7 @@ preparando a comparação editorial humana para a RC final.
 - [x] Structure.
 - [x] References.
 - [x] Figures e tables.
-- [x] Math e notes, somente se o piloto exigir (contrato pronto; recurso inativo).
+- [x] Math e notes, com MathML seguro, aplicação atômica e recurso inativo.
 - [ ] Medir cada domínio contra corpus automático congelado, regras determinísticas e consenso crítico.
 - [x] Executar proxy técnico provisório no corpus autorizado sem substituir baseline humano.
 
@@ -640,7 +641,7 @@ preparando a comparação editorial humana para a RC final.
 - [x] Implementar papéis separados de proponente, crítico XML, crítico editorial e adjudicador.
 - [x] Impedir compartilhamento de raciocínio privado entre sessões e registrar somente saídas estruturadas.
 - [x] Executar os dez casos reais disponíveis do corpus ESA, em quatro domínios, com custo, tokens e latência contabilizados.
-- [x] Obter e qualificar casos autorizados derivados do artigo real para estrutura e matemática; a estrutura usa omissão controlada e o caso matemático permanece não aplicável até a transição MathML.
+- [x] Obter e qualificar casos autorizados derivados do artigo real para estrutura e matemática; a estrutura usa omissão controlada e o caso matemático aplica a transição atômica para MathML.
 - [x] Criar matriz sintética com casos positivos, negativos, ambíguos, de abstenção e de prompt injection nos seis domínios.
 - [x] Comparar propostas da primeira janela com fonte, regras determinísticas e alvos automáticos ocultos dos agentes.
 - [x] Medir falso consenso na primeira janela e impedir que concordância substitua evidência.
@@ -651,11 +652,15 @@ preparando a comparação editorial humana para a RC final.
 - [x] Materializar referências longas multissegmento por intent autenticado e validar fidelidade exata nos quatro papéis.
 - [x] Alinhar críticos ao contrato atômico sem reduzir a precedência das oito verificações determinísticas.
 - [x] Ampliar o relatório sanitizado com estrutura e matemática reais, sem texto do artigo e sem promover o caso matemático a aplicação.
+- [x] Validar a transição atômica imagem→MathML em memória, no JATS e nos quatro papéis OpenClaw.
+- [x] Preservar a ordem e os rótulos das 15 fórmulas display e detectar as duas lacunas inline do artigo real.
+- [ ] Transcrever a fonte visual sem depender do XML aprovado e preencher as fórmulas inline ausentes no IDML.
+- [ ] Eliminar ou mitigar o risco de consenso correlacionado apontado pelo adjudicador V10.
 
 ## Gate técnico de saída G6-T
 
 - [x] Desativar Swarm não interrompe o pipeline principal.
-- [~] Os seis domínios passam no laboratório; matemática ainda requer contrato de aplicação atômica para MathML e fórmulas inline.
+- [~] Os seis domínios têm casos executados; matemática passa nos checks e críticos, mas o adjudicador V10 se abstém por consenso correlacionado e ainda falta transcrição visual/inline.
 - [x] Nenhuma proposta sem evidência, com invenção lexical ou falso consenso crítico é aceita pelo juiz determinístico.
 - [x] Nenhum patch é aplicado sem schema, evidência e validação.
 - [x] Prompt injection não altera ferramentas ou políticas.
@@ -984,3 +989,4 @@ ADRs iniciais esperados:
 | 2026-09-02 | Saída estruturada OpenClaw validada por function call terminal: quatro papéis reais concluídos no caso de metadados, referência de 734 caracteres rejeitada fail-closed por prefixo incompleto, contexto dedicado ampliado para 32 mil, custo acumulado conservador de 627.552 micro-USD e cleanup integral; G6-T segue pendente por fidelidade longa e corpus real de estrutura/matemática | Codex |
 | 2026-09-02 | Referência real de 734 caracteres validada por intent autenticado e materialização atômica: fidelidade/Jaccard 1,0, oito checks, dois críticos e adjudicador aprovados; 148 testes com cobertura 84,86%, custo acumulado 685.949 micro-USD e cleanup integral; G6-T segue pendente apenas pelo corpus real autorizado de estrutura/matemática | Codex |
 | 2026-09-02 | Estrutura hierárquica e 15 fórmulas PDF do artigo autorizado preservadas deterministicamente; V9 validou casos reais derivados de estrutura/matemática nos quatro papéis por 44.523 micro-USD, 153 testes atingiram 85,02% e o cleanup integral passou; G6-T segue pendente pela transição atômica para MathML e pelo mapeamento inline | Codex |
+| 2026-09-03 | Transição imagem→MathML atômica e segura implantada; 15 fórmulas display preservam ordem/rótulo, 2/2 lacunas inline são detectadas, candidato MathML passa JATS e V10 conclui quatro papéis por 31.747 micro-USD; proposta e críticos passam, adjudicador se abstém por consenso correlacionado; 164 testes e 85,04% de cobertura; G6-T segue pendente por transcrição visual/inline independente | Codex |
