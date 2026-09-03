@@ -44,11 +44,17 @@ def build_assistance_payload(tools: AgentToolService) -> dict[str, Any]:
     }
     if "atomic_rich_text" in fragment:
         current["atomic_rich_text"] = fragment["atomic_rich_text"]
+    if "atomic_formula" in fragment:
+        current["atomic_formula"] = fragment["atomic_formula"]
     return {
         "contract_version": (
-            "assistive-input-1.2"
-            if any("segments" in item for item in evidence)
-            else "assistive-input-1.1"
+            "assistive-input-1.3"
+            if "atomic_formula" in fragment
+            else (
+                "assistive-input-1.2"
+                if any("segments" in item for item in evidence)
+                else "assistive-input-1.1"
+            )
         ),
         "task": {
             "review_item_id": review["review_item_id"],
@@ -61,8 +67,7 @@ def build_assistance_payload(tools: AgentToolService) -> dict[str, Any]:
         "current": current,
         "evidence": evidence,
         "alternatives": [
-            redact_text(str(value), max_characters=500)
-            for value in review["alternatives"][:10]
+            redact_text(str(value), max_characters=500) for value in review["alternatives"][:10]
         ],
     }
 

@@ -127,6 +127,17 @@ def _atomic_rich_text_paths(root: str) -> tuple[str, str]:
     return f"{root}/plain/value", f"{root}/inlines"
 
 
+def _formula_root(path: str) -> str | None:
+    for suffix in ("/source/value", "/representation"):
+        if path.endswith(suffix):
+            return path[: -len(suffix)]
+    return None
+
+
+def _atomic_formula_paths(root: str) -> tuple[str, str]:
+    return f"{root}/source/value", f"{root}/representation"
+
+
 def validate_patch_scope_and_atomicity(
     document: dict[str, Any],
     patch: tuple[JsonPatchOperation, ...],
@@ -147,11 +158,16 @@ def validate_patch_scope_and_atomicity(
     item_atomic_paths = (
         set(_atomic_rich_text_paths(item_rich_root)) if item_rich_root is not None else set()
     )
+    item_formula_root = _formula_root(item_path)
+    item_formula_paths = (
+        set(_atomic_formula_paths(item_formula_root)) if item_formula_root is not None else set()
+    )
     touched_roots: set[str] = set()
+    touched_formula_roots: set[str] = set()
     for operation in patch:
         validate_review_path(operation.path)
         if not _path_is_scoped(operation.path, item_path):
-            if operation.path not in item_atomic_paths:
+            if operation.path not in item_atomic_paths | item_formula_paths:
                 raise ValueError("patch path is outside the review item scope")
         root = _rich_text_root(operation.path)
         if root is not None:
@@ -166,14 +182,26 @@ def validate_patch_scope_and_atomicity(
                 and isinstance(candidate.get("inlines"), list)
             ):
                 touched_roots.add(root)
+        formula_root = _formula_root(operation.path)
+        if formula_root is not None:
+            try:
+                formula = _pointer_value(document, formula_root)
+            except ValueError:
+                formula = None
+            if (
+                isinstance(formula, dict)
+                and formula.get("kind") == "formula"
+                and isinstance(formula.get("source"), dict)
+                and "value" in formula["source"]
+                and "representation" in formula
+            ):
+                touched_formula_roots.add(formula_root)
 
     path_set = set(paths)
     for root in touched_roots:
         plain_path, inlines_path = _atomic_rich_text_paths(root)
         if any(path.startswith(f"{inlines_path}/") for path in path_set):
-            raise ValueError(
-                f"RichText patches must replace the complete {inlines_path} array"
-            )
+            raise ValueError(f"RichText patches must replace the complete {inlines_path} array")
         relevant = {
             path
             for path in path_set
@@ -183,6 +211,14 @@ def validate_patch_scope_and_atomicity(
             raise ValueError(
                 "RichText changes require an atomic patch replacing both "
                 f"{plain_path} and {inlines_path}"
+            )
+    for root in touched_formula_roots:
+        source_path, representation_path = _atomic_formula_paths(root)
+        relevant = {path for path in path_set if path in {source_path, representation_path}}
+        if relevant and {source_path, representation_path} - path_set:
+            raise ValueError(
+                "formula changes require an atomic patch replacing both "
+                f"{source_path} and {representation_path}"
             )
 
 

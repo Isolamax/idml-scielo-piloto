@@ -33,16 +33,25 @@ def test_real_domain_builder_uses_authorized_structure_and_formula_gap() -> None
         source_idml_sha256=hashlib.sha256(source).hexdigest(),
     )
 
-    assert dataset["version"] == "idml-agent-real-domain-eval-1.0"
+    assert dataset["version"] == "idml-agent-real-domain-eval-1.1"
     assert [case["domain"] for case in dataset["cases"]] == ["structure", "math_notes"]
     structure, formula = dataset["cases"]
     assert structure["current_value"] != structure["expected_value"]
     assert reassemble_evidence(structure["evidence"]) == structure["expected_value"]
     assert formula["current_value"] == "Equations.pdf"
     assert reassemble_evidence(formula["evidence"]) == formula["expected_value"]
-    assert formula["fixture_provenance"]["application_ready"] is False
+    assert formula["fixture_provenance"]["application_ready"] is True
+    assert formula["expected_value"].startswith("<mml:math xmlns:mml=")
+    assert formula["atomic_formula"]["current_representation"] == "image"
+    assert formula["atomic_formula"]["required_patch_paths"] == [
+        formula["field_path"],
+        formula["field_path"].removesuffix("/source/value") + "/representation",
+    ]
     assert report["math_notes"]["display_formula_pairing_complete"] is True
     assert report["math_notes"]["native_mathml_transcription_complete"] is False
+    assert report["math_notes"]["atomic_mathml_transition_supported"] is True
+    assert report["math_notes"]["atomic_mathml_candidate_valid"] is True
+    assert report["math_notes"]["atomic_mathml_candidate_display_count"] == 1
     serialized_report = json.dumps(report)
     assert "Nested method details" not in serialized_report
     assert "Equations.pdf" not in serialized_report

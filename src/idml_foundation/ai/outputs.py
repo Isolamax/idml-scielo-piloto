@@ -118,10 +118,16 @@ class AgentProposalOutput(BaseModel):
         for operation in self.patch:
             suffix = "/plain/value"
             if not operation.path.endswith(suffix):
-                continue
-            sibling = by_path.get(f"{operation.path[: -len(suffix)]}/inlines")
-            if sibling is not None and sibling.evidence_ids != operation.evidence_ids:
-                raise ValueError("atomic RichText operations must cite identical evidence_ids")
+                formula_suffix = "/source/value"
+                if not operation.path.endswith(formula_suffix):
+                    continue
+                sibling = by_path.get(f"{operation.path[: -len(formula_suffix)]}/representation")
+                if sibling is not None and sibling.evidence_ids != operation.evidence_ids:
+                    raise ValueError("atomic formula operations must cite identical evidence_ids")
+            else:
+                sibling = by_path.get(f"{operation.path[: -len(suffix)]}/inlines")
+                if sibling is not None and sibling.evidence_ids != operation.evidence_ids:
+                    raise ValueError("atomic RichText operations must cite identical evidence_ids")
         return self
 
 

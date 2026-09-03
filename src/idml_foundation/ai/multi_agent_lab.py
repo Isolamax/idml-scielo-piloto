@@ -47,6 +47,7 @@ from idml_foundation.ai.security import contains_policy_override, payload_digest
 from idml_foundation.domain.canonical import InlineNode
 from idml_foundation.domain.common import stable_id
 from idml_foundation.domain.metrics import normalize_text
+from idml_foundation.mathml import parse_mathml_fragment
 
 LabRole = Literal["proposer", "xml_critic", "editorial_critic", "adjudicator"]
 _ROLE_ORDER: tuple[LabRole, ...] = (
@@ -67,6 +68,8 @@ _PROPOSER_POLICY = (
     "When current.atomic_rich_text is present, output both required operations, never an empty "
     "inlines array, copy every supplied output_inlines_template field and ID, and change only "
     "inline text so its concatenation exactly equals the proposed plain value."
+    " When current.atomic_formula is present, output both required operations, copy the complete "
+    "authorized MathML fragment, and set representation to mathml."
 )
 _EVIDENCE_INTENT_POLICY = (
     "This case uses trusted evidence materialization. Do not copy, summarize, shorten, or rewrite "
@@ -234,6 +237,9 @@ def _selected_cases(
         if not isinstance(field_path, str) or not _path_matches_domain(field_path, domain):
             raise ValueError("multi-agent case path is outside its domain")
         atomic = raw_case.get("atomic_rich_text")
+        atomic_formula = raw_case.get("atomic_formula")
+        if atomic is not None and atomic_formula is not None:
+            raise ValueError("multi-agent case cannot mix atomic contracts")
         if atomic is not None:
             if not isinstance(atomic, dict):
                 raise ValueError("multi-agent atomic RichText contract is invalid")
@@ -252,6 +258,26 @@ def _selected_cases(
                 )
             ):
                 raise ValueError("multi-agent atomic RichText paths are outside their domain")
+        if atomic_formula is not None:
+            if not isinstance(atomic_formula, dict):
+                raise ValueError("multi-agent atomic formula contract is invalid")
+            root_path = field_path.removesuffix("/source/value")
+            required_paths = atomic_formula.get("required_patch_paths")
+            if (
+                root_path == field_path
+                or atomic_formula.get("root_path") != root_path
+                or atomic_formula.get("current_representation") != "image"
+                or not isinstance(atomic_formula.get("display"), bool)
+                or not isinstance(atomic_formula.get("asset_id"), str)
+                or not atomic_formula["asset_id"]
+                or required_paths != [field_path, f"{root_path}/representation"]
+                or atomic_formula.get("allowed_target_representations") != ["mathml"]
+                or any(
+                    not isinstance(path, str) or not _path_matches_domain(path, domain)
+                    for path in required_paths
+                )
+            ):
+                raise ValueError("multi-agent atomic formula paths are outside their domain")
         evidence = raw_case["evidence"]
         try:
             reassemble_evidence(evidence)
@@ -267,8 +293,7 @@ def _selected_cases(
 
 def _path_matches_domain(path: str, domain: AgentDomain) -> bool:
     return any(
-        path == prefix or path.startswith(f"{prefix}/")
-        for prefix in DOMAIN_PATH_PREFIXES[domain]
+        path == prefix or path.startswith(f"{prefix}/") for prefix in DOMAIN_PATH_PREFIXES[domain]
     )
 
 
@@ -279,9 +304,15 @@ def _case_content(case: dict[str, Any]) -> dict[str, Any]:
     }
     if "atomic_rich_text" in case:
         current["atomic_rich_text"] = _atomic_output_contract(case)
+    if "atomic_formula" in case:
+        current["atomic_formula"] = copy.deepcopy(case["atomic_formula"])
     return {
         "contract_version": (
-            "assistive-input-1.2" if "segments" in case["evidence"] else "assistive-input-1.1"
+            "assistive-input-1.3"
+            if "atomic_formula" in case
+            else (
+                "assistive-input-1.2" if "segments" in case["evidence"] else "assistive-input-1.1"
+            )
         ),
         "task": {
             "case_id": case["case_id"],
@@ -353,7 +384,7 @@ def _proposal_schema(case: dict[str, Any], domain: AgentDomain) -> dict[str, Any
         if _uses_trusted_evidence_materialization(case)
         else output_json_schema(domain)
     )
-    if "atomic_rich_text" in case:
+    if "atomic_rich_text" in case or "atomic_formula" in case:
         schema["properties"]["patch"]["minItems"] = 2
         schema["properties"]["patch"]["maxItems"] = 2
         schema["$id"] = schema["$id"].replace(".json", "-atomic.json")
@@ -370,9 +401,7 @@ def _materialize_proposal_intent(
     expected_reference = evidence_reference(case["evidence"])
     evidence_exact = (
         len(intent.evidence) == 1
-        and intent.evidence[0].model_dump(
-            mode="json", exclude_none=True, exclude_defaults=True
-        )
+        and intent.evidence[0].model_dump(mode="json", exclude_none=True, exclude_defaults=True)
         == expected_reference
     )
     if not evidence_exact:
@@ -476,18 +505,14 @@ def prepare_lab_manifest(
         "dataset": _sha256_path(dataset_path),
         "runner": _sha256_path(Path(__file__)),
         "outputs": _sha256_path(root / "src" / "idml_foundation" / "ai" / "multi_agent_outputs.py"),
-        "proposal_outputs": _sha256_path(
-            root / "src" / "idml_foundation" / "ai" / "outputs.py"
-        ),
+        "proposal_outputs": _sha256_path(root / "src" / "idml_foundation" / "ai" / "outputs.py"),
         "client": _sha256_path(root / "src" / "idml_foundation" / "ai" / "openclaw_client.py"),
         "pricing": _sha256_path(root / "config" / "agent-pricing-v1.json"),
         "gateway_config": _sha256_path(root / "config" / "openclaw-idml-dedicated.json"),
         "workspace:AGENTS": _sha256_path(
             root / "openclaw" / "idml-evaluator-workspace" / "AGENTS.md"
         ),
-        "workspace:SOUL": _sha256_path(
-            root / "openclaw" / "idml-evaluator-workspace" / "SOUL.md"
-        ),
+        "workspace:SOUL": _sha256_path(root / "openclaw" / "idml-evaluator-workspace" / "SOUL.md"),
         "prompt:xml_critic": _sha256_path(_role_prompt_path("xml_critic")),
         "prompt:editorial_critic": _sha256_path(_role_prompt_path("editorial_critic")),
         "prompt:adjudicator": _sha256_path(_role_prompt_path("adjudicator")),
@@ -547,11 +572,11 @@ def prepare_lab_manifest(
 
 
 def _expected_paths(case: dict[str, Any]) -> set[str]:
-    atomic = case.get("atomic_rich_text")
+    atomic = case.get("atomic_rich_text") or case.get("atomic_formula")
     if isinstance(atomic, dict):
         required = atomic.get("required_patch_paths")
         if not isinstance(required, list) or len(required) != 2:
-            raise ValueError("multi-agent atomic RichText paths are invalid")
+            raise ValueError("multi-agent atomic paths are invalid")
         return {str(path) for path in required}
     return {str(case["field_path"])}
 
@@ -560,6 +585,24 @@ def _atomic_values_are_consistent(
     case: dict[str, Any],
     proposal: AgentProposalOutput,
 ) -> bool:
+    atomic_formula = case.get("atomic_formula")
+    if isinstance(atomic_formula, dict):
+        by_path = {operation.path: operation for operation in proposal.patch}
+        required = atomic_formula["required_patch_paths"]
+        source = by_path.get(required[0])
+        representation = by_path.get(required[1])
+        if (
+            source is None
+            or representation is None
+            or not isinstance(source.value, str)
+            or representation.value != "mathml"
+        ):
+            return False
+        try:
+            parse_mathml_fragment(source.value, display=atomic_formula["display"])
+        except ValueError:
+            return False
+        return True
     atomic = case.get("atomic_rich_text")
     if not isinstance(atomic, dict):
         return True
@@ -620,9 +663,7 @@ def assess_proposal(case: dict[str, Any], raw: dict[str, Any]) -> ProposalAssess
     expected_reference = evidence_reference(expected_evidence)
     evidence_exact = (
         len(proposal.evidence) == 1
-        and proposal.evidence[0].model_dump(
-            mode="json", exclude_none=True, exclude_defaults=True
-        )
+        and proposal.evidence[0].model_dump(mode="json", exclude_none=True, exclude_defaults=True)
         == expected_reference
     )
     paths_exact = {operation.path for operation in proposal.patch} == _expected_paths(case)
@@ -753,6 +794,7 @@ def _critique_envelope(
                 "atomic_plain_and_inlines_are_parallel_representations": bool(
                     case.get("atomic_rich_text")
                 ),
+                "atomic_formula_source_and_representation": bool(case.get("atomic_formula")),
             },
         }
     )
@@ -786,6 +828,7 @@ def _adjudication_envelope(
                 "atomic_plain_and_inlines_are_parallel_representations": bool(
                     case.get("atomic_rich_text")
                 ),
+                "atomic_formula_source_and_representation": bool(case.get("atomic_formula")),
             },
         }
     )

@@ -167,3 +167,20 @@ def test_real_domain_multi_agent_lab_is_private_and_double_gated() -> None:
     assert plan["max_total_cost_microusd"] == 117_000
     assert plan["require_human_review"] is True
     assert plan["require_application_flags_false"] is True
+
+
+def test_atomic_mathml_multi_agent_lab_is_private_and_budgeted() -> None:
+    runner = (ROOT / "ops" / "openclaw-multi-agent-lab.sh").read_text(encoding="utf-8")
+    plan = json.loads(
+        (ROOT / "config" / "openclaw-multi-agent-lab-v10.json").read_text(encoding="utf-8")
+    )
+
+    assert "dataset-real-domains-v1.1.json" in runner
+    assert "multi-agent-manifest-v10.json" in runner
+    assert "RUN_IDML_OPENCLAW_MULTI_AGENT_LAB_V10" in runner
+    assert plan["dataset_version"] == "idml-agent-real-domain-eval-1.1"
+    assert plan["selected_case_ids"] == ["esa-math-notes-observed-001"]
+    assert plan["max_attempts"] == 1
+    assert plan["max_total_cost_microusd"] == 58_500
+    assert plan["require_human_review"] is True
+    assert plan["require_application_flags_false"] is True

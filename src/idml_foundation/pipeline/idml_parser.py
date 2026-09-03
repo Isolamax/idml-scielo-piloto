@@ -22,6 +22,7 @@ from idml_foundation.domain.common import (
     stable_id,
 )
 from idml_foundation.domain.raw import (
+    AnchoredPlacement,
     RawAnchoredObject,
     RawArticle,
     RawAsset,
@@ -124,6 +125,62 @@ def _text_of_range(element: etree._Element) -> str:
             if result:
                 pieces.append(result)
     return "".join(pieces)
+
+
+def _range_events(element: etree._Element) -> list[tuple[str, str]]:
+    events: list[tuple[str, str]] = []
+    range_is_table_cell = any(_local_name(item) == "Cell" for item in element.iterancestors())
+
+    def nested_below(descendant: etree._Element, name: str) -> bool:
+        for ancestor in descendant.iterancestors():
+            if ancestor is element:
+                return False
+            if _local_name(ancestor) == name:
+                return True
+        return False
+
+    for descendant in element.iter():
+        name = _local_name(descendant)
+        if name == "Content" and descendant.text:
+            if nested_below(descendant, "TextVariableInstance"):
+                continue
+            if not range_is_table_cell and nested_below(descendant, "Table"):
+                continue
+            events.append(("text", descendant.text))
+        elif name == "Br":
+            events.append(("text", "\n"))
+        elif name == "TextVariableInstance":
+            if result := descendant.get("ResultText"):
+                events.append(("text", result))
+        elif name == "Link" and (link_self := descendant.get("Self")):
+            events.append(("link", link_self))
+    return events
+
+
+def _anchor_context(
+    events: list[tuple[str, str]],
+    position: int,
+) -> tuple[AnchoredPlacement, str | None]:
+    left = ""
+    for kind, value in reversed(events[:position]):
+        if kind == "link":
+            break
+        left = value + left
+        if "\n" in value:
+            left = left.rsplit("\n", maxsplit=1)[-1]
+            break
+    right = ""
+    for kind, value in events[position + 1 :]:
+        if kind == "link":
+            break
+        right += value
+        if "\n" in value:
+            right = right.split("\n", maxsplit=1)[0]
+            break
+    label_match = re.fullmatch(r"\s*(\(\d+\))\s*", right)
+    if not left.strip() and (not right.strip() or label_match):
+        return AnchoredPlacement.BLOCK, label_match.group(1) if label_match else None
+    return AnchoredPlacement.INLINE, None
 
 
 @dataclass(frozen=True)
@@ -336,14 +393,12 @@ class IdmlParser:
         paragraphs: list[RawParagraph] = []
         run_ids_by_cell: defaultdict[str, list[str]] = defaultdict(list)
         anchor_run_by_link: dict[str, str] = {}
+        anchor_placement_by_link: dict[str, AnchoredPlacement] = {}
+        anchor_label_by_link: dict[str, str] = {}
 
         def cell_key(cell: etree._Element) -> str:
             table = next(
-                (
-                    ancestor
-                    for ancestor in cell.iterancestors()
-                    if _local_name(ancestor) == "Table"
-                ),
+                (ancestor for ancestor in cell.iterancestors() if _local_name(ancestor) == "Table"),
                 None,
             )
             table_self = table.get("Self", "table") if table is not None else "table"
@@ -372,10 +427,29 @@ class IdmlParser:
             character_ranges = [
                 child for child in paragraph_range if _local_name(child) == "CharacterStyleRange"
             ]
-            for character_range in character_ranges:
-                text = _text_of_range(character_range)
-                if not text:
+            range_events = [
+                (character_range, _range_events(character_range))
+                for character_range in character_ranges
+            ]
+            paragraph_events = [event for _, events in range_events for event in events]
+            for event_position, (kind, value) in enumerate(paragraph_events):
+                if kind != "link":
                     continue
+                placement, label = _anchor_context(paragraph_events, event_position)
+                anchor_placement_by_link[value] = placement
+                if label is not None:
+                    anchor_label_by_link[value] = label
+
+            def append_run(
+                text: str,
+                character_range: etree._Element,
+                *,
+                anchor_link_self: str | None = None,
+                paragraph_style_id: str | None = paragraph_style_id,
+                paragraph_evidence: Evidence = paragraph_evidence,
+                paragraph_run_ids: list[str] = paragraph_run_ids,
+                cell: etree._Element | None = cell,
+            ) -> None:
                 position = len(runs)
                 run_id = stable_id(article_key, "run", f"{source_self}:{position}")
                 character_style = character_range.get("AppliedCharacterStyle")
@@ -396,24 +470,31 @@ class IdmlParser:
                 paragraph_run_ids.append(run_id)
                 if cell is not None:
                     run_ids_by_cell[cell_key(cell)].append(run_id)
-            anchored_links = _elements(paragraph_range, "Link")
-            if anchored_links and not paragraph_run_ids:
-                position = len(runs)
-                run_id = stable_id(article_key, "run", f"{source_self}:{position}")
-                runs.append(
-                    RawTextRun(
-                        id=run_id,
-                        text="",
-                        paragraph_style_id=paragraph_style_id,
-                        position=position,
-                        evidence_ids=(paragraph_evidence.id,),
-                    )
-                )
-                paragraph_run_ids.append(run_id)
-            if paragraph_run_ids:
-                for anchored_link in anchored_links:
-                    if link_self := anchored_link.get("Self"):
-                        anchor_run_by_link[link_self] = paragraph_run_ids[-1]
+                if anchor_link_self is not None:
+                    anchor_run_by_link[anchor_link_self] = run_id
+
+            for character_range, events in range_events:
+                buffered_text = ""
+                pending_label: str | None = None
+                for kind, value in events:
+                    if kind == "text":
+                        if pending_label is not None:
+                            value = re.sub(
+                                rf"^\s*{re.escape(pending_label)}\s*",
+                                "",
+                                value,
+                                count=1,
+                            )
+                            pending_label = None
+                        buffered_text += value
+                        continue
+                    if buffered_text:
+                        append_run(buffered_text, character_range)
+                        buffered_text = ""
+                    append_run("", character_range, anchor_link_self=value)
+                    pending_label = anchor_label_by_link.get(value)
+                if buffered_text:
+                    append_run(buffered_text, character_range)
             paragraph_id = stable_id(article_key, "paragraph", paragraph_locator)
             cell_id = (
                 stable_id(
@@ -519,6 +600,8 @@ class IdmlParser:
                         if name.casefold().endswith(".pdf")
                         else RawObjectKind.FIGURE
                     ),
+                    placement=anchor_placement_by_link.get(link_self, AnchoredPlacement.UNKNOWN),
+                    label=anchor_label_by_link.get(link_self),
                     anchor_run_id=anchor_run_by_link.get(link_self),
                     asset_ids=(asset_id,),
                     evidence_ids=(link_evidence.id,),

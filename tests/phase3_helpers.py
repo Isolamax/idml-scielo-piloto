@@ -7,6 +7,7 @@ def synthetic_idml(
     include_table: bool = False,
     include_subsection: bool = False,
     include_formula: bool = False,
+    include_inline_formula: bool = False,
 ) -> bytes:
     design = b"""<?xml version="1.0" encoding="UTF-8"?>
 <Document Self="doc" DOMVersion="20.3" StoryList="u1 u2 u3 u4"/>"""
@@ -44,10 +45,10 @@ def synthetic_idml(
         '<Table Self="table-1" BodyRowCount="1" ColumnCount="2">'
         '<Cell Name="0:0"><ParagraphStyleRange AppliedParagraphStyle="ParagraphStyle/05.0.text">'
         '<CharacterStyleRange AppliedCharacterStyle="CharacterStyle/none">'
-        '<Content>Alpha</Content></CharacterStyleRange></ParagraphStyleRange></Cell>'
+        "<Content>Alpha</Content></CharacterStyleRange></ParagraphStyleRange></Cell>"
         '<Cell Name="1:0"><ParagraphStyleRange AppliedParagraphStyle="ParagraphStyle/05.0.text">'
         '<CharacterStyleRange AppliedCharacterStyle="CharacterStyle/none">'
-        '<Content>Beta</Content></CharacterStyleRange></ParagraphStyleRange></Cell>'
+        "<Content>Beta</Content></CharacterStyleRange></ParagraphStyleRange></Cell>"
         "</Table>"
         if include_table
         else ""
@@ -58,8 +59,21 @@ def synthetic_idml(
         '<Rectangle Self="formula-rectangle"><PDF><Link Self="formula-link" '
         'LinkResourceURI="file:C:/private/source/Equations.pdf" '
         'LinkResourceFormat="$ID/Adobe Portable Document Format (PDF)"/>'
-        '</PDF></Rectangle></CharacterStyleRange></ParagraphStyleRange>'
+        '</PDF></Rectangle><TextVariableInstance ResultText="(1)"/><Br/>'
+        "<Content>Where: terms.</Content></CharacterStyleRange></ParagraphStyleRange>"
         if include_formula
+        else ""
+    )
+    inline_formula = (
+        '<ParagraphStyleRange AppliedParagraphStyle="ParagraphStyle/05.0.text">'
+        '<CharacterStyleRange AppliedCharacterStyle="CharacterStyle/none">'
+        '<Content>Rate </Content><Rectangle Self="inline-formula-rectangle"><PDF>'
+        '<Link Self="inline-formula-link" '
+        'LinkResourceURI="file:C:/private/source/Equations-inline.pdf" '
+        'LinkResourceFormat="$ID/Adobe Portable Document Format (PDF)"/>'
+        "</PDF></Rectangle><Content>: measured.</Content>"
+        "</CharacterStyleRange></ParagraphStyleRange>"
+        if include_inline_formula
         else ""
     )
     stories = {
@@ -79,7 +93,8 @@ def synthetic_idml(
                 if include_subsection
                 else ""
             )
-            + formula,
+            + formula
+            + inline_formula,
             table,
         ),
         "Stories/Story_u3.xml": story(
@@ -112,6 +127,7 @@ def synthetic_idml(
 
     buffer = BytesIO()
     with ZipFile(buffer, "w") as archive:
+
         def write(name: str, value: str | bytes, compression: int) -> None:
             info = ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
             info.compress_type = compression

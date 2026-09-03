@@ -49,11 +49,19 @@ from idml_foundation.models import (
     ReviewItem,
     User,
 )
+from idml_foundation.pipeline.service import DeterministicPipeline
 from idml_foundation.rbac import Role
 from idml_foundation.security import hash_password, issue_session
 from idml_foundation.services.snapshots import store_snapshot
 from idml_foundation.settings import Settings
 from tests.domain_helpers import canonical_article
+from tests.phase3_helpers import synthetic_idml
+
+MATHML = (
+    '<mml:math xmlns:mml="http://www.w3.org/1998/Math/MathML" display="block">'
+    "<mml:mrow><mml:mi>x</mml:mi><mml:mo>=</mml:mo><mml:mn>1</mml:mn>"
+    "</mml:mrow></mml:math>"
+)
 
 
 def _request(
@@ -247,6 +255,104 @@ def _rich_text_proposal(*, atomic: bool) -> dict[str, Any]:
     }
 
 
+def _formula_review(db: Session) -> tuple[ToolScope, ReviewItem, str]:
+    org = Organization(slug="phase6-formula", name="Phase 6 Formula")
+    db.add(org)
+    db.flush()
+    resource = Resource(organization_id=org.id, title="Formula article")
+    db.add(resource)
+    db.flush()
+    document = (
+        DeterministicPipeline()
+        .run(
+            synthetic_idml(include_formula=True),
+            logical_name="ESA_2024001_AOP.idml",
+        )
+        .canonical
+    )
+    snapshot, _ = store_snapshot(
+        db,
+        organization_id=org.id,
+        resource_id=resource.id,
+        document=document,
+        revision=1,
+    )
+    formula_index = next(
+        index for index, block in enumerate(document.body[0].blocks) if block.kind == "formula"
+    )
+    field_path = f"/body/0/blocks/{formula_index}/source/value"
+    item = ReviewItem(
+        organization_id=org.id,
+        resource_id=resource.id,
+        base_snapshot_id=snapshot.id,
+        category="math_notes",
+        rule_code="FORMULA_REQUIRES_MATHML",
+        field_path=field_path,
+        message="Formula requires an atomic evidence-backed MathML transition",
+        evidence=[
+            {
+                "evidence_id": "ev-mathml-1",
+                "source_kind": "canonical",
+                "locator": "approved_xml:disp-formula:1",
+                "excerpt": MATHML,
+            }
+        ],
+        alternatives=[MATHML, "Keep the image representation"],
+    )
+    db.add(item)
+    db.flush()
+    return (
+        ToolScope(
+            organization_id=org.id,
+            job_id=None,
+            resource_id=resource.id,
+            review_item_id=item.id,
+            base_snapshot_id=snapshot.id,
+            expected_review_version=1,
+            domain=AgentDomain.MATH_NOTES,
+        ),
+        item,
+        field_path,
+    )
+
+
+def _formula_proposal(field_path: str, *, atomic: bool = True) -> dict[str, Any]:
+    patch = [
+        {
+            "op": "replace",
+            "path": field_path,
+            "value": MATHML,
+            "evidence_ids": ["ev-mathml-1"],
+        }
+    ]
+    if atomic:
+        patch.append(
+            {
+                "op": "replace",
+                "path": field_path.removesuffix("/source/value") + "/representation",
+                "value": "mathml",
+                "evidence_ids": ["ev-mathml-1"],
+            }
+        )
+    return {
+        "schema_version": "agent-proposal-1.1",
+        "domain": "math_notes",
+        "patch": patch,
+        "confidence": 0.95,
+        "evidence": [
+            {
+                "evidence_id": "ev-mathml-1",
+                "source_kind": "canonical",
+                "locator": "approved_xml:disp-formula:1",
+                "excerpt_sha256": payload_digest(MATHML),
+            }
+        ],
+        "alternatives": ["Keep the image representation"],
+        "reason": "The authorized XML evidence supplies the complete validated MathML fragment.",
+        "needs_human": True,
+    }
+
+
 def test_closed_schema_rejects_invalid_or_unsupported_output() -> None:
     digest = payload_digest("Corrected title")
     valid = _proposal(evidence_sha=digest)
@@ -369,9 +475,7 @@ def test_assistance_payload_preserves_long_evidence_as_authenticated_segments(
     assert len(evidence["segments"]) == 4
     assert reassemble_evidence(evidence) == complete_text
     assert "excerpt" not in evidence
-    assert trusted_evidence_reference(evidence)["aggregate_sha256"] == evidence[
-        "aggregate_sha256"
-    ]
+    assert trusted_evidence_reference(evidence)["aggregate_sha256"] == evidence["aggregate_sha256"]
 
 
 def test_rich_text_patch_requires_atomic_plain_and_inlines(db: Session) -> None:
@@ -393,6 +497,34 @@ def test_rich_text_patch_requires_atomic_plain_and_inlines(db: Session) -> None:
     assert result["accepted"] is True
     assert result["candidate_content_sha256"]
     assert result["xml_sha256"]
+    assert item.state == "open"
+    assert item.version == 1
+
+
+def test_formula_patch_requires_atomic_mathml_and_representation(db: Session) -> None:
+    scope, item, field_path = _formula_review(db)
+    tools = AgentToolService(db, scope)
+    fragment = tools.read_canonical_fragment(field_path).payload
+    atomic_formula = fragment["atomic_formula"]
+
+    assert atomic_formula["current_representation"] == "image"
+    assert atomic_formula["display"] is True
+    assert atomic_formula["required_patch_paths"] == [
+        field_path,
+        field_path.removesuffix("/source/value") + "/representation",
+    ]
+    payload = build_assistance_payload(tools)
+    assert payload["contract_version"] == "assistive-input-1.3"
+    assert payload["current"]["atomic_formula"] == atomic_formula
+
+    scalar_only = parse_agent_output(_formula_proposal(field_path, atomic=False))
+    with pytest.raises(ValueError, match="formula changes require an atomic patch"):
+        tools.validate_proposal(scalar_only)
+
+    atomic = parse_agent_output(_formula_proposal(field_path))
+    result = tools.validate_proposal(atomic).payload
+    assert result["accepted"] is True
+    assert result["validation_valid"] is True
     assert item.state == "open"
     assert item.version == 1
 
@@ -497,9 +629,7 @@ def test_provider_unavailable_and_worker_crash_are_normalized() -> None:
 def test_monetary_cost_is_estimated_versioned_and_budget_blocking() -> None:
     catalog = _fixture_pricing()
     result = asyncio.run(
-        SequentialOrchestrator(
-            _PricedFixtureProvider(), pricing_catalog=catalog
-        ).run(_request())
+        SequentialOrchestrator(_PricedFixtureProvider(), pricing_catalog=catalog).run(_request())
     )
     assert result.status == "succeeded"
     assert result.cost_microusd == 880
@@ -508,9 +638,9 @@ def test_monetary_cost_is_estimated_versioned_and_budget_blocking() -> None:
     assert result.pricing_model_key == "fixture/estimated"
 
     blocked = asyncio.run(
-        SequentialOrchestrator(
-            _PricedFixtureProvider(), pricing_catalog=catalog
-        ).run(_request(budget=AgentBudget(max_cost_microusd=879)))
+        SequentialOrchestrator(_PricedFixtureProvider(), pricing_catalog=catalog).run(
+            _request(budget=AgentBudget(max_cost_microusd=879))
+        )
     )
     assert blocked.status == "failed"
     assert blocked.error_code == "BUDGET_EXCEEDED"
@@ -621,7 +751,7 @@ def test_proposal_is_validated_persisted_and_never_applied(db: Session) -> None:
     assert run.pricing_model_key == "fixture/contract-fixture"
     assert run.prompt_version == "1.3"
     assert run.output_schema_version == "agent-proposal-1.1"
-    assert run.config_version == "agent-config-1.3"
+    assert run.config_version == "agent-config-1.4"
     assert run.budget["preflight_max_cost_microusd"] is None
     assert 0 < run.budget["input_envelope_bytes"] < 4_000
     assert proposal is not None and proposal.needs_human
@@ -764,8 +894,11 @@ def test_ai_capabilities_are_off_and_tenant_protected(
     assert capabilities.json()["priced_models"] == ["openai/gpt-5.4-mini"]
     assert capabilities.json()["default_model_key"] == "openai/gpt-5.4-mini"
     assert capabilities.json()["preflight_max_cost_microusd"] == 18_000
-    assert client.get(
-        "/v1/ai/capabilities",
-        headers={"Authorization": f"Bearer {token}", "X-Organization-ID": other.id},
-    ).status_code == 404
+    assert (
+        client.get(
+            "/v1/ai/capabilities",
+            headers={"Authorization": f"Bearer {token}", "X-Organization-ID": other.id},
+        ).status_code
+        == 404
+    )
     assert client.get("/v1/ai/runs", headers=headers).json() == []

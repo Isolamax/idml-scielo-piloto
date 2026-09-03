@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from lxml import etree
 
+from idml_foundation.domain.canonical import CanonicalArticle, FormulaRepresentation, InlineKind
 from idml_foundation.domain.common import canonical_bytes
 from idml_foundation.pipeline.canonical_mapper import CanonicalMapper
 from idml_foundation.pipeline.idml_parser import IdmlParser, style_prefix
@@ -62,16 +63,100 @@ def test_pipeline_preserves_anchored_pdf_formula_as_reviewable_image() -> None:
     )
     root = etree.fromstring(result.xml)
 
-    formula = result.canonical.body[0].blocks[-1]
+    formula = next(block for block in result.canonical.body[0].blocks if block.kind == "formula")
     assert formula.kind == "formula"
     assert formula.representation == "image"
     assert formula.source.value == "Equations.pdf"
+    assert formula.label is not None and formula.label.value == "(1)"
+    assert result.canonical.body[0].blocks.index(formula) < next(
+        index
+        for index, block in enumerate(result.canonical.body[0].blocks)
+        if block.kind == "paragraph" and block.content.plain.value == "\nWhere: terms."
+    )
     assert any(
         reason.startswith("formula_requires_mathml_transcription:")
         for reason in result.canonical.review_reasons
     )
     assert root.xpath("count(body//disp-formula/graphic)") == 1.0
+    assert root.xpath("string(body//disp-formula/label)") == "(1)"
     assert result.validation.valid
+
+
+def test_pipeline_maps_inline_pdf_formula_without_losing_text_order() -> None:
+    result = DeterministicPipeline().run(
+        synthetic_idml(include_inline_formula=True),
+        logical_name="ESA_2024001_AOP.idml",
+    )
+    root = etree.fromstring(result.xml)
+    paragraph = next(
+        block
+        for block in result.canonical.body[0].blocks
+        if block.kind == "paragraph" and block.content.plain.value == "Rate : measured."
+    )
+    inline = next(
+        item for item in paragraph.content.inlines if item.kind == InlineKind.INLINE_FORMULA
+    )
+
+    assert inline.formula_representation == FormulaRepresentation.IMAGE
+    assert inline.formula_source is not None
+    assert inline.formula_source.value == "Equations-inline.pdf"
+    assert root.xpath("count(body//p/inline-formula/inline-graphic)") == 1.0
+    assert result.validation.valid
+
+
+def test_builder_emits_valid_mathml_for_display_and_inline_formulas() -> None:
+    result = DeterministicPipeline().run(
+        synthetic_idml(include_formula=True, include_inline_formula=True),
+        logical_name="ESA_2024001_AOP.idml",
+    )
+    payload = result.canonical.model_dump(mode="json")
+    display = next(block for block in payload["body"][0]["blocks"] if block["kind"] == "formula")
+    display["representation"] = "mathml"
+    display["source"]["value"] = (
+        '<mml:math xmlns:mml="http://www.w3.org/1998/Math/MathML" display="block">'
+        "<mml:mrow><mml:mi>x</mml:mi><mml:mo>=</mml:mo><mml:mn>1</mml:mn>"
+        "</mml:mrow></mml:math>"
+    )
+    paragraph = next(
+        block
+        for block in payload["body"][0]["blocks"]
+        if block["kind"] == "paragraph" and block["content"]["plain"]["value"] == "Rate : measured."
+    )
+    inline = next(
+        item for item in paragraph["content"]["inlines"] if item["kind"] == "inline_formula"
+    )
+    inline["text"] = "y"
+    inline["formula_representation"] = "mathml"
+    inline["formula_source"]["value"] = (
+        '<mml:math xmlns:mml="http://www.w3.org/1998/Math/MathML" display="inline">'
+        "<mml:mi>y</mml:mi></mml:math>"
+    )
+    paragraph["content"]["plain"]["value"] = "Rate y: measured."
+    article = CanonicalArticle.model_validate(payload)
+    xml = JatsBuilder().build(article)
+    validation = OfflineJatsValidator(
+        Path(__file__).parents[1] / "vendor" / "jats" / "1.3"
+    ).validate(
+        xml,
+        asset_names={asset.logical_name for asset in article.assets},
+    )
+    root = etree.fromstring(xml)
+
+    assert (
+        root.xpath(
+            "count(body//disp-formula/mml:math)",
+            namespaces={"mml": "http://www.w3.org/1998/Math/MathML"},
+        )
+        == 1.0
+    )
+    assert (
+        root.xpath(
+            "count(body//inline-formula/mml:math)",
+            namespaces={"mml": "http://www.w3.org/1998/Math/MathML"},
+        )
+        == 1.0
+    )
+    assert validation.valid
 
 
 def test_pipeline_is_byte_deterministic_and_offline_dtd_valid() -> None:
@@ -121,16 +206,12 @@ def test_validator_normalizes_malformed_xml_and_unsafe_assets() -> None:
 def test_validator_checks_bibliography_reference_semantics() -> None:
     vendor = Path(__file__).parents[1] / "vendor" / "jats" / "1.3"
     validator = OfflineJatsValidator(vendor)
-    xml = DeterministicPipeline().run(
-        synthetic_idml(), logical_name="ESA_2024001_AOP.idml"
-    ).xml
+    xml = DeterministicPipeline().run(synthetic_idml(), logical_name="ESA_2024001_AOP.idml").xml
     root = etree.fromstring(xml)
     reference_ids = [item.get("id") for item in root.xpath("//ref")]
     cited = xml.replace(
         b"</p>",
-        (
-            f'<xref ref-type="bibr" rid="{" ".join(reference_ids)}">[1,2]</xref></p>'
-        ).encode(),
+        (f'<xref ref-type="bibr" rid="{" ".join(reference_ids)}">[1,2]</xref></p>').encode(),
         1,
     )
     cited_report = validator.validate(cited)

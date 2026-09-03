@@ -92,6 +92,29 @@ def _atomic_rich_text_context(payload: dict[str, Any], path: str) -> dict[str, A
     }
 
 
+def _atomic_formula_context(payload: dict[str, Any], path: str) -> dict[str, Any] | None:
+    suffix = "/source/value"
+    if not path.endswith(suffix):
+        return None
+    root_path = path[: -len(suffix)]
+    formula = _pointer_value(payload, root_path)
+    if not (
+        isinstance(formula, dict)
+        and formula.get("kind") == "formula"
+        and isinstance(formula.get("source"), dict)
+        and "representation" in formula
+    ):
+        return None
+    return {
+        "root_path": root_path,
+        "current_representation": sanitize_untrusted(formula["representation"]),
+        "display": bool(formula.get("display")),
+        "asset_id": sanitize_untrusted(formula.get("asset_id")),
+        "required_patch_paths": [path, f"{root_path}/representation"],
+        "allowed_target_representations": ["mathml"],
+    }
+
+
 def _source_kind(value: Any) -> str:
     normalized = str(value or "canonical").casefold().replace("_", "-")
     if normalized in {"idml", "pdf", "validation", "canonical"}:
@@ -191,6 +214,7 @@ class AgentToolService:
             raise PermissionError("canonical path is outside the review scope")
         value = _pointer_value(self.snapshot.payload, path)
         atomic_context = _atomic_rich_text_context(self.snapshot.payload, path)
+        atomic_formula_context = _atomic_formula_context(self.snapshot.payload, path)
         payload: dict[str, Any] = {
             "snapshot_id": self.snapshot.id,
             "path": path,
@@ -198,6 +222,8 @@ class AgentToolService:
         }
         if atomic_context is not None:
             payload["atomic_rich_text"] = atomic_context
+        if atomic_formula_context is not None:
+            payload["atomic_formula"] = atomic_formula_context
         return self._result(
             "idml_read_canonical_fragment",
             payload,

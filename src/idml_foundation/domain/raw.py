@@ -10,7 +10,7 @@ from idml_foundation.domain.common import (
     StrictModel,
 )
 
-RAW_SCHEMA_VERSION = "1.1.0"
+RAW_SCHEMA_VERSION = "1.2.0"
 
 
 class StyleKind(StrEnum):
@@ -116,10 +116,18 @@ class RawObjectKind(StrEnum):
     UNKNOWN = "unknown"
 
 
+class AnchoredPlacement(StrEnum):
+    BLOCK = "block"
+    INLINE = "inline"
+    UNKNOWN = "unknown"
+
+
 class RawAnchoredObject(StrictModel):
     id: str
     source_self_id: str
     kind: RawObjectKind
+    placement: AnchoredPlacement = AnchoredPlacement.UNKNOWN
+    label: str | None = Field(default=None, max_length=80)
     anchor_run_id: str | None = None
     asset_ids: tuple[str, ...] = ()
     box: BoundingBox | None = None

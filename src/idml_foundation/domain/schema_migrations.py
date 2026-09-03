@@ -26,6 +26,14 @@ def _raw_1_0_to_1_1(payload: dict[str, Any]) -> dict[str, Any]:
         story.setdefault("paragraphs", [])
     migrated.setdefault("reading_order", [story["id"] for story in migrated.get("stories", [])])
     migrated.setdefault("reading_order_issues", [])
+    migrated["schema_version"] = "1.1.0"
+    return migrated
+
+
+def _raw_1_1_to_1_2(payload: dict[str, Any]) -> dict[str, Any]:
+    migrated = copy.deepcopy(payload)
+    for anchored_object in migrated.get("anchored_objects", []):
+        anchored_object.setdefault("placement", "unknown")
     migrated["schema_version"] = RAW_SCHEMA_VERSION
     return migrated
 
@@ -36,14 +44,22 @@ def _canonical_0_1_to_1_0(payload: dict[str, Any]) -> dict[str, Any]:
     migrated["source_raw_sha256"] = migrated.pop("raw_sha256")
     migrated.setdefault("assets", [])
     migrated.setdefault("review_reasons", [])
+    migrated["schema_version"] = "1.0.0"
+    return migrated
+
+
+def _canonical_1_0_to_1_1(payload: dict[str, Any]) -> dict[str, Any]:
+    migrated = copy.deepcopy(payload)
     migrated["schema_version"] = CANONICAL_SCHEMA_VERSION
     return migrated
 
 
 MIGRATIONS: dict[tuple[ModelKind, str], tuple[str, Migration]] = {
     ("raw", "0.1.0"): ("1.0.0", _raw_0_1_to_1_0),
-    ("raw", "1.0.0"): (RAW_SCHEMA_VERSION, _raw_1_0_to_1_1),
-    ("canonical", "0.1.0"): (CANONICAL_SCHEMA_VERSION, _canonical_0_1_to_1_0),
+    ("raw", "1.0.0"): ("1.1.0", _raw_1_0_to_1_1),
+    ("raw", "1.1.0"): (RAW_SCHEMA_VERSION, _raw_1_1_to_1_2),
+    ("canonical", "0.1.0"): ("1.0.0", _canonical_0_1_to_1_0),
+    ("canonical", "1.0.0"): (CANONICAL_SCHEMA_VERSION, _canonical_1_0_to_1_1),
 }
 
 LATEST_VERSIONS: dict[ModelKind, str] = {

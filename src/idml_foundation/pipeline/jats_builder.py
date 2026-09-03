@@ -10,6 +10,7 @@ from idml_foundation.domain.canonical import (
     FieldState,
     FigureBlock,
     FormulaBlock,
+    FormulaRepresentation,
     InlineKind,
     ListBlock,
     NoteBlock,
@@ -19,6 +20,7 @@ from idml_foundation.domain.canonical import (
     Section,
     TableBlock,
 )
+from idml_foundation.mathml import MATHML_NS, parse_mathml_fragment
 
 XLINK_NS = "http://www.w3.org/1999/xlink"
 XML_NS = "http://www.w3.org/XML/1998/namespace"
@@ -76,7 +78,7 @@ class JatsBuilder:
         self._register_ids(article, registry)
         root = etree.Element(
             "article",
-            nsmap={"xlink": XLINK_NS},
+            nsmap={"xlink": XLINK_NS, "mml": MATHML_NS},
             attrib={
                 "article-type": article.front.article_category.value or "research-article",
                 "dtd-version": "1.3",
@@ -84,9 +86,10 @@ class JatsBuilder:
                 f"{{{XML_NS}}}lang": self._primary_language(article),
             },
         )
+        asset_names = {asset.id: asset.logical_name for asset in article.assets}
         self._front(root, article, registry)
-        self._body(root, article, registry)
-        self._back(root, article, registry)
+        self._body(root, article, registry, asset_names)
+        self._back(root, article, registry, asset_names)
         tree = etree.ElementTree(root)
         return etree.tostring(
             tree,
@@ -249,9 +252,9 @@ class JatsBuilder:
         root: etree._Element,
         article: CanonicalArticle,
         registry: IdRegistry,
+        asset_names: dict[str, str],
     ) -> None:
         body = _add(root, "body")
-        asset_names = {asset.id: asset.logical_name for asset in article.assets}
         for section in article.body:
             self._section(body, section, registry, asset_names)
 
@@ -268,14 +271,14 @@ class JatsBuilder:
         for block in section.blocks:
             if isinstance(block, Paragraph):
                 paragraph = _add(element, "p", id=registry.resolve(block.id))
-                self._rich(paragraph, block.content, registry)
+                self._rich(paragraph, block.content, registry, asset_names)
             elif isinstance(block, FigureBlock):
                 figure = _add(element, "fig", id=registry.resolve(block.id))
                 if block.label.value:
                     _add(figure, "label", block.label.value)
                 caption = _add(figure, "caption")
                 caption_paragraph = _add(caption, "p")
-                self._rich(caption_paragraph, block.caption, registry)
+                self._rich(caption_paragraph, block.caption, registry, asset_names)
                 if block.asset_id:
                     _add(
                         figure,
@@ -288,7 +291,7 @@ class JatsBuilder:
                     _add(wrapper, "label", block.label.value)
                 caption = _add(wrapper, "caption")
                 caption_paragraph = _add(caption, "p")
-                self._rich(caption_paragraph, block.caption, registry)
+                self._rich(caption_paragraph, block.caption, registry, asset_names)
                 table = _add(wrapper, "table")
                 tbody = _add(table, "tbody")
                 for row in block.rows:
@@ -296,7 +299,7 @@ class JatsBuilder:
                     for cell in row:
                         td = _add(tr, "td")
                         if cell.plain.value:
-                            self._rich(td, cell, registry)
+                            self._rich(td, cell, registry, asset_names)
             elif isinstance(block, ListBlock):
                 listing = _add(
                     element,
@@ -307,25 +310,29 @@ class JatsBuilder:
                 for item in block.items:
                     list_item = _add(listing, "list-item", id=registry.resolve(item.id))
                     paragraph = _add(list_item, "p")
-                    self._rich(paragraph, item.content, registry)
+                    self._rich(paragraph, item.content, registry, asset_names)
             elif isinstance(block, QuoteBlock):
                 quote = _add(element, "disp-quote", id=registry.resolve(block.id))
                 paragraph = _add(quote, "p")
-                self._rich(paragraph, block.content, registry)
+                self._rich(paragraph, block.content, registry, asset_names)
             elif isinstance(block, FormulaBlock):
                 formula = _add(element, "disp-formula", id=registry.resolve(block.id))
-                if block.representation == "image" and block.asset_id:
+                if block.label and block.label.value:
+                    _add(formula, "label", block.label.value)
+                if block.representation == FormulaRepresentation.IMAGE and block.asset_id:
                     _add(
                         formula,
                         "graphic",
                         **{f"{{{XLINK_NS}}}href": asset_names[block.asset_id]},
                     )
+                elif block.representation == FormulaRepresentation.MATHML:
+                    formula.append(parse_mathml_fragment(block.source.value or "", display=True))
                 else:
                     _add(formula, "tex-math", block.source.value or "")
             elif isinstance(block, NoteBlock):
                 note = _add(element, "boxed-text", id=registry.resolve(block.id))
                 paragraph = _add(note, "p")
-                self._rich(paragraph, block.content, registry)
+                self._rich(paragraph, block.content, registry, asset_names)
         for child in section.children:
             self._section(element, child, registry, asset_names)
 
@@ -334,6 +341,7 @@ class JatsBuilder:
         parent: etree._Element,
         rich_text: RichText,
         registry: IdRegistry,
+        asset_names: dict[str, str],
     ) -> None:
         if not rich_text.inlines:
             parent.text = rich_text.plain.value or ""
@@ -346,6 +354,32 @@ class JatsBuilder:
                 else:
                     previous.tail = (previous.tail or "") + inline.text
                 continue
+            if inline.kind == InlineKind.INLINE_FORMULA:
+                inline_formula = _add(parent, "inline-formula")
+                if inline.formula_representation == FormulaRepresentation.MATHML:
+                    inline_formula.append(
+                        parse_mathml_fragment(
+                            (inline.formula_source.value or "") if inline.formula_source else "",
+                            display=False,
+                        )
+                    )
+                elif (
+                    inline.formula_representation == FormulaRepresentation.IMAGE
+                    and inline.formula_asset_id
+                ):
+                    _add(
+                        inline_formula,
+                        "inline-graphic",
+                        **{f"{{{XLINK_NS}}}href": asset_names[inline.formula_asset_id]},
+                    )
+                else:
+                    _add(
+                        inline_formula,
+                        "tex-math",
+                        inline.formula_source.value if inline.formula_source else inline.text,
+                    )
+                previous = inline_formula
+                continue
             tag = {
                 InlineKind.EMPHASIS: "italic",
                 InlineKind.STRONG: "bold",
@@ -353,7 +387,6 @@ class JatsBuilder:
                 InlineKind.SUPERSCRIPT: "sup",
                 InlineKind.EXTERNAL_LINK: "ext-link",
                 InlineKind.CROSS_REFERENCE: "xref",
-                InlineKind.INLINE_FORMULA: "inline-formula",
                 InlineKind.NAMED_CONTENT: "named-content",
             }[inline.kind]
             attributes: dict[str, str] = {}
@@ -365,8 +398,7 @@ class JatsBuilder:
                 ref_type = inline.attributes.get("ref-type", "other")
                 attributes["ref-type"] = (
                     ref_type
-                    if ref_type
-                    in {"bibr", "fig", "table", "disp-formula", "fn", "sec", "other"}
+                    if ref_type in {"bibr", "fig", "table", "disp-formula", "fn", "sec", "other"}
                     else "other"
                 )
             elif inline.kind == InlineKind.NAMED_CONTENT and inline.name:
@@ -378,6 +410,7 @@ class JatsBuilder:
         root: etree._Element,
         article: CanonicalArticle,
         registry: IdRegistry,
+        asset_names: dict[str, str],
     ) -> None:
         if not article.back.references and not article.back.notes:
             return
@@ -389,4 +422,4 @@ class JatsBuilder:
                 element = _add(reference_list, "ref", id=registry.resolve(reference.id))
                 _add(element, "label", str(position))
                 citation = _add(element, "mixed-citation")
-                self._rich(citation, reference.mixed_citation, registry)
+                self._rich(citation, reference.mixed_citation, registry, asset_names)

@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import re
 from collections import defaultdict
+from typing import cast
 
 from idml_foundation.domain.canonical import (
     Affiliation,
@@ -14,6 +15,7 @@ from idml_foundation.domain.canonical import (
     FieldState,
     FigureBlock,
     FormulaBlock,
+    FormulaRepresentation,
     FrontMatter,
     Identifier,
     InlineKind,
@@ -35,8 +37,10 @@ from idml_foundation.domain.common import (
     stable_id,
 )
 from idml_foundation.domain.raw import (
+    AnchoredPlacement,
     RawAnchoredObject,
     RawArticle,
+    RawAsset,
     RawObjectKind,
     RawParagraph,
     RawStory,
@@ -333,13 +337,45 @@ class CanonicalMapper:
         paragraph: RawParagraph,
         character_names: dict[str, str],
         article_id: str,
+        *,
+        run_ids: tuple[str, ...] | None = None,
+        inline_formulas_by_run: dict[str, list[RawAnchoredObject]] | None = None,
+        raw_assets: dict[str, RawAsset] | None = None,
     ) -> RichText:
         runs = {run.id: run for run in story.runs}
         inlines: list[InlineNode] = []
         plain = ""
-        for position, run_id in enumerate(paragraph.text_run_ids):
+        selected_run_ids = run_ids if run_ids is not None else paragraph.text_run_ids
+        for position, run_id in enumerate(selected_run_ids):
             run = runs[run_id]
+            for formula_position, formula in enumerate(
+                (inline_formulas_by_run or {}).get(run_id, ())
+            ):
+                asset_id = formula.asset_ids[0] if formula.asset_ids else None
+                asset = (raw_assets or {}).get(asset_id or "")
+                source = asset.logical_path if asset is not None else "unresolved-formula-asset"
+                inlines.append(
+                    InlineNode(
+                        id=stable_id(
+                            article_id,
+                            "inline-formula",
+                            f"{paragraph.id}:{position}:{formula_position}",
+                        ),
+                        kind=InlineKind.INLINE_FORMULA,
+                        text="",
+                        formula_source=_present(
+                            source,
+                            formula.evidence_ids,
+                            "anchored-inline-pdf-formula",
+                        ),
+                        formula_representation=FormulaRepresentation.IMAGE,
+                        formula_asset_id=asset_id,
+                        evidence_ids=formula.evidence_ids,
+                    )
+                )
             plain += run.text
+            if not run.text:
+                continue
             style_name = character_names.get(run.character_style_id or "", "")
             kind = InlineKind.TEXT
             if "italic" in style_name or "italico" in style_name:
@@ -358,8 +394,8 @@ class CanonicalMapper:
             )
         return RichText(
             plain=SourcedText(
-                value=plain,
-                state=FieldState.PRESENT,
+                value=plain if plain.strip() else None,
+                state=FieldState.PRESENT if plain.strip() else FieldState.NEEDS_REVIEW,
                 evidence_ids=paragraph.evidence_ids,
                 transformation="lossless-run-concatenation",
                 confidence=1.0,
@@ -387,23 +423,34 @@ class CanonicalMapper:
         citation_review_reasons: list[str] = []
         formula_review_reasons: list[str] = []
         raw_assets = {asset.id: asset for asset in raw.assets}
-        formulas_by_run: defaultdict[str, list[RawAnchoredObject]] = defaultdict(list)
+        block_formulas_by_run: defaultdict[str, list[RawAnchoredObject]] = defaultdict(list)
+        inline_formulas_by_run: defaultdict[str, list[RawAnchoredObject]] = defaultdict(list)
         for anchored_object in raw.anchored_objects:
             if (
                 anchored_object.kind == RawObjectKind.FORMULA
                 and anchored_object.anchor_run_id is not None
             ):
-                formulas_by_run[anchored_object.anchor_run_id].append(anchored_object)
+                target = (
+                    inline_formulas_by_run
+                    if anchored_object.placement == AnchoredPlacement.INLINE
+                    else block_formulas_by_run
+                )
+                target[anchored_object.anchor_run_id].append(anchored_object)
         current: dict[str, object] | None = None
         for story, paragraph, role in body_items:
             runs = {run.id: run for run in story.runs}
             text = "".join(runs[item].text for item in paragraph.text_run_ids).strip()
-            formula_objects = [
+            block_formula_objects = [
                 formula
                 for run_id in paragraph.text_run_ids
-                for formula in formulas_by_run.get(run_id, ())
+                for formula in block_formulas_by_run.get(run_id, ())
             ]
-            if not text and not formula_objects:
+            inline_formula_objects = [
+                formula
+                for run_id in paragraph.text_run_ids
+                for formula in inline_formulas_by_run.get(run_id, ())
+            ]
+            if not text and not block_formula_objects and not inline_formula_objects:
                 continue
             if role.startswith("section-level"):
                 level = 1 if role.endswith("1") else 2
@@ -440,12 +487,40 @@ class CanonicalMapper:
                     }
                     sections.append(current)
                     section_stack.append(current)
-                blocks = current["blocks"]
-                assert isinstance(blocks, list)
-                if text:
-                    paragraph_id = stable_id(article_id, "paragraph", paragraph.id)
+                blocks = cast(list[object], current["blocks"])
+
+                def append_paragraph(
+                    run_ids: list[str],
+                    segment: int,
+                    story: RawStory = story,
+                    paragraph: RawParagraph = paragraph,
+                    block_formula_objects: list[RawAnchoredObject] = block_formula_objects,
+                    blocks: list[object] = blocks,
+                    inline_formula_objects: list[RawAnchoredObject] = inline_formula_objects,
+                ) -> None:
+                    if not run_ids:
+                        return
+                    rich_text = self._rich_text(
+                        story,
+                        paragraph,
+                        character_names,
+                        article_id,
+                        run_ids=tuple(run_ids),
+                        inline_formulas_by_run=inline_formulas_by_run,
+                        raw_assets=raw_assets,
+                    )
+                    if rich_text.plain.value is None and not any(
+                        inline.kind == InlineKind.INLINE_FORMULA for inline in rich_text.inlines
+                    ):
+                        return
+                    paragraph_locator = (
+                        paragraph.id
+                        if not block_formula_objects
+                        else f"{paragraph.id}:segment:{segment}"
+                    )
+                    paragraph_id = stable_id(article_id, "paragraph", paragraph_locator)
                     citation_resolution = resolve_citations(
-                        self._rich_text(story, paragraph, character_names, article_id),
+                        rich_text,
                         references,
                         article_id=article_id,
                         paragraph_id=paragraph_id,
@@ -459,7 +534,22 @@ class CanonicalMapper:
                         )
                     )
                     citation_review_reasons.extend(citation_resolution.review_reasons)
-                for formula in formula_objects:
+                    plain_value = citation_resolution.content.plain.value or ""
+                    for match in re.finditer(r"(?m)^[ \t]*:[ \t]+\S", plain_value):
+                        formula_review_reasons.append(
+                            f"possible_missing_inline_formula:{paragraph.id}:{match.start()}"
+                        )
+                    for inline_formula in inline_formula_objects:
+                        if inline_formula.anchor_run_id not in run_ids:
+                            continue
+                        formula_review_reasons.append(
+                            f"inline_formula_requires_mathml_transcription:{inline_formula.id}"
+                        )
+
+                def append_formula(
+                    formula: RawAnchoredObject,
+                    blocks: list[object] = blocks,
+                ) -> None:
                     asset_id = formula.asset_ids[0] if formula.asset_ids else None
                     asset = raw_assets.get(asset_id or "")
                     source = asset.logical_path if asset is not None else "unresolved-formula-asset"
@@ -472,7 +562,16 @@ class CanonicalMapper:
                                 formula.evidence_ids,
                                 "anchored-pdf-formula",
                             ),
-                            representation="image",
+                            representation=FormulaRepresentation.IMAGE,
+                            label=(
+                                _present(
+                                    formula.label,
+                                    formula.evidence_ids,
+                                    "anchored-formula-label",
+                                )
+                                if formula.label
+                                else None
+                            ),
                             asset_id=asset_id,
                             evidence_ids=formula.evidence_ids,
                         )
@@ -481,10 +580,22 @@ class CanonicalMapper:
                         f"formula_requires_mathml_transcription:{formula.id}"
                     )
 
+                segment_run_ids: list[str] = []
+                segment = 0
+                for run_id in paragraph.text_run_ids:
+                    formulas = block_formulas_by_run.get(run_id, ())
+                    if formulas:
+                        append_paragraph(segment_run_ids, segment)
+                        segment += 1
+                        segment_run_ids = []
+                        for formula in formulas:
+                            append_formula(formula)
+                    else:
+                        segment_run_ids.append(run_id)
+                append_paragraph(segment_run_ids, segment)
+
         raw_tables = {table.id: table for table in raw.tables}
-        table_story = {
-            table_id: story.id for story in raw.stories for table_id in story.table_ids
-        }
+        table_story = {table_id: story.id for story in raw.stories for table_id in story.table_ids}
         story_page = {
             story.id: min(
                 (frame.page_index for frame in raw.frames if frame.parent_story_id == story.id),
@@ -517,9 +628,7 @@ class CanonicalMapper:
                         None,
                     )
                     value = (
-                        "".join(run_lookup[item].text for item in cell.text_run_ids)
-                        if cell
-                        else ""
+                        "".join(run_lookup[item].text for item in cell.text_run_ids) if cell else ""
                     )
                     cell_rich = RichText(
                         plain=(

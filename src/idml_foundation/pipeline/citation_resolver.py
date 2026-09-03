@@ -162,6 +162,8 @@ def _slice_inlines(
             evidence_ids=rich_text.plain.evidence_ids,
         ),
     )
+    if not matches:
+        return source
     boundaries = {0, len(rich_text.plain.value or "")}
     for match in matches:
         boundaries.update((match.start, match.end))

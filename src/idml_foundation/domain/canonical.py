@@ -4,8 +4,9 @@ from typing import Annotated, Literal, Self
 from pydantic import BaseModel, Field, model_validator
 
 from idml_foundation.domain.common import SHA256_PATTERN, Evidence, StrictModel
+from idml_foundation.mathml import parse_mathml_fragment
 
-CANONICAL_SCHEMA_VERSION = "1.0.0"
+CANONICAL_SCHEMA_VERSION = "1.1.0"
 
 
 class FieldState(StrEnum):
@@ -130,6 +131,14 @@ class InlineKind(StrEnum):
     NAMED_CONTENT = "named_content"
 
 
+class FormulaRepresentation(StrEnum):
+    TEXT = "text"
+    LATEX = "latex"
+    MATHML = "mathml"
+    IMAGE = "image"
+    UNKNOWN = "unknown"
+
+
 class InlineNode(StrictModel):
     id: str
     kind: InlineKind
@@ -138,6 +147,9 @@ class InlineNode(StrictModel):
     href: str | None = None
     name: str | None = None
     attributes: dict[str, str] = Field(default_factory=dict)
+    formula_source: SourcedText | None = None
+    formula_representation: FormulaRepresentation | None = None
+    formula_asset_id: str | None = None
     evidence_ids: tuple[str, ...] = ()
 
     @model_validator(mode="after")
@@ -148,6 +160,25 @@ class InlineNode(StrictModel):
             raise ValueError("external link inline requires href")
         if self.kind == InlineKind.NAMED_CONTENT and self.name is None:
             raise ValueError("named content inline requires name")
+        formula_fields = (
+            self.formula_source,
+            self.formula_representation,
+            self.formula_asset_id,
+        )
+        if self.kind != InlineKind.INLINE_FORMULA and any(
+            value is not None for value in formula_fields
+        ):
+            raise ValueError("formula fields are exclusive to inline formulas")
+        if self.kind == InlineKind.INLINE_FORMULA:
+            if self.formula_source is None or self.formula_representation is None:
+                raise ValueError("inline formula requires source and representation")
+            if (
+                self.formula_representation == FormulaRepresentation.IMAGE
+                and self.formula_asset_id is None
+            ):
+                raise ValueError("inline image formula requires asset_id")
+            if self.formula_representation == FormulaRepresentation.MATHML:
+                parse_mathml_fragment(self.formula_source.value or "", display=False)
         return self
 
 
@@ -218,9 +249,18 @@ class FormulaBlock(StrictModel):
     id: str
     display: bool
     source: SourcedText
-    representation: Literal["text", "latex", "mathml", "image", "unknown"]
+    representation: FormulaRepresentation
+    label: SourcedText | None = None
     asset_id: str | None = None
     evidence_ids: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def representation_is_complete_and_safe(self) -> Self:
+        if self.representation == FormulaRepresentation.IMAGE and self.asset_id is None:
+            raise ValueError("image formula requires asset_id")
+        if self.representation == FormulaRepresentation.MATHML:
+            parse_mathml_fragment(self.source.value or "", display=self.display)
+        return self
 
 
 class NoteBlock(StrictModel):
@@ -334,6 +374,9 @@ class CanonicalArticle(StrictModel):
             if isinstance(item, (FigureBlock, FormulaBlock)):
                 if item.asset_id and item.asset_id not in asset_ids:
                     raise ValueError("content references an unknown asset")
+            if isinstance(item, InlineNode) and item.formula_asset_id:
+                if item.formula_asset_id not in asset_ids:
+                    raise ValueError("inline formula references an unknown asset")
             if isinstance(item, CrossReference) and item.target_id not in target_ids:
                 raise ValueError("cross-reference target is unknown")
             if (
