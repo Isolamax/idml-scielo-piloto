@@ -139,5 +139,24 @@ JS
 )
 [ "$session_count" = 0 ]
 
+provider exec -T openclaw-idml openclaw models list --json |
+  python3 -c '
+import json, sys
+
+data = json.load(sys.stdin)
+models = data.get("models", data if isinstance(data, list) else [])
+selected = next(
+    (model for model in models if model.get("key") == "openai/gpt-5.4-mini"),
+    None,
+)
+assert selected is not None, "configured OpenAI model is missing"
+modalities = selected.get("input")
+if isinstance(modalities, str):
+    modalities = [part.strip() for part in modalities.replace("+", ",").split(",")]
+assert {"text", "image"}.issubset(set(modalities or [])), (
+    "configured OpenAI model is not image-capable"
+)
+'
+
 trap - EXIT HUP INT TERM
 printf '%s\n' 'OpenAI provider staged; application agent flags remain disabled'

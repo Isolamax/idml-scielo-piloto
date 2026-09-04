@@ -14,6 +14,7 @@ from idml_foundation.domain.canonical import (
     CanonicalArticle,
     FormulaBlock,
     InlineKind,
+    InlineNode,
     Paragraph,
     Section,
 )
@@ -101,6 +102,29 @@ def _inline_formula_count(sections: tuple[Section, ...]) -> int:
                 )
         count += _inline_formula_count(section.children)
     return count
+
+
+def _inline_formula_fields(
+    sections: tuple[Section, ...],
+    base: str = "/body",
+) -> list[tuple[str, InlineNode]]:
+    fields: list[tuple[str, InlineNode]] = []
+    for section_index, section in enumerate(sections):
+        section_path = f"{base}/{section_index}"
+        for block_index, block in enumerate(section.blocks):
+            if not isinstance(block, Paragraph):
+                continue
+            for inline_index, inline in enumerate(block.content.inlines):
+                if inline.kind == InlineKind.INLINE_FORMULA:
+                    fields.append(
+                        (
+                            f"{section_path}/blocks/{block_index}/content/inlines/"
+                            f"{inline_index}/formula_source/value",
+                            inline,
+                        )
+                    )
+        fields.extend(_inline_formula_fields(section.children, f"{section_path}/children"))
+    return fields
 
 
 def _controlled_omission(value: str) -> str:
@@ -251,9 +275,57 @@ def build_real_domain_corpus(
         "required_patch_paths": [formula_path, f"{formula_root}/representation"],
         "allowed_target_representations": ["mathml"],
     }
+    gold_inline_formulas = [
+        _mathml(element, display=False) for element in _xpath_elements(gold, "body//inline-formula")
+    ]
+    canonical_inline_formulas = _inline_formula_fields(result.canonical.body)
+    if len(canonical_inline_formulas) != len(gold_inline_formulas):
+        raise ValueError("IDML inline formula gaps do not align with approved inline formulas")
+    for index, ((inline_path, inline), inline_expected) in enumerate(
+        zip(canonical_inline_formulas, gold_inline_formulas, strict=True),
+        start=1,
+    ):
+        inline_current = inline.formula_source.value if inline.formula_source else None
+        inline_case = _case(
+            case_id=f"esa-math-notes-inline-{index:03d}",
+            domain="math_notes",
+            field_path=inline_path,
+            current=inline_current or "",
+            expected=inline_expected,
+            evidence_id=f"gold-math-notes-inline-{index:03d}",
+            locator=f"approved_xml:math_notes:inline:{index}",
+            fixture_kind="authorized_inline_mathml_atomic_transition",
+            application_ready=True,
+        )
+        inline_root = inline_path.removesuffix("/formula_source/value")
+        inline_case["atomic_formula"] = {
+            "root_path": inline_root,
+            "current_representation": (
+                inline.formula_representation.value
+                if inline.formula_representation is not None
+                else "unknown"
+            ),
+            "display": False,
+            "asset_id": inline.formula_asset_id,
+            "required_patch_paths": [
+                inline_path,
+                f"{inline_root}/formula_representation",
+            ],
+            "allowed_target_representations": ["mathml"],
+        }
+        cases.append(inline_case)
     candidate_payload = copy.deepcopy(result.canonical.model_dump(mode="json"))
     _replace_pointer(candidate_payload, formula_path, formula_expected)
     _replace_pointer(candidate_payload, f"{formula_root}/representation", "mathml")
+    for inline_case in cases[2:]:
+        inline_path = str(inline_case["field_path"])
+        inline_root = inline_path.removesuffix("/formula_source/value")
+        _replace_pointer(candidate_payload, inline_path, inline_case["expected_value"])
+        _replace_pointer(
+            candidate_payload,
+            f"{inline_root}/formula_representation",
+            "mathml",
+        )
     candidate = CanonicalArticle.model_validate(candidate_payload)
     candidate_xml = JatsBuilder().build(candidate)
     vendor = Path(__file__).resolve().parents[3] / "vendor" / "jats" / "1.3"
@@ -275,7 +347,7 @@ def build_real_domain_corpus(
         "cases": cases,
     }
 
-    approved_inline_formula_count = len(_xpath_elements(gold, "body//inline-formula"))
+    approved_inline_formula_count = len(gold_inline_formulas)
     canonical_inline_formula_count = _inline_formula_count(result.canonical.body)
     detected_inline_gaps = sum(
         reason.startswith("possible_missing_inline_formula:")
@@ -307,8 +379,8 @@ def build_real_domain_corpus(
             "approved_inline_mathml_formulas": approved_inline_formula_count,
             "canonical_inline_formula_anchors": canonical_inline_formula_count,
             "detected_inline_formula_gaps": detected_inline_gaps,
-            "selected_observed_gap_cases": 1,
-            "selected_application_ready_cases": 1,
+            "selected_observed_gap_cases": 1 + len(canonical_inline_formulas),
+            "selected_application_ready_cases": 1 + len(canonical_inline_formulas),
             "display_formula_pairing_complete": len(canonical_formulas) == len(gold_formulas),
             "native_mathml_transcription_complete": False,
             "atomic_mathml_transition_supported": True,
@@ -317,6 +389,13 @@ def build_real_domain_corpus(
                 _xpath_elements(
                     candidate_root,
                     "body//disp-formula/mml:math",
+                    namespaces={"mml": MATHML_NS},
+                )
+            ),
+            "atomic_mathml_candidate_inline_count": len(
+                _xpath_elements(
+                    candidate_root,
+                    "body//inline-formula/mml:math",
                     namespaces={"mml": MATHML_NS},
                 )
             ),

@@ -550,6 +550,34 @@ manteve ID e zero reinicializações. A imagem é `idml-foundation:phase6-mathml
 
 A suíte local concluiu 164 testes com 85,04% de cobertura; Ruff e mypy passaram sem achados.
 
-O G6-T permanece pendente: falta gerar MathML a partir da fonte visual sem usar o XML aprovado como
-entrada e preencher as duas fórmulas inline; a avaliação também precisa mitigar a correlação entre
-papéis. O relatório sanitizado é `benchmarks/agents/reports/atomic-mathml-validation-v1.json`.
+O relatório sanitizado é `benchmarks/agents/reports/atomic-mathml-validation-v1.json`.
+
+## Transcrição visual autenticada — V12/V13
+
+Em 2026-09-04, três recortes do PDF autorizado foram renderizados a 300 DPI, autenticados por SHA-256
+e enviados ao OpenClaw fora do envelope textual. O gold do XML aprovado não foi exposto aos agentes.
+O catálogo do gateway confirmou `openai/gpt-5.4-mini` como `text+image`; o staging agora falha fechado
+se essa modalidade não estiver presente.
+
+Uma execução diagnóstica encontrou MathML visualmente correto, porém com `msub` de um só filho. O
+sistema rejeitou a proposta e o defeito foi convertido em validação determinística de aridade. Com o
+prompt 1.6, a fórmula display e as duas inline passaram 24/24 checks, 6/6 críticas e 3/3 adjudicações.
+Os candidatos são semanticamente equivalentes ao gold oculto; diferenças seriais inofensivas são
+medidas separadamente de diferenças matemáticas. Nenhum patch foi aplicado.
+
+As janelas aceitas custaram 79.092 micro-USD; o acumulado conservador do artigo ficou em 935.233
+micro-USD. O relatório sanitizado está em
+`benchmarks/agents/reports/visual-formula-validation-v1.json`. Como os quatro papéis compartilham o
+mesmo modelo, o resultado registra `role_models_independent=false` e permanece apenas
+`accepted_for_human_review`; consenso não pode aprovar release. O G6-T segue pendente somente pela
+conclusão do pacote 6.6 de auditoria assistida e repair semântico limitado.
+
+A suíte local concluiu 181 testes com 84,76% de cobertura; Ruff, formatação dos arquivos alterados e
+mypy strict passaram sem achados.
+
+A versão consolidada foi implantada na VPS como `idml-foundation:phase6-visual-formula-v4`, imagem
+`sha256:03c78ff48e01323c70375c5d64d2e68a7f20a5628bbde8799248486064fe11f5`. O backup consistente
+`/opt/idml-platform/backups/20260904T133019Z` passou no restore antes do deploy, e o rollback do
+código ficou em `/opt/idml-platform/backups/source-phase6-pre-visual-formula-v4.tar.gz`. API, worker
+e OpenClaw dedicado terminaram saudáveis; o OpenClaw compartilhado manteve o mesmo container e zero
+reinicializações. Hashes dos arquivos críticos coincidiram entre estação e VPS.

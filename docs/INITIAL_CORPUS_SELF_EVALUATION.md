@@ -147,7 +147,8 @@ O artigo ESA autorizado contém 15 fórmulas display no XML aprovado, 15 objetos
 como PDFs no IDML e duas fórmulas inline apenas no XML aprovado. A correção determinística preserva
 as 15 fórmulas-imagem, sua ordem/rótulos e as sete subseções de nível 2; a correspondência display
 ficou 15/15. O contrato atômico MathML e o JATS candidato já são válidos, e as duas lacunas inline
-são detectadas. Ainda falta transcrevê-las a partir de fonte visual independente do XML aprovado.
+são detectadas. Três recortes autenticados do PDF foram transcritos sem expor o XML aprovado aos
+agentes: uma fórmula display e as duas fórmulas inline ausentes.
 
 O laboratório V9 avaliou uma omissão controlada de estrutura e uma lacuna real de transcrição
 matemática. A V9 foi exata; a V10 tornou o caso matemático aplicável e passou os checks/críticos,
@@ -169,8 +170,8 @@ bloqueado e a Fase 7 não deve começar. Ordem recomendada de desenvolvimento:
    segmentada completa, com hash individual e agregado; o corpus v1.4 passou 10/10 alvos offline;
 5. [concluído] observar/bloquear custo por tarifa oficial exata, cache, preflight e teto agregado;
    manter agentes desligados até existir gateway dedicado/restrito;
-6. extrair/transcrever as fontes visuais, preencher as duas lacunas inline e mitigar o consenso
-   correlacionado antes de decidir o G6-T;
+6. [concluído] extrair/transcrever as fontes visuais, preencher as duas lacunas inline e mitigar o
+   consenso correlacionado antes de decidir o G6-T;
 7. criar profile/style mapping RBEdu somente quando a expansão de template for autorizada;
 8. reservar a adjudicação das seis divergências bibliográficas e o baseline humano para quando os
    revisores estiverem disponíveis, conforme a estratégia de homologação final.

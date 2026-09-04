@@ -70,12 +70,20 @@ class AgentEvidenceReference(BaseModel):
     excerpt_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     segments: tuple[AgentEvidenceSegmentReference, ...] = Field(default=(), max_length=16)
     aggregate_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    image_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    media_type: Literal["image/png", "image/jpeg"] | None = None
+    page_index: int | None = Field(default=None, ge=0, le=10_000)
+    bbox: tuple[float, float, float, float] | None = None
 
     @model_validator(mode="after")
     def exactly_one_evidence_representation(self) -> Self:
         legacy = self.excerpt_sha256 is not None
         segmented = bool(self.segments) or self.aggregate_sha256 is not None
-        if legacy == segmented:
+        visual = any(
+            value is not None
+            for value in (self.image_sha256, self.media_type, self.page_index, self.bbox)
+        )
+        if sum((legacy, segmented, visual)) != 1:
             raise ValueError("evidence reference must use exactly one representation")
         if segmented:
             if not self.segments or self.aggregate_sha256 is None:
@@ -87,6 +95,13 @@ class AgentEvidenceReference(BaseModel):
             ids = tuple(segment.segment_id for segment in self.segments)
             if len(ids) != len(set(ids)):
                 raise ValueError("evidence segment references must be unique")
+        if visual:
+            if None in (self.image_sha256, self.media_type, self.page_index, self.bbox):
+                raise ValueError("visual evidence reference is incomplete")
+            assert self.bbox is not None
+            x0, y0, x1, y1 = self.bbox
+            if not all(value >= 0 for value in self.bbox) or x1 <= x0 or y1 <= y0:
+                raise ValueError("visual evidence bounding box is invalid")
         return self
 
 
@@ -116,18 +131,26 @@ class AgentProposalOutput(BaseModel):
             )
         by_path = {operation.path: operation for operation in self.patch}
         for operation in self.patch:
-            suffix = "/plain/value"
-            if not operation.path.endswith(suffix):
-                formula_suffix = "/source/value"
-                if not operation.path.endswith(formula_suffix):
-                    continue
-                sibling = by_path.get(f"{operation.path[: -len(formula_suffix)]}/representation")
-                if sibling is not None and sibling.evidence_ids != operation.evidence_ids:
-                    raise ValueError("atomic formula operations must cite identical evidence_ids")
-            else:
+            if operation.path.endswith("/plain/value"):
+                suffix = "/plain/value"
                 sibling = by_path.get(f"{operation.path[: -len(suffix)]}/inlines")
                 if sibling is not None and sibling.evidence_ids != operation.evidence_ids:
                     raise ValueError("atomic RichText operations must cite identical evidence_ids")
+                continue
+            formula_pairs = (
+                ("/source/value", "/representation"),
+                ("/formula_source/value", "/formula_representation"),
+            )
+            for formula_suffix, representation_suffix in formula_pairs:
+                if operation.path.endswith(formula_suffix):
+                    sibling = by_path.get(
+                        f"{operation.path[: -len(formula_suffix)]}{representation_suffix}"
+                    )
+                    if sibling is not None and sibling.evidence_ids != operation.evidence_ids:
+                        raise ValueError(
+                            "atomic formula operations must cite identical evidence_ids"
+                        )
+                    break
         return self
 
 

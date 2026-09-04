@@ -8,6 +8,7 @@ def synthetic_idml(
     include_subsection: bool = False,
     include_formula: bool = False,
     include_inline_formula: bool = False,
+    include_inline_formula_gap: bool = False,
 ) -> bytes:
     design = b"""<?xml version="1.0" encoding="UTF-8"?>
 <Document Self="doc" DOMVersion="20.3" StoryList="u1 u2 u3 u4"/>"""
@@ -76,6 +77,11 @@ def synthetic_idml(
         if include_inline_formula
         else ""
     )
+    inline_formula_gap = (
+        paragraph("05.0.text", "\n: the source-visible term definition.")
+        if include_inline_formula_gap
+        else ""
+    )
     stories = {
         "Stories/Story_u1.xml": story(
             "u1",
@@ -94,7 +100,8 @@ def synthetic_idml(
                 else ""
             )
             + formula
-            + inline_formula,
+            + inline_formula
+            + inline_formula_gap,
             table,
         ),
         "Stories/Story_u3.xml": story(

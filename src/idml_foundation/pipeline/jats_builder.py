@@ -355,6 +355,10 @@ class JatsBuilder:
                     previous.tail = (previous.tail or "") + inline.text
                 continue
             if inline.kind == InlineKind.INLINE_FORMULA:
+                if inline.formula_representation == FormulaRepresentation.UNKNOWN and (
+                    inline.formula_source is None or inline.formula_source.value is None
+                ):
+                    continue
                 inline_formula = _add(parent, "inline-formula")
                 if inline.formula_representation == FormulaRepresentation.MATHML:
                     inline_formula.append(

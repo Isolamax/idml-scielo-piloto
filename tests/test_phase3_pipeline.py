@@ -104,6 +104,40 @@ def test_pipeline_maps_inline_pdf_formula_without_losing_text_order() -> None:
     assert result.validation.valid
 
 
+def test_pipeline_structures_inline_formula_gap_without_inventing_xml() -> None:
+    result = DeterministicPipeline().run(
+        synthetic_idml(include_inline_formula_gap=True),
+        logical_name="ESA_2024001_AOP.idml",
+    )
+    root = etree.fromstring(result.xml)
+    paragraph = next(
+        block
+        for block in result.canonical.body[0].blocks
+        if block.kind == "paragraph"
+        and block.content.plain.value == "\n: the source-visible term definition."
+    )
+    formula = next(
+        inline for inline in paragraph.content.inlines if inline.kind == InlineKind.INLINE_FORMULA
+    )
+
+    assert formula.text == ""
+    assert formula.formula_representation == FormulaRepresentation.UNKNOWN
+    assert formula.formula_source is not None
+    assert formula.formula_source.value is None
+    assert formula.formula_source.state.value == "needs_review"
+    assert (
+        "".join(inline.text for inline in paragraph.content.inlines)
+        == paragraph.content.plain.value
+    )
+    assert any(
+        reason.startswith("possible_missing_inline_formula:")
+        for reason in result.canonical.review_reasons
+    )
+    assert root.xpath("count(body//inline-formula)") == 0.0
+    assert ": the source-visible term definition." in root.xpath("string(body)")
+    assert result.validation.valid
+
+
 def test_builder_emits_valid_mathml_for_display_and_inline_formulas() -> None:
     result = DeterministicPipeline().run(
         synthetic_idml(include_formula=True, include_inline_formula=True),

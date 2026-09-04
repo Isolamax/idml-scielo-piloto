@@ -329,3 +329,26 @@ relatório está em `benchmarks/agents/reports/atomic-mathml-validation-v1.json`
 
 O custo acumulado observado do artigo ficou em 762.219 micro-USD. O cleanup removeu chave, proxy e
 redes, manteve flags falsas e banco sem runs/propostas e não reiniciou o OpenClaw compartilhado.
+
+## Janelas visuais V12 e V13
+
+Em 2026-09-04, o dataset visual privado passou a transportar recortes PNG autenticados do PDF a 300
+DPI fora do envelope textual. O XML aprovado permaneceu somente como gold oculto do avaliador. A
+configuração dedicada declarou `gpt-5.4-mini` com entrada `text+image`, e o staging passou a abortar
+antes de qualquer chamada se o catálogo do próprio OpenClaw não confirmar as duas modalidades.
+
+A primeira chamada multimodal diagnosticou um `msub` com aridade inválida. Ambos os críticos o
+rejeitaram e nenhuma alteração foi aplicada. A falha virou validação determinística de aridade e o
+prompt 1.6 recebeu um exemplo fechado de subscrito. Na repetição V12 e na V13, a fórmula display e as
+duas fórmulas inline passaram os 24 checks determinísticos, os seis críticos e as três adjudicações,
+sempre como `accepted_for_human_review`. A equivalência MathML reconhece somente normalizações
+visuais controladas (`mrow` redundante, `mfenced`/parênteses explícitos e sinal de menos equivalente);
+os três candidatos coincidem semanticamente com o gold oculto.
+
+As execuções aceitas custaram 79.092 micro-USD e o acumulado conservador do artigo chegou a 935.233
+micro-USD, abaixo do teto de 1.000.000. O relatório sanitizado é
+`benchmarks/agents/reports/visual-formula-validation-v1.json`. Os papéis continuam usando o mesmo
+modelo, portanto o relatório marca explicitamente que não constituem consenso entre modelos
+independentes; esse consenso nunca autoriza release e a revisão humana final permanece obrigatória.
+Após cada janela, chave, proxy e redes transitórias foram removidos, flags permaneceram falsas e o
+banco da aplicação continuou sem runs ou propostas.

@@ -21,8 +21,8 @@ docs/XML_VALIDATION_MASTER_PLAN.md
 ## 2. Estado geral
 
 ```text
-PROJECT_STATUS: PHASE_6_VISUAL_FORMULA_TRANSCRIPTION_IN_PROGRESS
-CURRENT_PHASE: FASE 6 — próxima ação: extrair/transcrever fontes visuais e preencher fórmulas inline
+PROJECT_STATUS: PHASE_6_QA_REPAIR_IN_PROGRESS
+CURRENT_PHASE: FASE 6 — próxima ação: auditoria assistida e repair semântico limitado
 CURRENT_IMPLEMENTATION_AUTHORIZED: PHASE_6
 DEVELOPMENT_ROADMAP_AUTHORIZED: THROUGH_PHASE_8_PRODUCTION_READINESS
 PRODUCTION_ACTIVATION_AUTHORIZED: NO — REQUIRES XML_EXPERT_FINAL_ACCEPTANCE
@@ -121,7 +121,7 @@ Antes de qualquer implantação futura na VPS:
 | 3 | Pipeline determinístico mínimo | IDML → modelo → XML válido sem IA | Concluída — Gate G3 aprovado |
 | 4 | Validação, fidelidade e pacote | Pacote validado e política de release | Implementada — Gate G4 bloqueado por validadores externos/crossrefs |
 | 5 | Revisão humana e interface mínima | Correção humana auditável | Concluída — Gate G5 aprovado |
-| 6 | IA assistiva e OpenClaw | Assistência semântica controlada | MathML atômico validado — G6-T pendente por transcrição visual/inline e independência crítica |
+| 6 | IA assistiva e OpenClaw | Assistência semântica controlada | Transcrição visual/inline validada — G6-T pendente pelo pacote de QA/repair |
 | 7 | Homologação automatizada e piloto simulado | Sistema completo validado antes da revisão humana | Não iniciada — roadmap aprovado, início ainda sujeito ao G6-T |
 | 8 | Prontidão, homologação humana e produção | RC operacional, aceite do especialista e rollout | Não iniciada — ativação real bloqueada pelo G8-H |
 | 9 | Expansão controlada | Novos periódicos e casos complexos | Não iniciada |
@@ -595,7 +595,7 @@ preparando a comparação editorial humana para a RC final.
 - [x] References.
 - [x] Figures e tables.
 - [x] Math e notes, com MathML seguro, aplicação atômica e recurso inativo.
-- [ ] Medir cada domínio contra corpus automático congelado, regras determinísticas e consenso crítico.
+- [x] Medir cada domínio contra corpus automático congelado, regras determinísticas e consenso crítico.
 - [x] Executar proxy técnico provisório no corpus autorizado sem substituir baseline humano.
 
 ## Pacote 6.5 — Segurança e avaliação de agentes
@@ -654,13 +654,13 @@ preparando a comparação editorial humana para a RC final.
 - [x] Ampliar o relatório sanitizado com estrutura e matemática reais, sem texto do artigo e sem promover o caso matemático a aplicação.
 - [x] Validar a transição atômica imagem→MathML em memória, no JATS e nos quatro papéis OpenClaw.
 - [x] Preservar a ordem e os rótulos das 15 fórmulas display e detectar as duas lacunas inline do artigo real.
-- [ ] Transcrever a fonte visual sem depender do XML aprovado e preencher as fórmulas inline ausentes no IDML.
-- [ ] Eliminar ou mitigar o risco de consenso correlacionado apontado pelo adjudicador V10.
+- [x] Transcrever a fonte visual sem depender do XML aprovado e preencher as fórmulas inline ausentes no IDML.
+- [x] Mitigar o risco de consenso correlacionado: registrar modelo compartilhado, manter aceite apenas para revisão humana e impedir que o consenso autorize release.
 
 ## Gate técnico de saída G6-T
 
 - [x] Desativar Swarm não interrompe o pipeline principal.
-- [~] Os seis domínios têm casos executados; matemática passa nos checks e críticos, mas o adjudicador V10 se abstém por consenso correlacionado e ainda falta transcrição visual/inline.
+- [x] Os seis domínios têm casos executados; os três casos visuais de matemática passam nos checks, críticos e equivalência semântica contra gold oculto.
 - [x] Nenhuma proposta sem evidência, com invenção lexical ou falso consenso crítico é aceita pelo juiz determinístico.
 - [x] Nenhum patch é aplicado sem schema, evidência e validação.
 - [x] Prompt injection não altera ferramentas ou políticas.
@@ -990,3 +990,4 @@ ADRs iniciais esperados:
 | 2026-09-02 | Referência real de 734 caracteres validada por intent autenticado e materialização atômica: fidelidade/Jaccard 1,0, oito checks, dois críticos e adjudicador aprovados; 148 testes com cobertura 84,86%, custo acumulado 685.949 micro-USD e cleanup integral; G6-T segue pendente apenas pelo corpus real autorizado de estrutura/matemática | Codex |
 | 2026-09-02 | Estrutura hierárquica e 15 fórmulas PDF do artigo autorizado preservadas deterministicamente; V9 validou casos reais derivados de estrutura/matemática nos quatro papéis por 44.523 micro-USD, 153 testes atingiram 85,02% e o cleanup integral passou; G6-T segue pendente pela transição atômica para MathML e pelo mapeamento inline | Codex |
 | 2026-09-03 | Transição imagem→MathML atômica e segura implantada; 15 fórmulas display preservam ordem/rótulo, 2/2 lacunas inline são detectadas, candidato MathML passa JATS e V10 conclui quatro papéis por 31.747 micro-USD; proposta e críticos passam, adjudicador se abstém por consenso correlacionado; 164 testes e 85,04% de cobertura; G6-T segue pendente por transcrição visual/inline independente | Codex |
+| 2026-09-04 | Transporte visual autenticado e recortes PDF a 300 DPI concluídos; OpenClaw declarou `gpt-5.4-mini` como `text+image`; fórmula display e duas inline foram transcritas sem expor o gold, passaram 24 checks, seis críticas, três adjudicações e equivalência MathML semântica; custo acumulado 935.233 micro-USD, 181 testes/84,76%; imagem `phase6-visual-formula-v4` saudável, flags/provider desligados; G6-T segue para QA/repair limitado | Codex |

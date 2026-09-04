@@ -67,7 +67,7 @@ def test_openai_provider_is_pinned_and_forced_through_the_proxy() -> None:
             "id": "gpt-5.4-mini",
             "name": "GPT-5.4 Mini",
             "reasoning": True,
-            "input": ["text"],
+            "input": ["text", "image"],
             "cost": {
                 "input": 0.75,
                 "output": 4.5,
@@ -121,6 +121,7 @@ def test_provider_overlay_uses_a_separate_allowlisted_proxy() -> None:
     disable_script = (ROOT / "ops" / "openclaw-provider-disable.sh").read_text(encoding="utf-8")
     assert "trap fail_closed EXIT" in stage_script
     assert '"$disable_script"' in stage_script
+    assert "configured OpenAI model is not image-capable" in stage_script
     assert "docker rm -f idml-development-openclaw-egress-proxy-1" in disable_script
     assert "docker network rm idml_development_openclaw_provider" in disable_script
     assert "docker network rm idml_development_openclaw_egress" in disable_script
@@ -182,5 +183,25 @@ def test_atomic_mathml_multi_agent_lab_is_private_and_budgeted() -> None:
     assert plan["selected_case_ids"] == ["esa-math-notes-observed-001"]
     assert plan["max_attempts"] == 1
     assert plan["max_total_cost_microusd"] == 58_500
+    assert plan["require_human_review"] is True
+    assert plan["require_application_flags_false"] is True
+
+
+def test_visual_mathml_multi_agent_lab_is_private_and_budgeted() -> None:
+    runner = (ROOT / "ops" / "openclaw-multi-agent-lab.sh").read_text(encoding="utf-8")
+    plan = json.loads(
+        (ROOT / "config" / "openclaw-multi-agent-lab-v11.json").read_text(encoding="utf-8")
+    )
+
+    assert "dataset-real-domains-visual-v1.1.json" in runner
+    assert "multi-agent-manifest-v11.json" in runner
+    assert "RUN_IDML_OPENCLAW_MULTI_AGENT_LAB_V11" in runner
+    assert plan["selected_case_ids"] == [
+        "esa-math-notes-observed-001",
+        "esa-math-notes-inline-001",
+        "esa-math-notes-inline-002",
+    ]
+    assert plan["max_attempts"] == 1
+    assert plan["max_total_cost_microusd"] == 175_500
     assert plan["require_human_review"] is True
     assert plan["require_application_flags_false"] is True

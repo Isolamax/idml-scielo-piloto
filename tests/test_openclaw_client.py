@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import hashlib
 import io
 import json
 from typing import Any
@@ -10,6 +12,7 @@ import pytest
 
 from idml_foundation.ai.contracts import ALLOWED_TOOLS
 from idml_foundation.ai.openclaw_client import (
+    AgentInputImage,
     OpenClawResponsesClient,
     UrllibJsonPostTransport,
 )
@@ -119,6 +122,68 @@ def test_openclaw_client_builds_restricted_request_and_parses_usage() -> None:
         }
     ]
     assert transport.call["payload"]["max_tool_calls"] == 1
+
+
+def test_openclaw_client_sends_authenticated_image_as_separate_content_part() -> None:
+    image_bytes = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+    )
+    image = AgentInputImage.authenticated(media_type="image/png", data=image_bytes)
+    transport = _FixtureTransport(_gateway_response())
+    client = OpenClawResponsesClient(
+        base_url="https://gateway.example.test",
+        token="t" * 32,
+        expected_model_key="openai/gpt-5.4-mini",
+        transport=transport,
+    )
+
+    asyncio.run(
+        client.run_agent(
+            agent_id="idml-evaluator",
+            session_key="idml:org:visual",
+            system_prompt="Read the supplied formula crop.",
+            input_envelope={"content": {"image_sha256": image.sha256}},
+            output_schema={"type": "object"},
+            tool_allowlist=ALLOWED_TOOLS,
+            timeout_seconds=12,
+            max_output_tokens=200,
+            input_images=(image,),
+        )
+    )
+
+    assert transport.call is not None
+    request_input = transport.call["payload"]["input"]
+    assert request_input[0]["type"] == "message"
+    assert request_input[0]["role"] == "user"
+    content = request_input[0]["content"]
+    assert content[0]["type"] == "input_text"
+    assert image.sha256 in content[0]["text"]
+    assert content[1] == {
+        "type": "input_image",
+        "source": {
+            "type": "base64",
+            "media_type": "image/png",
+            "data": base64.b64encode(image_bytes).decode("ascii"),
+        },
+    }
+    assert image_bytes.decode("latin1") not in content[0]["text"]
+
+
+def test_agent_input_image_rejects_type_hash_and_size_mismatches() -> None:
+    png = b"\x89PNG\r\n\x1a\nfixture"
+    with pytest.raises(ValueError, match="media type"):
+        AgentInputImage(
+            media_type="image/jpeg",
+            data=png,
+            sha256=hashlib.sha256(png).hexdigest(),
+        )
+    with pytest.raises(ValueError, match="hash"):
+        AgentInputImage(media_type="image/png", data=png, sha256="0" * 64)
+    with pytest.raises(ValueError, match="size"):
+        AgentInputImage.authenticated(
+            media_type="image/png",
+            data=b"\x89PNG\r\n\x1a\n" + b"x" * 1048576,
+        )
 
 
 def test_openclaw_client_sends_only_a_coarse_provider_schema() -> None:

@@ -52,6 +52,7 @@ from idml_foundation.pipeline.profile import JournalProfile
 _ARTICLE_NUMBER = re.compile(r"(?:^|_)(20\d{2})(\d{1,4})(?:_|$)")
 _AUTHOR_MARKERS = re.compile(r"[\d*]+")
 _NUMBERED_GRAPHIC = re.compile(r"^\s*(figure|table)\s*([1-9]\d*)\b", re.IGNORECASE)
+_MISSING_INLINE_FORMULA = re.compile(r"(?m)^[ \t]*(?=:[ \t]+\S)")
 
 
 def _present(value: str, evidence_ids: tuple[str, ...], transformation: str) -> SourcedText:
@@ -66,6 +67,66 @@ def _present(value: str, evidence_ids: tuple[str, ...], transformation: str) -> 
 
 def _missing(transformation: str) -> SourcedText:
     return SourcedText(state=FieldState.MISSING, transformation=transformation, confidence=1.0)
+
+
+def _insert_missing_inline_formula_nodes(
+    inlines: list[InlineNode],
+    *,
+    plain: str,
+    paragraph: RawParagraph,
+    article_id: str,
+) -> list[InlineNode]:
+    """Represent source-visible gaps without inventing formula text or changing plain content."""
+    offsets = [match.start() for match in _MISSING_INLINE_FORMULA.finditer(plain)]
+    for gap_position, offset in reversed(tuple(enumerate(offsets))):
+        cursor = 0
+        for index, inline in enumerate(inlines):
+            next_cursor = cursor + len(inline.text)
+            if cursor <= offset <= next_cursor and inline.kind != InlineKind.INLINE_FORMULA:
+                local_offset = offset - cursor
+                insertion = index
+                if local_offset == len(inline.text):
+                    insertion += 1
+                elif local_offset > 0:
+                    left = inline.model_copy(
+                        update={
+                            "id": stable_id(article_id, "inline-gap-left", f"{inline.id}:{offset}"),
+                            "text": inline.text[:local_offset],
+                        }
+                    )
+                    right = inline.model_copy(
+                        update={
+                            "id": stable_id(
+                                article_id, "inline-gap-right", f"{inline.id}:{offset}"
+                            ),
+                            "text": inline.text[local_offset:],
+                        }
+                    )
+                    inlines[index : index + 1] = [left, right]
+                    insertion = index + 1
+                inlines.insert(
+                    insertion,
+                    InlineNode(
+                        id=stable_id(
+                            article_id,
+                            "inline-formula-gap",
+                            f"{paragraph.id}:{gap_position}:{offset}",
+                        ),
+                        kind=InlineKind.INLINE_FORMULA,
+                        text="",
+                        formula_source=SourcedText(
+                            state=FieldState.NEEDS_REVIEW,
+                            evidence_ids=paragraph.evidence_ids,
+                            transformation="source-visible-inline-formula-gap",
+                            confidence=1.0,
+                        ),
+                        formula_representation=FormulaRepresentation.UNKNOWN,
+                        evidence_ids=paragraph.evidence_ids,
+                    ),
+                )
+                break
+            cursor = next_cursor
+    return inlines
 
 
 def _article_id(source_id: str) -> str:
@@ -392,6 +453,12 @@ class CanonicalMapper:
                     evidence_ids=run.evidence_ids,
                 )
             )
+        inlines = _insert_missing_inline_formula_nodes(
+            inlines,
+            plain=plain,
+            paragraph=paragraph,
+            article_id=article_id,
+        )
         return RichText(
             plain=SourcedText(
                 value=plain if plain.strip() else None,

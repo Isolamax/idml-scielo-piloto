@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import base64
+import binascii
+import hashlib
 from typing import Any
 
 from idml_foundation.ai.security import payload_digest
@@ -7,6 +10,53 @@ from idml_foundation.ai.security import payload_digest
 EVIDENCE_SEGMENT_MAX_CHARACTERS = 500
 EVIDENCE_MAX_SEGMENTS = 16
 EVIDENCE_TOTAL_MAX_CHARACTERS = 8_000
+VISUAL_EVIDENCE_MAX_BYTES = 1024 * 1024
+VISUAL_EVIDENCE_MEDIA_TYPES = {"image/png": b"\x89PNG\r\n\x1a\n", "image/jpeg": b"\xff\xd8\xff"}
+
+
+def visual_evidence_bytes(evidence: dict[str, Any]) -> bytes:
+    """Validate private visual evidence and return bytes without copying them into envelopes."""
+    if not isinstance(evidence, dict):
+        raise ValueError("evidence must be an object")
+    for name in ("evidence_id", "source_kind", "locator"):
+        if not isinstance(evidence.get(name), str) or not evidence[name]:
+            raise ValueError("evidence metadata is incomplete")
+    media_type = evidence.get("media_type")
+    signature = VISUAL_EVIDENCE_MEDIA_TYPES.get(media_type) if isinstance(media_type, str) else None
+    if signature is None:
+        raise ValueError("visual evidence media type is invalid")
+    encoded = evidence.get("image_base64")
+    try:
+        data = base64.b64decode(encoded, validate=True) if isinstance(encoded, str) else b""
+    except (ValueError, binascii.Error) as exc:
+        raise ValueError("visual evidence base64 is invalid") from exc
+    if not data or len(data) > VISUAL_EVIDENCE_MAX_BYTES or not data.startswith(signature):
+        raise ValueError("visual evidence image bytes are invalid")
+    digest = hashlib.sha256(data).hexdigest()
+    if evidence.get("image_sha256") != digest:
+        raise ValueError("visual evidence image hash is invalid")
+    page_index = evidence.get("page_index")
+    bbox = evidence.get("bbox")
+    if (
+        isinstance(page_index, bool)
+        or not isinstance(page_index, int)
+        or page_index < 0
+        or not isinstance(bbox, list)
+        or len(bbox) != 4
+        or any(isinstance(value, bool) or not isinstance(value, (int, float)) for value in bbox)
+    ):
+        raise ValueError("visual evidence locator is invalid")
+    x0, y0, x1, y1 = (float(value) for value in bbox)
+    if min(x0, y0, x1, y1) < 0 or x1 <= x0 or y1 <= y0:
+        raise ValueError("visual evidence bounding box is invalid")
+    forbidden = {"excerpt", "excerpt_sha256", "segments", "aggregate_sha256"}
+    if forbidden.intersection(evidence):
+        raise ValueError("visual evidence cannot mix textual representations")
+    return data
+
+
+def is_visual_evidence(evidence: dict[str, Any]) -> bool:
+    return isinstance(evidence, dict) and "image_base64" in evidence
 
 
 def _aggregate_payload(evidence: dict[str, Any], segments: list[dict[str, Any]]) -> dict[str, Any]:
@@ -124,6 +174,17 @@ def reassemble_evidence(evidence: dict[str, Any]) -> str:
 
 def evidence_reference(evidence: dict[str, Any]) -> dict[str, Any]:
     """Return the exact content-free reference an agent must cite in its proposal."""
+    if is_visual_evidence(evidence):
+        visual_evidence_bytes(evidence)
+        return {
+            "evidence_id": evidence["evidence_id"],
+            "source_kind": evidence["source_kind"],
+            "locator": evidence["locator"],
+            "image_sha256": evidence["image_sha256"],
+            "media_type": evidence["media_type"],
+            "page_index": evidence["page_index"],
+            "bbox": evidence["bbox"],
+        }
     reassemble_evidence(evidence)
     base = {
         "evidence_id": evidence["evidence_id"],

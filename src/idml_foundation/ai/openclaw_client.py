@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import hashlib
 import json
 import re
-from dataclasses import dataclass
-from typing import Any, Protocol
+from dataclasses import dataclass, field
+from typing import Any, Literal, Protocol
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
@@ -14,6 +16,9 @@ from idml_foundation.domain.common import canonical_bytes
 
 MAX_GATEWAY_RESPONSE_BYTES = 2 * 1024 * 1024
 MAX_GATEWAY_ERROR_BYTES = 64 * 1024
+MAX_INPUT_IMAGE_BYTES = 512 * 1024
+MAX_INPUT_IMAGES_TOTAL_BYTES = 640 * 1024
+MAX_INPUT_IMAGES = 4
 _SAFE_ERROR_FRAGMENT = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]{0,63}$")
 _JSON_FENCE = re.compile(
     r"\A```(?:json)?[ \t]*\r?\n(?P<body>[\s\S]*?)\r?\n```[ \t]*\Z",
@@ -112,6 +117,37 @@ class ParsedUsage:
     input_tokens: int
     output_tokens: int
     cached_input_tokens: int
+
+
+@dataclass(frozen=True)
+class AgentInputImage:
+    """Authenticated in-memory image; raw bytes are deliberately omitted from repr/logs."""
+
+    media_type: Literal["image/png", "image/jpeg"]
+    data: bytes = field(repr=False)
+    sha256: str
+
+    def __post_init__(self) -> None:
+        if not self.data or len(self.data) > MAX_INPUT_IMAGE_BYTES:
+            raise ValueError("agent input image size is outside the allowed bound")
+        signatures = {
+            "image/png": b"\x89PNG\r\n\x1a\n",
+            "image/jpeg": b"\xff\xd8\xff",
+        }
+        if not self.data.startswith(signatures[self.media_type]):
+            raise ValueError("agent input image bytes do not match media type")
+        digest = hashlib.sha256(self.data).hexdigest()
+        if not re.fullmatch(r"[0-9a-f]{64}", self.sha256) or digest != self.sha256:
+            raise ValueError("agent input image hash is invalid")
+
+    @classmethod
+    def authenticated(
+        cls,
+        *,
+        media_type: Literal["image/png", "image/jpeg"],
+        data: bytes,
+    ) -> AgentInputImage:
+        return cls(media_type=media_type, data=data, sha256=hashlib.sha256(data).hexdigest())
 
 
 def _integer(value: object, *, field: str) -> int:
@@ -306,12 +342,32 @@ class OpenClawResponsesClient:
         tool_allowlist: frozenset[str],
         timeout_seconds: int,
         max_output_tokens: int,
+        input_images: tuple[AgentInputImage, ...] = (),
     ) -> ProviderResponse:
         if not agent_id or not session_key:
             raise ValueError("OpenClaw agent and session are required")
         del tool_allowlist
         schema_text = canonical_bytes(output_schema).decode("utf-8")
         envelope_text = canonical_bytes(input_envelope).decode("utf-8")
+        if len(input_images) > MAX_INPUT_IMAGES:
+            raise ValueError("agent input image count exceeds the allowed bound")
+        if sum(len(image.data) for image in input_images) > MAX_INPUT_IMAGES_TOTAL_BYTES:
+            raise ValueError("agent input images exceed the aggregate size bound")
+        request_input: Any = envelope_text
+        if input_images:
+            content: list[dict[str, Any]] = [{"type": "input_text", "text": envelope_text}]
+            content.extend(
+                {
+                    "type": "input_image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": image.media_type,
+                        "data": base64.b64encode(image.data).decode("ascii"),
+                    },
+                }
+                for image in input_images
+            )
+            request_input = [{"type": "message", "role": "user", "content": content}]
         request_payload: dict[str, Any] = {
             "model": f"openclaw/{agent_id}",
             "instructions": (
@@ -323,7 +379,7 @@ class OpenClawResponsesClient:
                 "must also match this authoritative schema, which the backend revalidates: "
                 f"{schema_text}"
             ),
-            "input": envelope_text,
+            "input": request_input,
             "tools": [
                 {
                     "type": "function",

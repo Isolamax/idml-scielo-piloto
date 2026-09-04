@@ -40,6 +40,16 @@ _ALLOWED_ELEMENTS = {
     "annotation",
 }
 _FORBIDDEN_ATTRIBUTE_NAMES = {"href", "src", "actiontype"}
+_FIXED_ELEMENT_ARITY = {
+    "mfrac": 2,
+    "mroot": 2,
+    "msub": 2,
+    "msup": 2,
+    "munder": 2,
+    "mover": 2,
+    "msubsup": 3,
+    "munderover": 3,
+}
 
 
 def parse_mathml_fragment(value: str, *, display: bool) -> etree._Element:
@@ -73,6 +83,11 @@ def parse_mathml_fragment(value: str, *, display: bool) -> etree._Element:
         qname = etree.QName(element)
         if qname.namespace != MATHML_NS or qname.localname not in _ALLOWED_ELEMENTS:
             raise ValueError("MathML fragment contains an unsupported element")
+        required_arity = _FIXED_ELEMENT_ARITY.get(qname.localname)
+        if required_arity is not None and len(element) != required_arity:
+            raise ValueError(
+                f"MathML {qname.localname} must contain exactly {required_arity} child elements"
+            )
         for attribute in element.attrib:
             attribute_name = etree.QName(attribute)
             if attribute_name.localname.casefold() in _FORBIDDEN_ATTRIBUTE_NAMES:
@@ -89,3 +104,39 @@ def parse_mathml_fragment(value: str, *, display: bool) -> etree._Element:
 def canonical_mathml(value: str, *, display: bool) -> str:
     element = parse_mathml_fragment(value, display=display)
     return etree.tostring(element, encoding="unicode", pretty_print=False)
+
+
+def _semantic_fingerprint(element: etree._Element) -> tuple[object, ...]:
+    qname = etree.QName(element)
+    children = tuple(_semantic_fingerprint(child) for child in element)
+    attributes = tuple(
+        sorted(
+            (etree.QName(name).localname, value)
+            for name, value in element.attrib.items()
+            if etree.QName(name).localname != "display"
+        )
+    )
+    text = " ".join((element.text or "").split())
+    if qname.localname == "mo" and text == "-":
+        text = "\N{MINUS SIGN}"
+    if qname.localname == "math":
+        if len(children) == 1:
+            return children[0]
+        return ("mrow", (), "", children)
+    if qname.localname == "mrow" and not attributes and not text and len(children) == 1:
+        return children[0]
+    if qname.localname == "mfenced":
+        fenced_children = children
+        if len(element) == 1 and etree.QName(element[0]).localname == "mrow":
+            fenced_children = tuple(_semantic_fingerprint(child) for child in element[0])
+        open_token = ("mo", (), element.get("open", "("), ())
+        close_token = ("mo", (), element.get("close", ")"), ())
+        return ("mrow", (), "", (open_token, *fenced_children, close_token))
+    return (qname.localname, attributes, text, children)
+
+
+def mathml_semantically_equivalent(left: str, right: str, *, display: bool) -> bool:
+    """Compare safe Presentation MathML while ignoring redundant one-child mrow wrappers."""
+    return _semantic_fingerprint(
+        parse_mathml_fragment(left, display=display)
+    ) == _semantic_fingerprint(parse_mathml_fragment(right, display=display))
