@@ -21,8 +21,8 @@ docs/XML_VALIDATION_MASTER_PLAN.md
 ## 2. Estado geral
 
 ```text
-PROJECT_STATUS: PHASE_6_COMPLETE
-CURRENT_PHASE: FASE 7 — próxima ação: Pacote 7.1, testes completos
+PROJECT_STATUS: PHASE_7_VALIDATION_IN_PROGRESS
+CURRENT_PHASE: FASE 7 — Pacote 7.1; próxima ação: V-02, segurança da ingestão IDML
 CURRENT_IMPLEMENTATION_AUTHORIZED: PHASE_7
 DEVELOPMENT_ROADMAP_AUTHORIZED: THROUGH_PHASE_8_PRODUCTION_READINESS
 PRODUCTION_ACTIVATION_AUTHORIZED: NO — REQUIRES XML_EXPERT_FINAL_ACCEPTANCE
@@ -122,7 +122,7 @@ Antes de qualquer implantação futura na VPS:
 | 4 | Validação, fidelidade e pacote | Pacote validado e política de release | Implementada — Gate G4 bloqueado por validadores externos/crossrefs |
 | 5 | Revisão humana e interface mínima | Correção humana auditável | Concluída — Gate G5 aprovado |
 | 6 | IA assistiva e OpenClaw | Assistência semântica controlada | Concluída — Gate G6-T aprovado; produção não autorizada |
-| 7 | Homologação automatizada e piloto simulado | Sistema completo validado antes da revisão humana | Autorizada — próxima ação: Pacote 7.1 |
+| 7 | Homologação automatizada e piloto simulado | Sistema completo validado antes da revisão humana | Em andamento — V-01 aprovado; próxima família V-02 |
 | 8 | Prontidão, homologação humana e produção | RC operacional, aceite do especialista e rollout | Não iniciada — ativação real bloqueada pelo G8-H |
 | 9 | Expansão controlada | Novos periódicos e casos complexos | Não iniciada |
 
@@ -680,6 +680,17 @@ o especialista sem depender de revisão humana intermediária.
 ## Pacote 7.1 — Testes completos
 
 - [ ] Executar integralmente V-01 a V-11 do plano mestre.
+- [x] V-01 — proveniência, integridade, segregação e reprodução do catálogo do corpus.
+- [ ] V-02 — segurança da ingestão IDML.
+- [ ] V-03 — leitura e fidelidade do IDML.
+- [ ] V-04 — invariantes do Canonical Article Model.
+- [ ] V-05 — construção XML JATS/SPS.
+- [ ] V-06 — validadores formais e regras editoriais.
+- [ ] V-07 — fidelidade e comparação com referências.
+- [ ] V-08 — validação assistiva OpenClaw.
+- [ ] V-09 — segurança, identidade e multiempresa.
+- [ ] V-10 — fluxo ponta a ponta e experiência operacional.
+- [ ] V-11 — robustez, propriedades e mutações.
 - [ ] Unit tests e metas específicas para módulos críticos.
 - [ ] Golden tests sem exigir igualdade byte a byte quando inadequada.
 - [ ] Property, metamorphic, fuzz e mutation tests.
@@ -992,3 +1003,4 @@ ADRs iniciais esperados:
 | 2026-09-03 | Transição imagem→MathML atômica e segura implantada; 15 fórmulas display preservam ordem/rótulo, 2/2 lacunas inline são detectadas, candidato MathML passa JATS e V10 conclui quatro papéis por 31.747 micro-USD; proposta e críticos passam, adjudicador se abstém por consenso correlacionado; 164 testes e 85,04% de cobertura; G6-T segue pendente por transcrição visual/inline independente | Codex |
 | 2026-09-04 | Transporte visual autenticado e recortes PDF a 300 DPI concluídos; OpenClaw declarou `gpt-5.4-mini` como `text+image`; fórmula display e duas inline foram transcritas sem expor o gold, passaram 24 checks, seis críticas, três adjudicações e equivalência MathML semântica; custo acumulado 935.233 micro-USD, 181 testes/84,76%; imagem `phase6-visual-formula-v4` saudável, flags/provider desligados; G6-T segue para QA/repair limitado | Codex |
 | 2026-09-04 | Auditoria assistida e reparo semântico limitado concluídos; janela final V14 completou três casos por 85.654 micro-USD, com 24 checks, equivalência semântica 3/3, seis críticas, dois aceites e uma abstenção segura; 192 testes/84,86%, cleanup e deploy `phase6-qa-repair-v1` aprovados; Gate G6-T aprovado apenas para iniciar a Fase 7 | Codex |
+| 2026-09-04 | Fase 7 iniciada; V-01 verificou 6 manifestos e 21/21 artefatos privados, bloqueia duplicação/contaminação/exposição do holdout e reproduziu o fingerprint local/VPS sem rede; gate incluído na CI, 199 testes/84,89%, backup/restore e imagem `phase7-v01-corpus-integrity-v1` saudáveis; Pacote 7.1 segue em V-02 | Codex |

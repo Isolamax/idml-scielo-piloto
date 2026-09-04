@@ -30,6 +30,8 @@ jobs:
       - run: ruff format --check .
       - run: mypy src
       - run: pytest
+      - name: Verify corpus provenance metadata and holdout isolation
+        run: python ops/gate_phase7_v01.py --metadata-only
       - name: Check repository for obvious secrets
         run: |
           if git grep -nE '(sk-proj-|BEGIN (RSA|OPENSSH) PRIVATE KEY|password=[^$<{])' -- ':!*.md' ':!.env.example'; then

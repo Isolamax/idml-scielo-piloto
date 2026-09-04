@@ -1,6 +1,6 @@
 # Plano mestre de validação XML e homologação final
 
-Data: 2026-09-01. Estado: **planejado, não iniciado**.
+Data: 2026-09-01. Estado: **EM EXECUÇÃO — V-01 CONCLUÍDO EM 2026-09-04**.
 
 ## 1. Objetivo
 
@@ -99,6 +99,11 @@ avaliadores restritos, não autoridades do gate.
 - provar reprodução do mesmo manifesto em local, CI e VPS.
 
 Aceite: 100% dos artefatos rastreáveis e nenhum conteúdo restrito versionado ou exposto.
+
+Evidência: seis manifestos e 21/21 artefatos privados verificados; catálogo sem duplicação ou
+contaminação entre splits; holdout ausente de prompts, testes e benchmarks executáveis; fingerprint
+canônico reproduzido localmente e na VPS sem rede. Relatório:
+`benchmarks/qualification/reports/v01-corpus-integrity-v1.json`.
 
 ### V-02 — Segurança da ingestão IDML
 
