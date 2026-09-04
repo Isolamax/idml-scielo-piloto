@@ -55,6 +55,7 @@ from idml_foundation.domain.metrics import normalize_text
 from idml_foundation.mathml import mathml_semantically_equivalent, parse_mathml_fragment
 
 LabRole = Literal["proposer", "xml_critic", "editorial_critic", "adjudicator"]
+ThinkingLevel = Literal["off", "minimal", "low", "medium", "high", "xhigh"]
 _ROLE_ORDER: tuple[LabRole, ...] = (
     "proposer",
     "xml_critic",
@@ -80,6 +81,13 @@ _PROPOSER_POLICY = (
     "evaluation XML, is the authorized evidence. Do not preserve an image filename, an empty "
     "source, a printed equation number, 'Where:', or definition prose as formula content."
 )
+_REPAIRABLE_DETERMINISTIC_ERRORS = {
+    "PROPOSAL_DETERMINISTIC_REJECTED_ATOMIC_VALUES_CONSISTENT",
+    "PROPOSAL_QUALITY_REJECTED_SEMANTIC_EQUIVALENCE",
+}
+_VISUAL_REPAIRABLE_DETERMINISTIC_ERRORS = {
+    "PROPOSAL_DETERMINISTIC_REJECTED_ATOMIC_VALUES_CONSISTENT_EVIDENCE_GROUNDED",
+}
 _EVIDENCE_INTENT_POLICY = (
     "This case uses trusted evidence materialization. Do not copy, summarize, shorten, or rewrite "
     "the evidence text into the patch. Return agent-proposal-intent-1.0 and set every patch "
@@ -92,6 +100,7 @@ _CRITIC_PROMPTS: dict[CriticRole, str] = {
     "editorial_critic": "editorial_critic-1.1.md",
 }
 _ADJUDICATOR_PROMPT = "adjudicator-1.0.md"
+_SEMANTIC_REPAIR_PROMPT = "semantic_repair-1.0.md"
 _CONTRACT_RUNTIME_ERRORS = {
     "OpenClaw gateway response did not complete": "AGENT_RESPONSE_INCOMPLETE",
     "OpenClaw gateway response has no output items": "AGENT_OUTPUT_MISSING",
@@ -151,9 +160,11 @@ class MultiAgentLabPlan(BaseModel):
     selected_case_ids: tuple[str, ...] = Field(min_length=1, max_length=10)
     roles: tuple[LabRoleConfig, ...] = Field(min_length=4, max_length=4)
     timeout_seconds: int = Field(ge=1, le=45)
-    max_attempts: int = Field(ge=1, le=1)
+    max_attempts: int = Field(ge=1, le=2)
     max_input_tokens_per_call: int = Field(ge=1, le=12_000)
-    max_total_cost_microusd: int = Field(ge=1, le=1_000_000)
+    max_total_cost_microusd: int = Field(ge=1, le=10_000_000)
+    max_repair_cycles: int = Field(default=0, ge=0, le=2)
+    thinking_level: ThinkingLevel | None = None
     concurrency: int = Field(ge=1, le=1)
     require_human_review: bool
     require_application_flags_false: bool
@@ -544,10 +555,29 @@ def prepare_lab_manifest(
     cases = _selected_cases(plan, dataset)
     catalog = pricing or load_pricing_catalog()
     role_preflight = {role: _role_preflight_cost(plan, role, catalog) for role in _ROLE_ORDER}
-    total_preflight = sum(role_preflight.values()) * len(cases)
+    calls_per_case = sum(role_preflight.values()) + (
+        role_preflight["proposer"] * plan.max_repair_cycles
+    )
+    total_preflight = calls_per_case * len(cases) * plan.max_attempts
     if total_preflight > plan.max_total_cost_microusd:
         raise ValueError("multi-agent preflight exceeds the aggregate article budget")
     root = repository_root()
+    gateway_config = _load_json(root / "config" / "openclaw-idml-dedicated.json")
+    if plan.thinking_level is not None:
+        configured_agents = gateway_config.get("agents", {}).get("list", [])
+        configured_agent = next(
+            (
+                agent
+                for agent in configured_agents
+                if isinstance(agent, dict) and agent.get("id") == plan.agent_id
+            ),
+            None,
+        )
+        if (
+            not isinstance(configured_agent, dict)
+            or configured_agent.get("thinkingDefault") != plan.thinking_level
+        ):
+            raise ValueError("agent thinking level differs from the multi-agent plan")
     registry = load_registry()
     artifact_hashes: dict[str, str] = {
         "plan": _sha256_path(plan_path),
@@ -565,6 +595,9 @@ def prepare_lab_manifest(
         "prompt:xml_critic": _sha256_path(_role_prompt_path("xml_critic")),
         "prompt:editorial_critic": _sha256_path(_role_prompt_path("editorial_critic")),
         "prompt:adjudicator": _sha256_path(_role_prompt_path("adjudicator")),
+        "prompt:semantic_repair": _sha256_path(
+            repository_root() / "prompts" / "agents" / _SEMANTIC_REPAIR_PROMPT
+        ),
         "schema:xml_critic": payload_digest(critique_json_schema("xml_critic")),
         "schema:editorial_critic": payload_digest(critique_json_schema("editorial_critic")),
         "schema:adjudicator": payload_digest(adjudication_json_schema()),
@@ -611,6 +644,11 @@ def prepare_lab_manifest(
         "role_preflight_cost_microusd": role_preflight,
         "total_preflight_cost_microusd": total_preflight,
         "max_total_cost_microusd": plan.max_total_cost_microusd,
+        "max_repair_cycles": plan.max_repair_cycles,
+        "thinking_level": plan.thinking_level,
+        "maximum_calls": (
+            len(cases) * (len(_ROLE_ORDER) + plan.max_repair_cycles) * plan.max_attempts
+        ),
         "concurrency": plan.concurrency,
         "max_attempts": plan.max_attempts,
         "human_review_required": plan.require_human_review,
@@ -905,6 +943,56 @@ def _adjudication_envelope(
     )
 
 
+def _semantic_repair_envelope(
+    case: dict[str, Any],
+    raw_proposal: dict[str, Any],
+    *,
+    deterministic_error_code: str,
+    cycle_index: int,
+) -> dict[str, Any]:
+    if not _semantic_repair_allowed(case, deterministic_error_code):
+        raise ValueError("semantic repair error is not allowlisted")
+    return untrusted_envelope(
+        {
+            "contract_version": "multi-agent-semantic-repair-input-1.0",
+            "case": _case_content(case),
+            "rejected_proposal": raw_proposal,
+            "rejected_proposal_sha256": payload_digest(raw_proposal),
+            "deterministic_finding": {
+                "error_code": deterministic_error_code,
+                "paths": sorted(_expected_paths(case)),
+            },
+            "repair_cycle": cycle_index,
+            "constraints": {
+                "complete_replacement_proposal_required": True,
+                "preserve_domain_paths_and_evidence": True,
+                "human_review_required": True,
+                "release_authority": False,
+            },
+        }
+    )
+
+
+def _semantic_repair_allowed(case: dict[str, Any], error_code: str) -> bool:
+    if error_code in _REPAIRABLE_DETERMINISTIC_ERRORS:
+        return True
+    return bool(
+        error_code in _VISUAL_REPAIRABLE_DETERMINISTIC_ERRORS
+        and is_visual_evidence(case["evidence"])
+        and isinstance(case.get("atomic_formula"), dict)
+    )
+
+
+def _candidate_semantic_digest(raw: dict[str, Any]) -> str:
+    """Hash only proposal semantics so cosmetic rewrites cannot evade no-progress detection."""
+    return payload_digest(
+        {
+            key: raw.get(key)
+            for key in ("schema_version", "domain", "patch", "evidence", "needs_human")
+        }
+    )
+
+
 async def _call_role(
     plan: MultiAgentLabPlan,
     client: LabClient,
@@ -918,10 +1006,14 @@ async def _call_role(
     input_images: tuple[AgentInputImage, ...],
     catalog: PricingCatalog,
     spent_microusd: int,
+    cycle_index: int = 0,
+    activity: str | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any] | None, int]:
     started = time.monotonic()
     record: dict[str, Any] = {
         "role": role,
+        "activity": activity or role,
+        "cycle_index": cycle_index,
         "status": "failed",
         "error_code": "MULTI_AGENT_ROLE_FAILED",
         "input_tokens": 0,
@@ -937,25 +1029,49 @@ async def _call_role(
         "output_materialized_from_evidence": False,
         "provider_output_sha256": None,
         "materialized_output_sha256": None,
+        "attempts": 0,
+        "retry_error_codes": [],
         "output": None,
     }
-    charged = 0
+    attempt_charges: list[int] = []
     preflight = _role_preflight_cost(plan, role, catalog)
     if spent_microusd + preflight > plan.max_total_cost_microusd:
         record.update(status="blocked", error_code="MULTI_AGENT_PREFLIGHT_BUDGET_EXCEEDED")
         return record, None, 0
     try:
-        response = await client.run_agent(
-            agent_id=plan.agent_id,
-            session_key=f"idml-lab:{run_id}:{case_id}:{role}",
-            system_prompt=system_prompt,
-            input_envelope=input_envelope,
-            output_schema=output_schema,
-            tool_allowlist=frozenset(),
-            timeout_seconds=plan.timeout_seconds,
-            max_output_tokens=plan.role(role).max_output_tokens,
-            input_images=input_images,
+        response: ProviderResponse | None = None
+        base_session_key = (
+            f"idml-lab:{run_id}:{case_id}:{role}"
+            if cycle_index == 0
+            else f"idml-lab:{run_id}:{case_id}:{role}-repair-{cycle_index}"
         )
+        for attempt in range(1, plan.max_attempts + 1):
+            if spent_microusd + sum(attempt_charges) + preflight > plan.max_total_cost_microusd:
+                raise RuntimeError("MULTI_AGENT_PREFLIGHT_BUDGET_EXCEEDED")
+            record["attempts"] = attempt
+            try:
+                response = await client.run_agent(
+                    agent_id=plan.agent_id,
+                    session_key=(
+                        base_session_key
+                        if attempt == 1
+                        else f"{base_session_key}:attempt-{attempt}"
+                    ),
+                    system_prompt=system_prompt,
+                    input_envelope=input_envelope,
+                    output_schema=output_schema,
+                    tool_allowlist=frozenset(),
+                    timeout_seconds=plan.timeout_seconds,
+                    max_output_tokens=plan.role(role).max_output_tokens,
+                    input_images=input_images,
+                )
+                break
+            except ProviderUnavailable as exc:
+                attempt_charges.append(preflight)
+                record["retry_error_codes"].append(_lab_error_code(exc))
+                if attempt == plan.max_attempts:
+                    raise
+        assert response is not None
         if f"{response.provider}/{response.model}" != plan.model_key:
             raise RuntimeError("MODEL_IDENTITY_MISMATCH")
         if response.input_tokens > plan.max_input_tokens_per_call:
@@ -963,7 +1079,7 @@ async def _call_role(
         if response.output_tokens > plan.role(role).max_output_tokens:
             raise RuntimeError("MULTI_AGENT_OUTPUT_TOKEN_BUDGET_EXCEEDED")
         if response.input_tokens == 0 and response.output_tokens == 0:
-            charged = preflight
+            successful_charge = preflight
             cost_source = "preflight_upper_bound"
             pricing_version: str | None = catalog.version
         else:
@@ -975,9 +1091,13 @@ async def _call_role(
                 cached_input_tokens=response.cached_input_tokens,
                 provider_cost_microusd=response.cost_microusd,
             )
-            charged = resolved.microusd
+            successful_charge = resolved.microusd
             cost_source = resolved.source
             pricing_version = resolved.pricing_version
+        attempt_charges.append(successful_charge)
+        charged = sum(attempt_charges)
+        if len(attempt_charges) > 1:
+            cost_source = f"retry_reserved_plus_{cost_source}"
         record.update(
             status="succeeded",
             error_code=None,
@@ -992,7 +1112,11 @@ async def _call_role(
         if spent_microusd + charged > plan.max_total_cost_microusd:
             raise RuntimeError("MULTI_AGENT_AGGREGATE_COST_BUDGET_EXCEEDED")
     except (PermissionError, RuntimeError, TimeoutError, ValueError) as exc:
-        charged = preflight
+        if not isinstance(exc, ProviderUnavailable) and len(attempt_charges) < int(
+            record["attempts"]
+        ):
+            attempt_charges.append(preflight)
+        charged = sum(attempt_charges)
         record.update(
             status="failed",
             error_code=_lab_error_code(exc),
@@ -1042,6 +1166,10 @@ def _case_record(case: dict[str, Any]) -> dict[str, Any]:
         "shared_model_across_roles": True,
         "deterministic_checks": None,
         "quality": None,
+        "deterministic_audits": [],
+        "repair_cycles_used": 0,
+        "repair_terminated_reason": None,
+        "assisted_audit": None,
         "roles": [],
     }
 
@@ -1100,24 +1228,128 @@ async def execute_multi_agent_lab(
             if operational_failure:
                 break
             continue
-        try:
-            if _uses_trusted_evidence_materialization(case):
-                proposer_record["provider_output_sha256"] = payload_digest(raw_proposal)
-                raw_proposal = _materialize_proposal_intent(case, raw_proposal)
-                proposer_record["output"] = raw_proposal
-                proposer_record["output_materialized_from_evidence"] = True
-                proposer_record["materialized_output_sha256"] = payload_digest(raw_proposal)
-            else:
-                proposer_record["output_materialized_from_evidence"] = False
-            assessment = assess_proposal(case, raw_proposal)
-        except ValueError as exc:
-            record.update(
-                status="completed",
-                error_code=_safe_error_code(exc),
-                final_decision="rejected",
+        assessment: ProposalAssessment | None = None
+        active_role_record = proposer_record
+        seen_semantic_hashes: list[str] = []
+        while raw_proposal is not None:
+            candidate_sha256 = payload_digest(raw_proposal)
+            semantic_sha256 = _candidate_semantic_digest(raw_proposal)
+            if semantic_sha256 in seen_semantic_hashes:
+                terminal = (
+                    "SEMANTIC_REPAIR_NO_PROGRESS"
+                    if semantic_sha256 == seen_semantic_hashes[-1]
+                    else "SEMANTIC_REPAIR_OSCILLATION"
+                )
+                record["deterministic_audits"].append(
+                    {
+                        "cycle_index": record["repair_cycles_used"],
+                        "candidate_sha256": candidate_sha256,
+                        "semantic_sha256": semantic_sha256,
+                        "status": "rejected",
+                        "error_code": terminal,
+                    }
+                )
+                record["repair_terminated_reason"] = terminal
+                record["error_code"] = terminal
+                break
+            seen_semantic_hashes.append(semantic_sha256)
+            try:
+                if _uses_trusted_evidence_materialization(case):
+                    active_role_record["provider_output_sha256"] = candidate_sha256
+                    raw_proposal = _materialize_proposal_intent(case, raw_proposal)
+                    active_role_record["output"] = raw_proposal
+                    active_role_record["output_materialized_from_evidence"] = True
+                    active_role_record["materialized_output_sha256"] = payload_digest(raw_proposal)
+                else:
+                    active_role_record["output_materialized_from_evidence"] = False
+                assessment = assess_proposal(case, raw_proposal)
+                if (
+                    isinstance(case.get("atomic_formula"), dict)
+                    and not assessment.quality["semantically_equivalent"]
+                ):
+                    raise ValueError("PROPOSAL_QUALITY_REJECTED_SEMANTIC_EQUIVALENCE")
+            except ValueError as exc:
+                assessment = None
+                error_code = _safe_error_code(exc)
+                record["deterministic_audits"].append(
+                    {
+                        "cycle_index": record["repair_cycles_used"],
+                        "candidate_sha256": payload_digest(raw_proposal),
+                        "semantic_sha256": _candidate_semantic_digest(raw_proposal),
+                        "status": "rejected",
+                        "error_code": error_code,
+                    }
+                )
+                can_repair = (
+                    _semantic_repair_allowed(case, error_code)
+                    and record["repair_cycles_used"] < plan.max_repair_cycles
+                )
+                if not can_repair:
+                    record["repair_terminated_reason"] = (
+                        "SEMANTIC_REPAIR_LIMIT_REACHED"
+                        if _semantic_repair_allowed(case, error_code)
+                        else "SEMANTIC_REPAIR_NOT_ALLOWED"
+                    )
+                    record["error_code"] = error_code
+                    break
+                cycle_index = record["repair_cycles_used"] + 1
+                repair_record, repaired_raw, charged = await _call_role(
+                    plan,
+                    client,
+                    run_id=run_id,
+                    case_id=case["case_id"],
+                    role="proposer",
+                    system_prompt=(
+                        f"{load_prompt(profile)}\n\n{_PROPOSER_POLICY}\n\n"
+                        + (
+                            repository_root() / "prompts" / "agents" / _SEMANTIC_REPAIR_PROMPT
+                        ).read_text(encoding="utf-8")
+                    ),
+                    input_envelope=_semantic_repair_envelope(
+                        case,
+                        raw_proposal,
+                        deterministic_error_code=error_code,
+                        cycle_index=cycle_index,
+                    ),
+                    output_schema=_proposal_schema(case, domain),
+                    input_images=input_images,
+                    catalog=catalog,
+                    spent_microusd=total_cost,
+                    cycle_index=cycle_index,
+                    activity="semantic_repair",
+                )
+                total_cost += charged
+                record["roles"].append(repair_record)
+                record["repair_cycles_used"] = cycle_index
+                if repaired_raw is None:
+                    record["repair_terminated_reason"] = repair_record["error_code"]
+                    record["error_code"] = repair_record["error_code"]
+                    operational_failure = _is_operational_failure(repair_record)
+                    raw_proposal = None
+                    break
+                raw_proposal = repaired_raw
+                active_role_record = repair_record
+                continue
+            record["deterministic_audits"].append(
+                {
+                    "cycle_index": record["repair_cycles_used"],
+                    "candidate_sha256": assessment.proposal_sha256,
+                    "semantic_sha256": _candidate_semantic_digest(raw_proposal),
+                    "status": "passed",
+                    "error_code": None,
+                }
             )
+            record["repair_terminated_reason"] = (
+                "SEMANTIC_REPAIR_SUCCEEDED" if record["repair_cycles_used"] else "NOT_REQUIRED"
+            )
+            break
+        if assessment is None:
+            record.update(status="completed", final_decision="rejected")
             records.append(record)
+            if operational_failure:
+                break
             continue
+        assert raw_proposal is not None
         record["deterministic_checks"] = assessment.checks
         record["quality"] = assessment.quality
         critiques: dict[CriticRole, tuple[dict[str, Any], CritiqueOutput]] = {}
@@ -1224,19 +1456,19 @@ async def execute_multi_agent_lab(
         )
         if false_consensus:
             final_decision = "abstained"
-            error_code = "POTENTIAL_FALSE_CONSENSUS"
+            decision_error_code: str | None = "POTENTIAL_FALSE_CONSENSUS"
         elif adjudication.decision == "accept":
             final_decision = "accepted_for_human_review"
-            error_code = None
+            decision_error_code = None
         elif adjudication.decision == "abstain":
             final_decision = "abstained"
-            error_code = None
+            decision_error_code = None
         else:
             final_decision = "rejected"
-            error_code = None
+            decision_error_code = None
         record.update(
             status="completed",
-            error_code=error_code,
+            error_code=decision_error_code,
             final_decision=final_decision,
             false_consensus_candidate=false_consensus,
             critic_verdicts={
@@ -1245,6 +1477,14 @@ async def execute_multi_agent_lab(
             },
             adjudicator_decision=adjudication.decision,
             adjudicator_agreement=adjudication.agreement,
+            assisted_audit={
+                "status": "completed",
+                "proposal_sha256": assessment.proposal_sha256,
+                "xml_critic": xml_critique.verdict,
+                "editorial_critic": editorial_critique.verdict,
+                "adjudicator": adjudication.decision,
+                "human_review_required": True,
+            },
         )
         records.append(record)
     completed = len(records) == len(cases) and not operational_failure
@@ -1257,6 +1497,8 @@ async def execute_multi_agent_lab(
         "model": plan.model_key,
         "roles": list(_ROLE_ORDER),
         "max_total_cost_microusd": plan.max_total_cost_microusd,
+        "max_repair_cycles": plan.max_repair_cycles,
+        "thinking_level": plan.thinking_level,
         "total_cost_microusd": total_cost,
         "cost_accounted": True,
         "human_review_required": True,
@@ -1274,6 +1516,8 @@ def sanitized_lab_report(result: dict[str, Any]) -> dict[str, Any]:
                 key: role.get(key)
                 for key in (
                     "role",
+                    "activity",
+                    "cycle_index",
                     "status",
                     "error_code",
                     "input_tokens",
@@ -1289,6 +1533,8 @@ def sanitized_lab_report(result: dict[str, Any]) -> dict[str, Any]:
                     "output_materialized_from_evidence",
                     "provider_output_sha256",
                     "materialized_output_sha256",
+                    "attempts",
+                    "retry_error_codes",
                 )
             }
             for role in case["roles"]
@@ -1306,6 +1552,10 @@ def sanitized_lab_report(result: dict[str, Any]) -> dict[str, Any]:
                     "shared_model_across_roles",
                     "deterministic_checks",
                     "quality",
+                    "deterministic_audits",
+                    "repair_cycles_used",
+                    "repair_terminated_reason",
+                    "assisted_audit",
                     "critic_verdicts",
                     "adjudicator_decision",
                     "adjudicator_agreement",
@@ -1321,11 +1571,13 @@ def sanitized_lab_report(result: dict[str, Any]) -> dict[str, Any]:
         "run_id": result["run_id"],
         "agent": result["agent"],
         "model": result["model"],
+        "thinking_level": result["thinking_level"],
         "role_models_independent": False,
         "cases": total,
         "completed": result["completed"],
         "total_cost_microusd": result["total_cost_microusd"],
         "max_total_cost_microusd": result["max_total_cost_microusd"],
+        "max_repair_cycles": result["max_repair_cycles"],
         "metrics": {
             "case_completion_rate": (
                 sum(row["status"] == "completed" for row in rows) / total if total else 0.0
@@ -1392,7 +1644,7 @@ def main() -> int:
                     "status": "prepared-not-executed",
                     "manifest_id": manifest["manifest_id"],
                     "cases": len(manifest["cases"]),
-                    "calls": len(manifest["cases"]) * len(_ROLE_ORDER),
+                    "maximum_calls": manifest["maximum_calls"],
                     "total_preflight_cost_microusd": manifest["total_preflight_cost_microusd"],
                 },
                 sort_keys=True,

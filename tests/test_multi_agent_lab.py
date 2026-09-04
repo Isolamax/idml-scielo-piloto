@@ -25,7 +25,7 @@ from idml_foundation.ai.multi_agent_outputs import (
     adjudication_json_schema,
     critique_json_schema,
 )
-from idml_foundation.ai.orchestration import ProviderResponse
+from idml_foundation.ai.orchestration import ProviderResponse, ProviderUnavailable
 from idml_foundation.ai.security import payload_digest
 from idml_foundation.mathml import MATHML_NS
 
@@ -340,10 +340,45 @@ def test_prepare_lab_manifest_is_content_free_and_within_article_budget(tmp_path
     ]
     assert manifest["total_preflight_cost_microusd"] == 117_000
     assert manifest["max_total_cost_microusd"] == 150_000
+    assert manifest["max_repair_cycles"] == 0
+    assert manifest["maximum_calls"] == 8
     assert manifest["execution_authorized"] is False
     serialized = json.dumps(manifest)
     assert "Expected metadata value" not in serialized
     assert "Current references value" not in serialized
+
+
+def test_multi_agent_manifest_reserves_every_bounded_repair_call(tmp_path: Path) -> None:
+    plan_path, dataset_path, dataset = _files(tmp_path)
+    raw_plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    raw_plan["max_repair_cycles"] = 2
+    raw_plan["max_total_cost_microusd"] = 189_000
+    plan_path.write_text(json.dumps(raw_plan), encoding="utf-8")
+
+    manifest = prepare_lab_manifest(
+        load_lab_plan(plan_path),
+        dataset,
+        plan_path=plan_path,
+        dataset_path=dataset_path,
+    )
+
+    assert manifest["total_preflight_cost_microusd"] == 189_000
+    assert manifest["maximum_calls"] == 12
+
+
+def test_multi_agent_manifest_rejects_unconfigured_thinking_level(tmp_path: Path) -> None:
+    plan_path, dataset_path, dataset = _files(tmp_path)
+    raw_plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    raw_plan["thinking_level"] = "xhigh"
+    plan_path.write_text(json.dumps(raw_plan), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="thinking level differs"):
+        prepare_lab_manifest(
+            load_lab_plan(plan_path),
+            dataset,
+            plan_path=plan_path,
+            dataset_path=dataset_path,
+        )
 
 
 def test_multi_agent_manifest_rejects_case_path_outside_declared_domain(tmp_path: Path) -> None:
@@ -492,6 +527,270 @@ class _FixtureLabClient:
             input_tokens=100,
             output_tokens=20,
         )
+
+
+class _FormulaRepairLabClient:
+    def __init__(
+        self,
+        *,
+        repair_succeeds: bool,
+        change_invalid_candidate: bool = False,
+        initial_semantic_mismatch: bool = False,
+        initial_empty: bool = False,
+    ) -> None:
+        self.calls: list[dict[str, Any]] = []
+        self.repair_succeeds = repair_succeeds
+        self.change_invalid_candidate = change_invalid_candidate
+        self.initial_semantic_mismatch = initial_semantic_mismatch
+        self.initial_empty = initial_empty
+        self.proposer_calls = 0
+        self.fallback = _FixtureLabClient()
+
+    async def run_agent(self, **kwargs: Any) -> ProviderResponse:
+        role_key = kwargs["session_key"].rsplit(":", 1)[-1]
+        if not role_key.startswith("proposer"):
+            response = await self.fallback.run_agent(**kwargs)
+            self.calls.append(kwargs)
+            return response
+        self.calls.append(kwargs)
+        self.proposer_calls += 1
+        content = kwargs["input_envelope"]["content"]
+        case_content = content.get("case", content)
+        evidence = case_content["evidence"][0]
+        field_path = case_content["task"]["field_path"]
+        root_path = field_path.removesuffix("/source/value")
+        is_repair = role_key.startswith("proposer-repair-")
+        formula = MATHML
+        if not is_repair and self.initial_semantic_mismatch:
+            formula = MATHML.replace("<mml:mn>1</mml:mn>", "<mml:mn>2</mml:mn>")
+        elif not is_repair and self.initial_empty:
+            formula = ""
+        elif not is_repair or not self.repair_succeeds:
+            identifier = (
+                chr(ord("B") + self.proposer_calls) if self.change_invalid_candidate else "C"
+            )
+            formula = (
+                f'<mml:math xmlns:mml="{MATHML_NS}" display="block">'
+                f"<mml:mi>{identifier}</mml:mi>"
+                "<mml:msub><mml:mi>s</mml:mi></mml:msub></mml:math>"
+            )
+        payload = {
+            "schema_version": "agent-proposal-1.1",
+            "domain": "math_notes",
+            "patch": [
+                {
+                    "op": "replace",
+                    "path": field_path,
+                    "value": formula,
+                    "evidence_ids": [evidence["evidence_id"]],
+                },
+                {
+                    "op": "replace",
+                    "path": f"{root_path}/representation",
+                    "value": "mathml",
+                    "evidence_ids": [evidence["evidence_id"]],
+                },
+            ],
+            "confidence": 0.71 if is_repair and not self.repair_succeeds else 0.91,
+            "evidence": [evidence],
+            "alternatives": ["Keep the authenticated image representation"],
+            "reason": "The bounded formula repair preserves evidence and the atomic paths.",
+            "needs_human": True,
+        }
+        return ProviderResponse(
+            payload=payload,
+            provider="openai",
+            model="gpt-5.4-mini",
+            input_tokens=100,
+            output_tokens=20,
+        )
+
+
+def _repair_files(tmp_path: Path) -> tuple[Path, dict[str, Any]]:
+    root = Path(__file__).parents[1]
+    plan = json.loads(
+        (root / "config" / "openclaw-multi-agent-lab-v13.json").read_text(encoding="utf-8")
+    )
+    case = _visual_formula_case()
+    plan["selected_case_ids"] = [case["case_id"]]
+    plan["max_repair_cycles"] = 2
+    plan["max_total_cost_microusd"] = 100_000
+    plan_path = tmp_path / "repair-plan.json"
+    plan_path.write_text(json.dumps(plan), encoding="utf-8")
+    dataset = {
+        "version": plan["dataset_version"],
+        "corpus_id": plan["corpus_id"],
+        "source_idml_sha256": plan["source_idml_sha256"],
+        "restricted": True,
+        "cases": [case],
+    }
+    return plan_path, dataset
+
+
+def test_multi_agent_lab_repairs_atomic_formula_once_then_audits(tmp_path: Path) -> None:
+    plan_path, dataset = _repair_files(tmp_path)
+    client = _FormulaRepairLabClient(repair_succeeds=True)
+
+    result = asyncio.run(
+        execute_multi_agent_lab(
+            load_lab_plan(plan_path),
+            dataset,
+            client=client,
+            run_id="semantic-repair-success-001",
+        )
+    )
+
+    case = result["cases"][0]
+    assert result["completed"] is True
+    assert result["max_repair_cycles"] == 2
+    assert case["final_decision"] == "accepted_for_human_review"
+    assert case["repair_cycles_used"] == 1
+    assert case["repair_terminated_reason"] == "SEMANTIC_REPAIR_SUCCEEDED"
+    assert [audit["status"] for audit in case["deterministic_audits"]] == [
+        "rejected",
+        "passed",
+    ]
+    assert case["assisted_audit"] == {
+        "status": "completed",
+        "proposal_sha256": case["deterministic_audits"][-1]["candidate_sha256"],
+        "xml_critic": "pass",
+        "editorial_critic": "pass",
+        "adjudicator": "accept",
+        "human_review_required": True,
+    }
+    assert len(case["roles"]) == 5
+    assert case["roles"][1]["activity"] == "semantic_repair"
+    assert case["roles"][1]["cycle_index"] == 1
+    repair_content = client.calls[1]["input_envelope"]["content"]
+    assert repair_content["contract_version"] == "multi-agent-semantic-repair-input-1.0"
+    assert repair_content["deterministic_finding"]["error_code"] == (
+        "PROPOSAL_DETERMINISTIC_REJECTED_ATOMIC_VALUES_CONSISTENT"
+    )
+    assert "expected_value" not in json.dumps(repair_content)
+
+    report = sanitized_lab_report(result)
+    assert report["rows"][0]["repair_cycles_used"] == 1
+    assert report["rows"][0]["roles"][1]["activity"] == "semantic_repair"
+    assert '"output"' not in json.dumps(report)
+
+
+def test_multi_agent_lab_stops_repair_when_candidate_makes_no_progress(tmp_path: Path) -> None:
+    plan_path, dataset = _repair_files(tmp_path)
+    client = _FormulaRepairLabClient(repair_succeeds=False)
+
+    result = asyncio.run(
+        execute_multi_agent_lab(
+            load_lab_plan(plan_path),
+            dataset,
+            client=client,
+            run_id="semantic-repair-no-progress-001",
+        )
+    )
+
+    case = result["cases"][0]
+    assert result["completed"] is True
+    assert case["final_decision"] == "rejected"
+    assert case["repair_cycles_used"] == 1
+    assert case["repair_terminated_reason"] == "SEMANTIC_REPAIR_NO_PROGRESS"
+    assert case["error_code"] == "SEMANTIC_REPAIR_NO_PROGRESS"
+    assert case["assisted_audit"] is None
+    assert len(case["roles"]) == 2
+
+
+@pytest.mark.parametrize(
+    ("client", "first_error"),
+    [
+        (
+            _FormulaRepairLabClient(
+                repair_succeeds=True,
+                initial_semantic_mismatch=True,
+            ),
+            "PROPOSAL_QUALITY_REJECTED_SEMANTIC_EQUIVALENCE",
+        ),
+        (
+            _FormulaRepairLabClient(
+                repair_succeeds=True,
+                initial_empty=True,
+            ),
+            "PROPOSAL_DETERMINISTIC_REJECTED_ATOMIC_VALUES_CONSISTENT_EVIDENCE_GROUNDED",
+        ),
+    ],
+)
+def test_visual_formula_quality_failures_are_repaired_without_exposing_gold(
+    tmp_path: Path,
+    client: _FormulaRepairLabClient,
+    first_error: str,
+) -> None:
+    plan_path, dataset = _repair_files(tmp_path)
+
+    result = asyncio.run(
+        execute_multi_agent_lab(
+            load_lab_plan(plan_path),
+            dataset,
+            client=client,
+            run_id=f"visual-quality-repair-{client.proposer_calls + len(first_error)}",
+        )
+    )
+
+    case = result["cases"][0]
+    assert case["final_decision"] == "accepted_for_human_review"
+    assert case["repair_cycles_used"] == 1
+    assert case["deterministic_audits"][0]["error_code"] == first_error
+    repair_content = client.calls[1]["input_envelope"]["content"]
+    assert repair_content["deterministic_finding"]["error_code"] == first_error
+    serialized = json.dumps(repair_content)
+    assert "expected_value" not in serialized
+    assert MATHML not in serialized
+
+
+def test_multi_agent_lab_enforces_two_cycle_semantic_repair_cap(tmp_path: Path) -> None:
+    plan_path, dataset = _repair_files(tmp_path)
+    client = _FormulaRepairLabClient(
+        repair_succeeds=False,
+        change_invalid_candidate=True,
+    )
+
+    result = asyncio.run(
+        execute_multi_agent_lab(
+            load_lab_plan(plan_path),
+            dataset,
+            client=client,
+            run_id="semantic-repair-limit-001",
+        )
+    )
+
+    case = result["cases"][0]
+    assert case["final_decision"] == "rejected"
+    assert case["repair_cycles_used"] == 2
+    assert case["repair_terminated_reason"] == "SEMANTIC_REPAIR_LIMIT_REACHED"
+    assert case["error_code"] == ("PROPOSAL_DETERMINISTIC_REJECTED_ATOMIC_VALUES_CONSISTENT")
+    assert len(case["deterministic_audits"]) == 3
+    assert len(case["roles"]) == 3
+
+
+def test_multi_agent_lab_never_repairs_evidence_failure(tmp_path: Path) -> None:
+    plan_path, _, dataset = _files(tmp_path)
+    raw_plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    raw_plan["max_repair_cycles"] = 2
+    raw_plan["max_total_cost_microusd"] = 189_000
+    plan_path.write_text(json.dumps(raw_plan), encoding="utf-8")
+    client = _FixtureLabClient(corrupt_evidence_hash=True)
+
+    result = asyncio.run(
+        execute_multi_agent_lab(
+            load_lab_plan(plan_path),
+            dataset,
+            client=client,
+            run_id="semantic-repair-evidence-denied-001",
+        )
+    )
+
+    assert all(case["repair_cycles_used"] == 0 for case in result["cases"])
+    assert all(
+        case["repair_terminated_reason"] == "SEMANTIC_REPAIR_NOT_ALLOWED"
+        for case in result["cases"]
+    )
+    assert all(len(case["roles"]) == 1 for case in result["cases"])
 
 
 def test_multi_agent_lab_separates_roles_and_flags_false_consensus(tmp_path: Path) -> None:
@@ -806,6 +1105,48 @@ class _MalformedThenValidLabClient:
             self.first = False
             raise RuntimeError("OpenClaw gateway output is not JSON")
         return await self.valid.run_agent(**kwargs)
+
+
+class _TransientThenValidLabClient:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+        self.valid = _FixtureLabClient()
+
+    async def run_agent(self, **kwargs: Any) -> ProviderResponse:
+        self.calls.append(kwargs)
+        if len(self.calls) == 1:
+            raise ProviderUnavailable("TRANSIENT_GATEWAY_FAILURE")
+        normalized = dict(kwargs)
+        normalized["session_key"] = normalized["session_key"].removesuffix(":attempt-2")
+        return await self.valid.run_agent(**normalized)
+
+
+def test_multi_agent_lab_retries_one_transient_provider_failure(tmp_path: Path) -> None:
+    plan_path, _, dataset = _files(tmp_path)
+    raw_plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    raw_plan["max_attempts"] = 2
+    raw_plan["max_total_cost_microusd"] = 234_000
+    plan_path.write_text(json.dumps(raw_plan), encoding="utf-8")
+    client = _TransientThenValidLabClient()
+
+    result = asyncio.run(
+        execute_multi_agent_lab(
+            load_lab_plan(plan_path),
+            dataset,
+            client=client,
+            run_id="multi-agent-transient-retry-001",
+        )
+    )
+
+    assert result["completed"] is True
+    first_role = result["cases"][0]["roles"][0]
+    assert first_role["status"] == "succeeded"
+    assert first_role["attempts"] == 2
+    assert first_role["retry_error_codes"] == ["TRANSIENT_GATEWAY_FAILURE"]
+    assert first_role["cost_microusd"] == 18_165
+    assert first_role["cost_source"] == "retry_reserved_plus_estimated"
+    assert result["total_cost_microusd"] == 19_320
+    assert client.calls[1]["session_key"].endswith(":attempt-2")
 
 
 def test_multi_agent_lab_rejects_malformed_case_and_continues_with_reserved_cost(

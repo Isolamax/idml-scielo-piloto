@@ -123,8 +123,18 @@ def _semantic_fingerprint(element: etree._Element) -> tuple[object, ...]:
         if len(children) == 1:
             return children[0]
         return ("mrow", (), "", children)
-    if qname.localname == "mrow" and not attributes and not text and len(children) == 1:
-        return children[0]
+    if qname.localname == "mrow" and not attributes and not text:
+        flattened: list[tuple[object, ...]] = []
+        for child in children:
+            if child[0:3] == ("mrow", (), ""):
+                nested = child[3]
+                assert isinstance(nested, tuple)
+                flattened.extend(nested)
+            else:
+                flattened.append(child)
+        if len(flattened) == 1:
+            return flattened[0]
+        return ("mrow", (), "", tuple(flattened))
     if qname.localname == "mfenced":
         fenced_children = children
         if len(element) == 1 and etree.QName(element[0]).localname == "mrow":
@@ -136,7 +146,7 @@ def _semantic_fingerprint(element: etree._Element) -> tuple[object, ...]:
 
 
 def mathml_semantically_equivalent(left: str, right: str, *, display: bool) -> bool:
-    """Compare safe Presentation MathML while ignoring redundant one-child mrow wrappers."""
+    """Compare safe Presentation MathML while normalizing redundant sequence wrappers."""
     return _semantic_fingerprint(
         parse_mathml_fragment(left, display=display)
     ) == _semantic_fingerprint(parse_mathml_fragment(right, display=display))

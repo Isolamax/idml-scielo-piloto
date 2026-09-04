@@ -42,6 +42,23 @@ def test_mathml_semantic_comparison_normalizes_visible_parentheses_and_minus() -
     assert mathml_semantically_equivalent(fenced, explicit, display=True)
 
 
+def test_mathml_semantic_comparison_flattens_nested_sequence_around_parentheses() -> None:
+    fenced = (
+        f'<mml:math xmlns:mml="{MATHML_NS}" display="block"><mml:mrow>'
+        "<mml:mi>z</mml:mi><mml:mo>=</mml:mo>"
+        "<mml:mfenced><mml:mrow><mml:mi>x</mml:mi><mml:mo>-</mml:mo>"
+        "<mml:mi>y</mml:mi></mml:mrow></mml:mfenced></mml:mrow></mml:math>"
+    )
+    explicit_nested = (
+        f'<mml:math xmlns:mml="{MATHML_NS}" display="block"><mml:mrow>'
+        "<mml:mi>z</mml:mi><mml:mo>=</mml:mo><mml:mrow><mml:mo>(</mml:mo>"
+        "<mml:mi>x</mml:mi><mml:mo>\N{MINUS SIGN}</mml:mo><mml:mi>y</mml:mi>"
+        "<mml:mo>)</mml:mo></mml:mrow></mml:mrow></mml:math>"
+    )
+
+    assert mathml_semantically_equivalent(fenced, explicit_nested, display=True)
+
+
 @pytest.mark.parametrize(
     "fragment,error",
     [

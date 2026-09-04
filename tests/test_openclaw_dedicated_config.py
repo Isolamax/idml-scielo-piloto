@@ -205,3 +205,29 @@ def test_visual_mathml_multi_agent_lab_is_private_and_budgeted() -> None:
     assert plan["max_total_cost_microusd"] == 175_500
     assert plan["require_human_review"] is True
     assert plan["require_application_flags_false"] is True
+
+
+def test_semantic_repair_lab_is_bounded_private_and_double_gated() -> None:
+    runner = (ROOT / "ops" / "openclaw-multi-agent-lab.sh").read_text(encoding="utf-8")
+    plan = json.loads(
+        (ROOT / "config" / "openclaw-multi-agent-lab-v14.json").read_text(encoding="utf-8")
+    )
+
+    assert "multi-agent-manifest-v14.json" in runner
+    assert "RUN_IDML_OPENCLAW_MULTI_AGENT_LAB_V14" in runner
+    assert plan["selected_case_ids"] == [
+        "esa-math-notes-observed-001",
+        "esa-math-notes-inline-001",
+        "esa-math-notes-inline-002",
+    ]
+    assert plan["max_attempts"] == 2
+    assert plan["max_repair_cycles"] == 2
+    assert plan["thinking_level"] == "medium"
+    assert plan["max_total_cost_microusd"] == 600_000
+    assert plan["require_human_review"] is True
+    assert plan["require_application_flags_false"] is True
+    dedicated = json.loads((ROOT / "config" / "openclaw-idml-dedicated.json").read_text())
+    evaluator = next(
+        agent for agent in dedicated["agents"]["list"] if agent["id"] == "idml-evaluator"
+    )
+    assert evaluator["thinkingDefault"] == "medium"

@@ -751,7 +751,7 @@ def test_proposal_is_validated_persisted_and_never_applied(db: Session) -> None:
     assert run.pricing_model_key == "fixture/contract-fixture"
     assert run.prompt_version == "1.3"
     assert run.output_schema_version == "agent-proposal-1.1"
-    assert run.config_version == "agent-config-1.4"
+    assert run.config_version == "agent-config-1.5"
     assert run.budget["preflight_max_cost_microusd"] is None
     assert 0 < run.budget["input_envelope_bytes"] < 4_000
     assert proposal is not None and proposal.needs_human

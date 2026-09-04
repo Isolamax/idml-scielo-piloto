@@ -115,6 +115,7 @@
           "primary": "openai/gpt-5.4-mini",
           "fallbacks": []
         },
+        "thinkingDefault": "medium",
         "heartbeat": {
           "every": "0m"
         },
