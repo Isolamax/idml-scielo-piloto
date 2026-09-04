@@ -21,9 +21,9 @@ docs/XML_VALIDATION_MASTER_PLAN.md
 ## 2. Estado geral
 
 ```text
-PROJECT_STATUS: PHASE_6_QA_REPAIR_IN_PROGRESS
-CURRENT_PHASE: FASE 6 — próxima ação: auditoria assistida e repair semântico limitado
-CURRENT_IMPLEMENTATION_AUTHORIZED: PHASE_6
+PROJECT_STATUS: PHASE_6_COMPLETE
+CURRENT_PHASE: FASE 7 — próxima ação: Pacote 7.1, testes completos
+CURRENT_IMPLEMENTATION_AUTHORIZED: PHASE_7
 DEVELOPMENT_ROADMAP_AUTHORIZED: THROUGH_PHASE_8_PRODUCTION_READINESS
 PRODUCTION_ACTIVATION_AUTHORIZED: NO — REQUIRES XML_EXPERT_FINAL_ACCEPTANCE
 ARCHITECTURE_STATUS: APPROVED_WITH_CHANGES
@@ -121,8 +121,8 @@ Antes de qualquer implantação futura na VPS:
 | 3 | Pipeline determinístico mínimo | IDML → modelo → XML válido sem IA | Concluída — Gate G3 aprovado |
 | 4 | Validação, fidelidade e pacote | Pacote validado e política de release | Implementada — Gate G4 bloqueado por validadores externos/crossrefs |
 | 5 | Revisão humana e interface mínima | Correção humana auditável | Concluída — Gate G5 aprovado |
-| 6 | IA assistiva e OpenClaw | Assistência semântica controlada | Transcrição visual/inline validada — G6-T pendente pelo pacote de QA/repair |
-| 7 | Homologação automatizada e piloto simulado | Sistema completo validado antes da revisão humana | Não iniciada — roadmap aprovado, início ainda sujeito ao G6-T |
+| 6 | IA assistiva e OpenClaw | Assistência semântica controlada | Concluída — Gate G6-T aprovado; produção não autorizada |
+| 7 | Homologação automatizada e piloto simulado | Sistema completo validado antes da revisão humana | Autorizada — próxima ação: Pacote 7.1 |
 | 8 | Prontidão, homologação humana e produção | RC operacional, aceite do especialista e rollout | Não iniciada — ativação real bloqueada pelo G8-H |
 | 9 | Expansão controlada | Novos periódicos e casos complexos | Não iniciada |
 
@@ -631,8 +631,8 @@ preparando a comparação editorial humana para a RC final.
 
 ## Pacote 6.6 — QA e repair assistidos
 
-- [ ] Adicionar auditoria assistida após baseline automático multiagente congelado.
-- [ ] Adicionar repair semântico com limite de ciclos.
+- [x] Adicionar auditoria assistida após baseline automático multiagente congelado.
+- [x] Adicionar repair semântico com limite de ciclos.
 - [x] Manter Release Judge apenas consultivo.
 - [x] Encaminhar baixa confiança para humano.
 
@@ -666,7 +666,7 @@ preparando a comparação editorial humana para a RC final.
 - [x] Prompt injection não altera ferramentas ou políticas.
 - [x] Orçamento de tokens e custo monetário agregado por artigo é respeitado.
 - [x] Release continua sendo determinístico.
-- [ ] Relatório técnico permite iniciar a Fase 7 sem autorizar produção.
+- [x] Relatório técnico permite iniciar a Fase 7 sem autorizar produção.
 
 ---
 
@@ -955,7 +955,7 @@ ADRs iniciais esperados:
 - [x] ADR-005 — abstração de orquestração e fallback.
 - [x] ADR-012 — política determinística de release.
 - [x] ADR-013 — egress controlado do provider OpenClaw.
-- [ ] ADR-014 — gates técnicos, RC e homologação humana final.
+- [x] ADR-014 — gates técnicos, RC e homologação humana final.
 
 # 11. Histórico deste plano
 
@@ -991,3 +991,4 @@ ADRs iniciais esperados:
 | 2026-09-02 | Estrutura hierárquica e 15 fórmulas PDF do artigo autorizado preservadas deterministicamente; V9 validou casos reais derivados de estrutura/matemática nos quatro papéis por 44.523 micro-USD, 153 testes atingiram 85,02% e o cleanup integral passou; G6-T segue pendente pela transição atômica para MathML e pelo mapeamento inline | Codex |
 | 2026-09-03 | Transição imagem→MathML atômica e segura implantada; 15 fórmulas display preservam ordem/rótulo, 2/2 lacunas inline são detectadas, candidato MathML passa JATS e V10 conclui quatro papéis por 31.747 micro-USD; proposta e críticos passam, adjudicador se abstém por consenso correlacionado; 164 testes e 85,04% de cobertura; G6-T segue pendente por transcrição visual/inline independente | Codex |
 | 2026-09-04 | Transporte visual autenticado e recortes PDF a 300 DPI concluídos; OpenClaw declarou `gpt-5.4-mini` como `text+image`; fórmula display e duas inline foram transcritas sem expor o gold, passaram 24 checks, seis críticas, três adjudicações e equivalência MathML semântica; custo acumulado 935.233 micro-USD, 181 testes/84,76%; imagem `phase6-visual-formula-v4` saudável, flags/provider desligados; G6-T segue para QA/repair limitado | Codex |
+| 2026-09-04 | Auditoria assistida e reparo semântico limitado concluídos; janela final V14 completou três casos por 85.654 micro-USD, com 24 checks, equivalência semântica 3/3, seis críticas, dois aceites e uma abstenção segura; 192 testes/84,86%, cleanup e deploy `phase6-qa-repair-v1` aprovados; Gate G6-T aprovado apenas para iniciar a Fase 7 | Codex |

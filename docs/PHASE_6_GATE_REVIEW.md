@@ -1,6 +1,6 @@
 # Revisão do Gate G6 — IA assistiva e OpenClaw
 
-Data inicial: 2026-08-26. Estado atual: **REFORMULADO COMO G6-T; PENDENTE**.
+Data inicial: 2026-08-26. Estado atual: **G6-T APROVADO PARA INICIAR A FASE 7; PRODUÇÃO NÃO AUTORIZADA**.
 
 > Nota de governança de 2026-09-01: as avaliações abaixo preservam o histórico técnico, mas a
 > homologação humana intermediária deixou de ser requisito do gate da Fase 6. O novo G6-T exige
@@ -16,10 +16,11 @@ timeout/retry/cancelamento, custo e concorrência limitados, prompts/modelos/con
 e propostas obrigatoriamente encaminhadas a humano. A autoridade de release continua inteiramente
 determinística.
 
-O gate não pode ser aprovado porque ainda não existe benchmark editorial contra o baseline humano
-por domínio. Um agente dedicado foi provisionado e passou no piloto sintético real, mas seis casos
-sintéticos não são evidência suficiente de ganho editorial. O registro atual fixa
-`openai/gpt-5.4-mini`; as flags permanecem desligadas e o endpoint não está conectado.
+O Gate técnico G6-T foi aprovado em 2026-09-04 após a expansão do corpus, a validação dos seis
+domínios, a transcrição visual de três fórmulas reais, a auditoria assistida e o reparo semântico
+limitado. A aprovação permite somente iniciar a Fase 7. O registro fixa
+`openai/gpt-5.4-mini`; as flags permanecem desligadas, os agentes não aplicam patches e a produção
+continua condicionada ao Gate Humano Final G8-H.
 
 ## Evidências automatizadas
 
@@ -36,7 +37,7 @@ sintéticos não são evidência suficiente de ganho editorial. O registro atual
 Verificações locais: Ruff e Mypy aprovados; 66 testes aprovados; cobertura 85,48%; schemas JSON
 carregados; Alembic aprovado em upgrade, downgrade para `c4e5f6a7b8c9` e novo upgrade.
 
-## Gate G6
+## Gate G6 original (histórico)
 
 | Critério | Estado | Evidência |
 |---|---|---|
@@ -581,3 +582,47 @@ A versão consolidada foi implantada na VPS como `idml-foundation:phase6-visual-
 código ficou em `/opt/idml-platform/backups/source-phase6-pre-visual-formula-v4.tar.gz`. API, worker
 e OpenClaw dedicado terminaram saudáveis; o OpenClaw compartilhado manteve o mesmo container e zero
 reinicializações. Hashes dos arquivos críticos coincidiram entre estação e VPS.
+
+## Auditoria assistida, reparo limitado e decisão final G6-T
+
+Em 2026-09-04, o laboratório passou a executar os críticos XML/editorial e o adjudicador somente
+depois das verificações determinísticas. A trilha registra o hash da proposta auditada e mantém o
+aceite restrito a `accepted_for_human_review`. O reparo semântico usa envelope mínimo sem o gold,
+preserva evidência e paths, aceita no máximo dois ciclos e encerra por ausência de progresso,
+oscilação, limite ou erro de provider. Falhas de evidência, escopo, política e injeção nunca são
+reparadas.
+
+O comparador MathML oculto passou a normalizar representações semanticamente equivalentes, como
+`mfenced`, parênteses explícitos e `mrow` redundante, sem relaxar a ordem dos operandos. Um defeito
+real de tokenização de diferenciais (`dC`/`dt`) foi convertido na regra geral do prompt 1.7 e em
+regressão. A suíte automatizada cobre reparo bem-sucedido, limite de dois ciclos, repetição sem
+progresso, oscilação, retry transitório com nova sessão e proibição de revelar o gold.
+
+A janela final `qa-repair-medium-v14` processou as três fórmulas reais com
+`openai/gpt-5.4-mini`, esforço `medium` e uma tentativa por papel. Os três casos completaram, todos
+os 24 checks passaram e os três MathML foram semanticamente equivalentes ao gold oculto. Os seis
+críticos deram `pass`; os adjudicadores aceitaram dois casos para revisão humana e se abstiveram em
+um. A abstenção foi preservada e não houve falso consenso, rejeição nem aplicação automática. O
+custo foi 85.654 micro-USD contra preflight máximo de 567.000 micro-USD.
+
+Cinco janelas diagnósticas anteriores expuseram o caminho de reparo, a equivalência excessivamente
+estrita e falhas transitórias 502. Todas encerraram fail-closed e tiveram cleanup integral. O custo
+do incremento de QA/reparo foi 392.565 micro-USD; o acumulado observado do artigo chegou a
+1.327.798 micro-USD, permitido pela autorização de ampliar o orçamento em favor da qualidade.
+O perfil `high` não apresentou ganho líquido no caso corrigido e elevou falhas/latência; por isso a
+configuração dedicada ficou explicitamente em `medium`, com até uma repetição somente para falha
+transitória do provider.
+
+A validação local terminou com 192 testes, cobertura de 84,86%, Ruff e mypy strict aprovados. Antes
+da janela, o backup `/opt/idml-platform/backups/20260904T193637Z` passou no restore. Depois do kill
+switch, API, worker, banco, Redis e OpenClaw ficaram saudáveis; flags permaneceram falsas; banco
+ficou com zero runs/propostas; credencial, proxy, redes transitórias e sessões foram removidos.
+
+A versão foi implantada como `idml-foundation:phase6-qa-repair-v1`, imagem
+`sha256:1f0ecf811e57d15eaf6186c229762dc41db25e0c69954581b8338daf4f26c450`. O relatório sanitizado é
+`benchmarks/agents/reports/qa-repair-validation-v1.json`; resultados privados continuam fora do
+Git.
+
+Com essas evidências, todos os critérios do G6-T estão atendidos e a Fase 7 pode começar. Essa
+decisão não habilita IA na aplicação, não autoriza release e não substitui a homologação do
+especialista em XML no Gate G8-H.
