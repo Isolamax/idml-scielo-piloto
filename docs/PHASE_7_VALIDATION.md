@@ -1,6 +1,6 @@
 # Fase 7 — Homologação automatizada e piloto simulado
 
-Data inicial: 2026-09-04. Estado: **EM EXECUÇÃO — V-01, V-02 E V-03 CONCLUÍDOS**.
+Data inicial: 2026-09-04. Estado: **EM EXECUÇÃO — V-01 A V-04 CONCLUÍDOS**.
 
 ## Estado das famílias V-01 a V-11
 
@@ -9,7 +9,7 @@ Data inicial: 2026-09-04. Estado: **EM EXECUÇÃO — V-01, V-02 E V-03 CONCLUÍ
 | V-01 Proveniência e integridade | PASSOU | catálogo e gate reproduzível |
 | V-02 Segurança da ingestão | PASSOU | matriz negativa, regressão e VPS |
 | V-03 Leitura e fidelidade IDML | PASSOU | conservação textual, estrutura e VPS |
-| V-04 Canonical Article Model | PENDENTE | — |
+| V-04 Canonical Article Model | PASSOU | schemas, invariantes, migrations e round-trip |
 | V-05 Construção JATS/SPS | PENDENTE | — |
 | V-06 Validadores formais | PENDENTE | — |
 | V-07 Fidelidade comparativa | PENDENTE | — |
@@ -110,7 +110,36 @@ reproduzido na VPS em container read-only e sem rede. A imagem
 (`sha256:e614f5dde04a286a896cf837c411df277b497f25533a57c3f265d170e51802b6`)
 deixou API, worker e OpenClaw saudáveis. As flags OpenClaw, swarm e ClamAV permanecem falsas.
 
+## V-04 — Canonical Article Model
+
+Os contratos evoluíram para Raw Article 1.3.0 e Canonical Article 1.2.0. As versões anteriores dos
+schemas permanecem versionadas e as migrations 1.2→1.3 e 1.1→1.2 são explícitas, não alteram o
+objeto de entrada e verificam que cada passo chegou exatamente à versão declarada. Células de tabela
+agora têm ID estável; estilos referenciados sem definição no IDML são materializados como
+placeholders `unresolved`, preservando o nome da origem sem inventar propriedades.
+
+O Raw rejeita IDs duplicados/vazios, posições de run inválidas, runs ligados a outro story, styles,
+frames, tables, cells, notes, objects ou links pendentes, páginas não contíguas, frames sem spread,
+thread entre stories e células sobrepostas. A ordem de leitura deve cobrir todos os stories. O
+Canonical rejeita campos inline incompatíveis, divergência entre `RichText.plain` e `inlines`, ORCID
+com checksum inválido, contributor person/group ambíguo, afiliação duplicada, referência cruzada com
+tipo/alvo incorreto, lista/tabela vazia e seção raiz fora do nível 1. IDs inline segmentados passaram
+a usar o ID do run, evitando colisão ao redor de fórmulas de bloco.
+
+O gate `ops/gate_phase7_v04.py` aprovou 13 mutações negativas, 128 propriedades Unicode, duas rotas
+de migration e round-trip de Raw/Canonical nos seis IDMLs autorizados. O ESA gerou sete seções
+canônicas; os cinco RBEdu permaneceram com zero seção sob o profile ESA e motivos explícitos de
+revisão, como esperado para corpus de contraste, sem serem promovidos silenciosamente. A suíte
+integral aprovou 236 testes com 85,63% de cobertura; Ruff e mypy strict passaram. Relatório:
+`benchmarks/qualification/reports/v04-domain-model-integrity-v1.json`.
+
+O backup `/opt/idml-platform/backups/20260908T182615Z` passou no restore isolado com 21 tabelas
+públicas, 1 artefato e 14 arquivos OpenClaw. O gate foi reproduzido em container read-only e sem
+rede. A imagem `idml-foundation:phase7-v04-model-integrity-v1`
+(`sha256:4f46504912f4c5ccfdf46542b2afe28cfe355dfce2875a880d611f9f4834d310`) deixou API, worker e
+OpenClaw saudáveis, com OpenClaw, swarm e ClamAV desativados.
+
 ## Decisão
 
-V-01, V-02 e V-03 estão aprovados. Isso não aprova o Pacote 7.1, o Gate G7-T ou produção. A próxima
-família é V-04, invariantes e robustez do Canonical Article Model.
+V-01 a V-04 estão aprovados. Isso não aprova o Pacote 7.1, o Gate G7-T ou produção. A próxima
+família é V-05, construção XML JATS/SPS.
