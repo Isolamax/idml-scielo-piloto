@@ -15,7 +15,7 @@ from idml_foundation.pipeline.service import DeterministicPipeline
 from idml_foundation.pipeline.validation import OfflineJatsValidator, ValidationStage
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
-from tests.test_jats_construction_v05 import complete_article
+from ops.v05_fixture import complete_article
 
 Mutation = Callable[[bytes], bytes]
 BROKEN_REFERENCE_CODES = {
