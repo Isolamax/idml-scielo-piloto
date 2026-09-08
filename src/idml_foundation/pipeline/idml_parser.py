@@ -39,8 +39,8 @@ from idml_foundation.domain.raw import (
     ReadingOrderIssue,
     StyleKind,
 )
-from idml_foundation.ingest.safe_zip import inspect_idml
-from idml_foundation.ingest.xml_security import parse_untrusted_xml
+from idml_foundation.ingest.safe_zip import UnsafeArchiveError, inspect_idml
+from idml_foundation.ingest.xml_security import UnsafeXmlError, parse_untrusted_xml
 from idml_foundation.settings import Settings
 
 _STYLE_PREFIX = re.compile(r"^(\d{2}(?:\.\d+)?)")
@@ -214,27 +214,60 @@ class IdmlParser:
         artifact_sha = hashlib.sha256(data).hexdigest()
         article_key = PurePosixPath(logical_name.replace("\\", "/")).stem
 
-        with ZipFile(BytesIO(data)) as archive:
-            roots = {
-                name: parse_untrusted_xml(archive.read(name))
-                for name in archive.namelist()
-                if name.casefold().endswith(".xml")
-            }
+        try:
+            with ZipFile(BytesIO(data)) as archive:
+                roots = {
+                    name: parse_untrusted_xml(archive.read(name))
+                    for name in archive.namelist()
+                    if name.casefold().endswith(".xml")
+                }
+        except UnsafeXmlError as exc:
+            raise UnsafeArchiveError("unsafe_xml", "IDML contains malformed or unsafe XML") from exc
 
         design = roots["designmap.xml"]
         document_self_id = design.get("Self", "document")
-        styles, style_evidence = self._parse_styles(roots, article_key, artifact_sha)
-        story_results = [
-            self._parse_story(path, root, article_key, artifact_sha)
-            for path, root in sorted(roots.items())
-            if path.startswith("Stories/")
-        ]
-        layout = self._parse_layout(roots, article_key, artifact_sha)
+        try:
+            styles, style_evidence = self._parse_styles(roots, article_key, artifact_sha)
+            story_results = [
+                self._parse_story(path, root, article_key, artifact_sha)
+                for path, root in sorted(roots.items())
+                if path.startswith("Stories/")
+            ]
+            layout = self._parse_layout(roots, article_key, artifact_sha)
+        except (IndexError, StopIteration, TypeError, ValueError) as exc:
+            raise UnsafeArchiveError(
+                "invalid_idml_structure", "IDML contains invalid internal structure"
+            ) from exc
         frames, spreads = layout.frames, layout.spreads
         stories = tuple(result.story for result in story_results)
         known_story_ids = {story.id for story in stories}
+        reference_issues: list[ReadingOrderIssue] = []
+        for frame in frames:
+            if frame.parent_story_id not in known_story_ids:
+                reference_issues.append(
+                    ReadingOrderIssue(
+                        code="frame_parent_story_missing",
+                        details={"source_frame_id": frame.source_self_id},
+                        evidence_ids=frame.evidence_ids,
+                    )
+                )
         frames = tuple(frame for frame in frames if frame.parent_story_id in known_story_ids)
         known_frame_ids = {frame.id for frame in frames}
+        for frame in frames:
+            for direction, reference in (
+                ("previous", frame.previous_frame_id),
+                ("next", frame.next_frame_id),
+            ):
+                if reference and reference not in known_frame_ids:
+                    reference_issues.append(
+                        ReadingOrderIssue(
+                            code="frame_thread_reference_missing",
+                            story_id=frame.parent_story_id,
+                            frame_id=frame.id,
+                            details={"direction": direction},
+                            evidence_ids=frame.evidence_ids,
+                        )
+                    )
         frames = tuple(
             frame.model_copy(
                 update={
@@ -265,29 +298,36 @@ class IdmlParser:
             frames,
             tuple(design.get("StoryList", "").split()),
         )
+        issues = tuple(reference_issues) + issues
 
-        return RawArticle(
-            article_id=article_key,
-            source_artifact_sha256=artifact_sha,
-            document_self_id=document_self_id,
-            adobe_dom_version=design.get("DOMVersion"),
-            stories=stories,
-            frames=frames,
-            spreads=spreads,
-            styles=styles,
-            tables=tuple(table for result in story_results for table in result.tables),
-            anchored_objects=tuple(item for result in story_results for item in result.objects)
-            + layout.objects,
-            assets=tuple(asset for result in story_results for asset in result.assets)
-            + layout.assets,
-            links=tuple(link for result in story_results for link in result.links) + layout.links,
-            reading_order=order,
-            reading_order_issues=issues,
-            evidence=tuple(
-                [*style_evidence, *layout.evidence]
-                + [item for result in story_results for item in result.evidence]
-            ),
-        )
+        try:
+            return RawArticle(
+                article_id=article_key,
+                source_artifact_sha256=artifact_sha,
+                document_self_id=document_self_id,
+                adobe_dom_version=design.get("DOMVersion"),
+                stories=stories,
+                frames=frames,
+                spreads=spreads,
+                styles=styles,
+                tables=tuple(table for result in story_results for table in result.tables),
+                anchored_objects=tuple(item for result in story_results for item in result.objects)
+                + layout.objects,
+                assets=tuple(asset for result in story_results for asset in result.assets)
+                + layout.assets,
+                links=tuple(link for result in story_results for link in result.links)
+                + layout.links,
+                reading_order=order,
+                reading_order_issues=issues,
+                evidence=tuple(
+                    [*style_evidence, *layout.evidence]
+                    + [item for result in story_results for item in result.evidence]
+                ),
+            )
+        except ValueError as exc:
+            raise UnsafeArchiveError(
+                "invalid_idml_structure", "IDML contains an inconsistent internal graph"
+            ) from exc
 
     def _evidence(
         self,
@@ -775,6 +815,15 @@ class IdmlParser:
             frames_by_story[frame.parent_story_id].append(frame)
         source_hint = {source_id: index for index, source_id in enumerate(story_list)}
         issues: list[ReadingOrderIssue] = []
+        known_source_story_ids = {story.source_self_id for story in stories}
+        issues.extend(
+            ReadingOrderIssue(
+                code="story_list_reference_missing",
+                details={"source_story_id": source_story_id},
+            )
+            for source_story_id in story_list
+            if source_story_id not in known_source_story_ids
+        )
         first_positions: dict[str, tuple[int, float, float, int]] = {}
         for story in stories:
             story_frames = frames_by_story[story.id]

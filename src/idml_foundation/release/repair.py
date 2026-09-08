@@ -72,9 +72,7 @@ class SafeRepairEngine:
                         ids.remove(identifier)
                         ids.add(clean)
                         operations.append(
-                            self._operation(
-                                RepairKind.TRIM_ID, element, "id", identifier, clean
-                            )
+                            self._operation(RepairKind.TRIM_ID, element, "id", identifier, clean)
                         )
                         changed = True
                 rid = element.get("rid")

@@ -9,6 +9,7 @@ from prometheus_client import Counter, Histogram
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from idml_foundation.ingest.safe_zip import UnsafeArchiveError
+from idml_foundation.ingest.scanner import ScannerUnavailableError
 from idml_foundation.logging_config import configure_logging
 from idml_foundation.routers import (
     artifacts,
@@ -87,6 +88,16 @@ def create_app() -> FastAPI:
         return JSONResponse(
             status_code=422,
             content={"detail": "unsafe IDML package", "code": exc.code},
+        )
+
+    @application.exception_handler(ScannerUnavailableError)
+    async def scanner_unavailable_handler(
+        request: Request, exc: ScannerUnavailableError
+    ) -> JSONResponse:
+        del request, exc
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "content scanner unavailable", "code": "scanner_unavailable"},
         )
 
     return application

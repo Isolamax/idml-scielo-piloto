@@ -146,9 +146,7 @@ class FidelityEngine:
         if isinstance(block, FigureBlock):
             return (block.label.value or "", block.caption.plain.value or "")
         if isinstance(block, TableBlock):
-            cells = tuple(
-                cell.plain.value or "" for row in block.rows for cell in row
-            )
+            cells = tuple(cell.plain.value or "" for row in block.rows for cell in row)
             return (block.label.value or "", block.caption.plain.value or "", *cells)
         return ()
 

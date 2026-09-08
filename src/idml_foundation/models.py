@@ -416,9 +416,7 @@ class AgentRun(Base):
 
     __tablename__ = "agent_runs"
     __table_args__ = (
-        UniqueConstraint(
-            "organization_id", "idempotency_key", name="uq_agent_run_org_idempotency"
-        ),
+        UniqueConstraint("organization_id", "idempotency_key", name="uq_agent_run_org_idempotency"),
         Index("ix_agent_run_org_created", "organization_id", "created_at"),
         Index("ix_agent_run_review_created", "review_item_id", "created_at"),
     )

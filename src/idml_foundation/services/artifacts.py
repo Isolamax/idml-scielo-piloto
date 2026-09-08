@@ -18,6 +18,10 @@ _ASSET_SIGNATURES = (
 )
 
 
+class UnsafeContentError(ValueError):
+    pass
+
+
 def _store_bytes(
     db: Session,
     *,
@@ -30,7 +34,7 @@ def _store_bytes(
 ) -> Artifact:
     scan = scanner.scan(data)
     if not scan.clean:
-        raise ValueError("content scanner rejected upload")
+        raise UnsafeContentError("content scanner rejected upload")
     digest = hashlib.sha256(data).hexdigest()
     existing = db.scalar(
         select(Artifact).where(

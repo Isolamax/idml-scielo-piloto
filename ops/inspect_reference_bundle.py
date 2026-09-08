@@ -84,8 +84,7 @@ def main() -> int:
 
     manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
     resolved = [
-        (_resolve(args.sample_root, artifact), artifact)
-        for artifact in manifest["artifacts"]
+        (_resolve(args.sample_root, artifact), artifact) for artifact in manifest["artifacts"]
     ]
     present = [(path, artifact) for path, artifact in resolved if path is not None]
     roles_present = {artifact["role"] for path, artifact in present}
@@ -136,9 +135,7 @@ def main() -> int:
         Path(str(value)).name
         for value in gold.xpath("body//fig/graphic/@xlink:href", namespaces={"xlink": xlink})
     )
-    image_paths = sorted(
-        path for path, artifact in present if artifact["role"] == "figure_asset"
-    )
+    image_paths = sorted(path for path, artifact in present if artifact["role"] == "figure_asset")
     image_dimensions: dict[str, dict[str, int]] = {}
     for path in image_paths:
         with path.open("rb") as stream:

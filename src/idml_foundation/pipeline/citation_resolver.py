@@ -15,9 +15,7 @@ from idml_foundation.domain.common import stable_id
 
 _YEAR = re.compile(r"(?<!\d)((?:18|19|20)\d{2}[a-z]?)(?!\d)", re.IGNORECASE)
 _PERSONAL_AUTHOR = re.compile(r"(?:^|;\s*)([^,;]{1,80})(?:,\s|(?=;))")
-_GROUP_PREFIX = re.compile(
-    r"^([A-ZÀ-ÖØ-Þ][A-ZÀ-ÖØ-Þ0-9 &'\-]+?)(?:\s*\(([A-Z0-9]{2,})\))?\.\s"
-)
+_GROUP_PREFIX = re.compile(r"^([A-ZÀ-ÖØ-Þ][A-ZÀ-ÖØ-Þ0-9 &'\-]+?)(?:\s*\(([A-Z0-9]{2,})\))?\.\s")
 _UNRESOLVED_CANDIDATE = re.compile(
     r"(?<!\w)(?:[A-ZÀ-ÖØ-Þ][A-ZÀ-ÖØ-Þ'\-]+(?:\s+et\s+al\.?|"
     r"(?:\s*;\s*[A-ZÀ-ÖØ-Þ][A-ZÀ-ÖØ-Þ'\-]+){1,2}))"
@@ -104,9 +102,7 @@ def _citation_patterns(signature: ReferenceSignature) -> tuple[tuple[re.Pattern[
             rf"\s*\(\s*(?P<year>{year})\s*\)"
         )
     elif len(authors) == 3:
-        parenthetical = (
-            rf"{authors[0]}\s*;\s*{authors[1]}\s*;\s*{authors[2]}\s*,\s*{year}"
-        )
+        parenthetical = rf"{authors[0]}\s*;\s*{authors[1]}\s*;\s*{authors[2]}\s*,\s*{year}"
         narrative = (
             rf"{authors[0]}\s*,\s*{authors[1]}\s+(?:and|e|&)\s+{authors[2]}"
             rf"\s*\(\s*(?P<year>{year})\s*\)"
@@ -203,9 +199,7 @@ def _slice_inlines(
                         f"{covering_match.end}:{covering_match.target_id}",
                     ),
                     kind=InlineKind.CROSS_REFERENCE,
-                    text=(rich_text.plain.value or "")[
-                        covering_match.start : covering_match.end
-                    ],
+                    text=(rich_text.plain.value or "")[covering_match.start : covering_match.end],
                     target_id=covering_match.target_id,
                     attributes={"ref-type": "bibr"},
                     evidence_ids=evidence_ids,

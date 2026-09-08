@@ -272,17 +272,13 @@ class SequentialOrchestrator:
             attempts=attempts,
             error_code=error_code,
             cost_source=resolved_cost.source if resolved_cost is not None else "unavailable",
-            pricing_version=(
-                resolved_cost.pricing_version if resolved_cost is not None else None
-            ),
+            pricing_version=(resolved_cost.pricing_version if resolved_cost is not None else None),
             pricing_model_key=(
                 resolved_cost.model_key
                 if resolved_cost is not None
                 else _model_key_or_none(response)
             ),
-            cached_input_tokens=(
-                response.cached_input_tokens if response is not None else 0
-            ),
+            cached_input_tokens=(response.cached_input_tokens if response is not None else 0),
             preflight_max_cost_microusd=(
                 preflight_cost.microusd if preflight_cost is not None else None
             ),

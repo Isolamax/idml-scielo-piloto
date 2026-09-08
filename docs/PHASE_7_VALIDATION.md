@@ -1,14 +1,14 @@
 # Fase 7 — Homologação automatizada e piloto simulado
 
-Data inicial: 2026-09-04. Estado: **EM EXECUÇÃO — V-01 CONCLUÍDO**.
+Data inicial: 2026-09-04. Estado: **EM EXECUÇÃO — V-01 E V-02 CONCLUÍDOS**.
 
 ## Estado das famílias V-01 a V-11
 
 | Família | Estado | Evidência atual |
 |---|---|---|
 | V-01 Proveniência e integridade | PASSOU | catálogo e gate reproduzível |
-| V-02 Segurança da ingestão | PENDENTE | próxima execução |
-| V-03 Leitura e fidelidade IDML | PENDENTE | — |
+| V-02 Segurança da ingestão | PASSOU | matriz negativa, regressão e VPS |
+| V-03 Leitura e fidelidade IDML | PENDENTE | próxima execução |
 | V-04 Canonical Article Model | PENDENTE | — |
 | V-05 Construção JATS/SPS | PENDENTE | — |
 | V-06 Validadores formais | PENDENTE | — |
@@ -50,7 +50,37 @@ A imagem `idml-foundation:phase7-v01-corpus-integrity-v1`
 (`sha256:9a3c733134a52cfcd82bf8796c8915e53f179235286505008ab681e0af82471d`)
 foi implantada com API, worker e OpenClaw saudáveis. As flags OpenClaw/Swarm permanecem falsas.
 
+## V-02 — Segurança da ingestão IDML
+
+A ingestão passou a validar o ZIP inteiro antes do parser e a falhar fechado para caminhos absolutos
+ou ambíguos, travessia, colisões Unicode/casefold, arquivos e diretórios sobrepostos, symlinks,
+entradas especiais ou criptografadas, arquivos executáveis e archives aninhados. Limites explícitos
+protegem quantidade de entradas, tamanho total expandido, compressão, profundidade e comprimento de
+caminho; CRC e mimetype também são conferidos antes da leitura do XML.
+
+O parser XML bloqueia DTD, entidades, resolução externa, documentos malformados e XML individual
+acima de 32 MiB. IDML incompleto não falha silenciosamente: referências ausentes no `StoryList`,
+frames ligados a stories inexistentes, links de thread quebrados e stories sem frame são
+classificados em `reading_order_issues` com evidência quando disponível.
+
+Cancelamento e excesso de tamanho interrompem o upload antes da persistência. Falhas no movimento
+atômico removem temporários. O protocolo ClamAV foi testado para resposta limpa, malware, timeout e
+resposta indeterminada; indisponibilidade resulta em 503 sanitizado. O ClamAV permanece desligado na
+VPS de desenvolvimento e sua ativação operacional será tratada no gate de segurança de produção.
+
+O gate `ops/gate_phase7_v02.py` aprovou 26/26 casos sintéticos e 6/6 IDML reais autorizados sem
+emitir conteúdo restrito. A VPS reproduziu os 26 casos em container read-only, sem rede e sem receber
+o corpus privado. A suíte integral aprovou 226 testes com 85,29% de cobertura; Ruff e mypy strict
+passaram. O relatório sanitizado está em
+`benchmarks/qualification/reports/v02-ingestion-security-v1.json`.
+
+Antes do deploy, o backup `/opt/idml-platform/backups/20260908T125309Z` passou no restore isolado
+com 21 tabelas públicas, 1 artefato e 14 arquivos do estado OpenClaw. A imagem
+`idml-foundation:phase7-v02-ingest-security-v1`
+(`sha256:8807135f2d0df6f98a9fe83177ae6cced08c25b7e4ddd4641bf67f08bd59ec15`) deixou API, worker e
+OpenClaw saudáveis. As flags OpenClaw, swarm e ClamAV permanecem falsas.
+
 ## Decisão
 
-V-01 está aprovado. Isso não aprova o Pacote 7.1, o Gate G7-T ou produção. A próxima família é V-02,
-com fuzz e casos negativos para ZIP/XML, limites, cancelamento e limpeza de temporários.
+V-01 e V-02 estão aprovados. Isso não aprova o Pacote 7.1, o Gate G7-T ou produção. A próxima família
+é V-03, leitura e fidelidade do IDML.

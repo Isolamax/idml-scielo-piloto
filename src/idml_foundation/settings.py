@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     zip_max_entries: int = Field(default=5_000, ge=1)
     zip_max_uncompressed_bytes: int = Field(default=500 * 1024 * 1024, ge=1)
     zip_max_ratio: int = Field(default=100, ge=1)
+    zip_max_depth: int = Field(default=16, ge=2, le=64)
+    zip_max_path_bytes: int = Field(default=512, ge=32, le=4096)
     session_ttl_seconds: int = Field(default=8 * 60 * 60, ge=300, le=7 * 24 * 60 * 60)
     feature_openclaw: bool = False
     feature_ai_swarm: bool = False

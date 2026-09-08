@@ -31,8 +31,7 @@ class CrossReferenceEvaluation(StrictModel):
 def _target_sequence(root: etree._Element) -> tuple[int, ...]:
     references = cast(list[etree._Element], root.xpath("//back//ref[@id]"))
     reference_order = {
-        str(reference.get("id")): ordinal
-        for ordinal, reference in enumerate(references, start=1)
+        str(reference.get("id")): ordinal for ordinal, reference in enumerate(references, start=1)
     }
     sequence: list[int] = []
     xrefs = cast(list[etree._Element], root.xpath("//body//xref[@ref-type='bibr']"))

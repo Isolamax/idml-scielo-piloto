@@ -65,9 +65,7 @@ def main() -> int:
     manifest = json.loads(arguments.manifest.read_text(encoding="utf-8"))
     artifact_by_role = {item["role"]: item for item in manifest["artifacts"]}
     source_path = resolve_artifact(arguments.source_root, artifact_by_role["source_idml"])
-    pdf_path = resolve_artifact(
-        arguments.source_root, artifact_by_role["approved_pdf_reference"]
-    )
+    pdf_path = resolve_artifact(arguments.source_root, artifact_by_role["approved_pdf_reference"])
     source = source_path.read_bytes()
     pdf = pdf_path.read_bytes()
     if digest(source) != artifact_by_role["source_idml"]["sha256"]:
@@ -140,15 +138,9 @@ def main() -> int:
     if first.archive != second.archive:
         raise ValueError("package builder is not byte deterministic")
     validation_engine = ValidationEngine()
-    runs = [
-        validation_engine.offline_run(
-            offline_report, candidate_sha256=first.package_sha256
-        )
-    ]
+    runs = [validation_engine.offline_run(offline_report, candidate_sha256=first.package_sha256)]
     if arguments.spsvalidator_json:
-        spsvalidator = json.loads(
-            arguments.spsvalidator_json.read_text(encoding="utf-8")
-        )
+        spsvalidator = json.loads(arguments.spsvalidator_json.read_text(encoding="utf-8"))
         if spsvalidator["candidate_sha256"] != first.package_sha256:
             raise ValueError("SPSValidator output belongs to another package candidate")
         version = str(spsvalidator.get("spsvalidator_version", "0.3.0"))

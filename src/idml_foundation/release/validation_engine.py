@@ -130,9 +130,7 @@ class ValidationEngine:
                     item.get("severity", item.get("status", item.get("type", "error"))),
                 )
             ).casefold()
-            severity = (
-                IssueSeverity.WARNING if "warn" in severity_text else IssueSeverity.ERROR
-            )
+            severity = IssueSeverity.WARNING if "warn" in severity_text else IssueSeverity.ERROR
             code = str(item.get("code", item.get("id", f"{name}-{position + 1}")))
             message = str(item.get("message", item.get("msg", item.get("text", code))))
             location_value = item.get("xpath", item.get("path", item.get("line")))

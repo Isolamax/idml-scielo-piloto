@@ -115,8 +115,8 @@ def test_package_builder_is_byte_deterministic_and_self_describing() -> None:
 
 
 def test_scielo_file_resolution_renames_and_rebinds_graphics() -> None:
-    xml = b'''<?xml version="1.0"?><article xmlns:xlink="http://www.w3.org/1999/xlink">
-    <body><fig><graphic xlink:href="Figure1.jpg"/></fig></body></article>'''
+    xml = b"""<?xml version="1.0"?><article xmlns:xlink="http://www.w3.org/1999/xlink">
+    <body><fig><graphic xlink:href="Figure1.jpg"/></fig></body></article>"""
     files = PackageBuilder().scielo_files(
         package_stem="1809-4457-esa-30-e20240001",
         xml=xml,
@@ -167,9 +167,7 @@ def test_xpm_contract_and_release_policy_fail_closed() -> None:
     assert xpm.passed and xpm.xpm_version == "4.0.096"
 
     validation_engine = ValidationEngine()
-    validator = validation_engine.packtools_run(
-        archive, [], tool_sha256="b" * 64
-    )
+    validator = validation_engine.packtools_run(archive, [], tool_sha256="b" * 64)
     validation = validation_engine.aggregate(archive, (validator,), ("packtools",))
     fidelity = FidelityReport(
         pdf_sha256="d" * 64,
@@ -248,8 +246,6 @@ def test_parser_collects_spread_assets_separately_from_story_assets() -> None:
                     b'LinkResourceFormat="$ID/JPEG"/></Image></Rectangle></Spread>',
                 )
             updated.writestr(name, data)
-    raw = DeterministicPipeline().run(
-        output.getvalue(), logical_name="ESA_2024001_AOP.idml"
-    ).raw
+    raw = DeterministicPipeline().run(output.getvalue(), logical_name="ESA_2024001_AOP.idml").raw
     assert {item.logical_path for item in raw.assets} == {"Figure 1.jpg", "Figure2.jpg"}
     assert any(item.relationship == "external-layout-asset" for item in raw.links)

@@ -38,8 +38,7 @@ def test_reference_signatures_handle_unicode_monomyms_pages_and_access_dates() -
         ),
         _reference(
             "ref-2",
-            "EFFENDI, Hefni; WIDYATMOKO; UTOMO, Bagus; PRATIWI, Niken. "
-            "Title. Journal, 2018.",
+            "EFFENDI, Hefni; WIDYATMOKO; UTOMO, Bagus; PRATIWI, Niken. Title. Journal, 2018.",
         ),
         _reference(
             "ref-3",
@@ -142,9 +141,7 @@ def test_jats_builder_emits_bibliographic_ref_type() -> None:
             ).model_dump(mode="json")
         ],
     }
-    paragraph["cross_references"] = [
-        {"target_id": reference.id, "reference_type": "reference"}
-    ]
+    paragraph["cross_references"] = [{"target_id": reference.id, "reference_type": "reference"}]
     article = CanonicalArticle.model_validate(payload)
 
     root = etree.fromstring(JatsBuilder().build(article))

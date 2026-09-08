@@ -1,6 +1,6 @@
 # Plano mestre de validação XML e homologação final
 
-Data: 2026-09-01. Estado: **EM EXECUÇÃO — V-01 CONCLUÍDO EM 2026-09-04**.
+Data: 2026-09-01. Estado: **EM EXECUÇÃO — V-01 E V-02 CONCLUÍDOS**.
 
 ## 1. Objetivo
 
@@ -114,6 +114,11 @@ canônico reproduzido localmente e na VPS sem rede. Relatório:
 - cancelamento, timeout e limpeza de temporários.
 
 Aceite: entrada perigosa falha fechada, sem escrita fora do job e sem perda de disponibilidade.
+
+Evidência: 26/26 casos sintéticos e 6/6 pacotes reais aprovados; ZIP/XML validados antes do parser;
+referências incompletas classificadas sem falha silenciosa; cancelamento, limites, limpeza de
+temporários e indisponibilidade do scanner testados. Gate reproduzido na VPS sem rede e sem corpus
+privado. Relatório: `benchmarks/qualification/reports/v02-ingestion-security-v1.json`.
 
 ### V-03 — Leitura e fidelidade do IDML
 

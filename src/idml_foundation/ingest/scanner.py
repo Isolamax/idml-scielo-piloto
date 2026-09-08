@@ -11,6 +11,10 @@ class ScanResult:
     status: str
 
 
+class ScannerUnavailableError(RuntimeError):
+    pass
+
+
 class ContentScanner(Protocol):
     def scan(self, data: bytes) -> ScanResult: ...
 
@@ -28,20 +32,25 @@ class ClamAVScanner:
         self.timeout = timeout
 
     def scan(self, data: bytes) -> ScanResult:
-        with socket.create_connection((self.host, self.port), timeout=self.timeout) as connection:
-            connection.sendall(b"zINSTREAM\0")
-            view = memoryview(data)
-            for offset in range(0, len(view), 64 * 1024):
-                chunk = view[offset : offset + 64 * 1024]
-                connection.sendall(len(chunk).to_bytes(4, "big"))
-                connection.sendall(chunk)
-            connection.sendall((0).to_bytes(4, "big"))
-            response = connection.recv(4096).decode("utf-8", errors="replace")
+        try:
+            with socket.create_connection(
+                (self.host, self.port), timeout=self.timeout
+            ) as connection:
+                connection.sendall(b"zINSTREAM\0")
+                view = memoryview(data)
+                for offset in range(0, len(view), 64 * 1024):
+                    chunk = view[offset : offset + 64 * 1024]
+                    connection.sendall(len(chunk).to_bytes(4, "big"))
+                    connection.sendall(chunk)
+                connection.sendall((0).to_bytes(4, "big"))
+                response = connection.recv(4096).decode("utf-8", errors="replace")
+        except OSError as exc:
+            raise ScannerUnavailableError("content scanner unavailable") from exc
         if response.endswith("OK\0") or response.rstrip("\0\n").endswith("OK"):
             return ScanResult(clean=True, status="clamav_clean")
         if "FOUND" in response:
             return ScanResult(clean=False, status="malware_detected")
-        raise RuntimeError("ClamAV returned an indeterminate response")
+        raise ScannerUnavailableError("content scanner returned an indeterminate response")
 
 
 def build_scanner(settings: Settings) -> ContentScanner:

@@ -96,9 +96,7 @@ def main() -> int:
                 JsonPatchOperation.model_validate(operation.model_dump(mode="json"))
                 for operation in proposal.patch
             )
-            validate_patch_scope_and_atomicity(
-                base_payload, operations, case["field_path"]
-            )
+            validate_patch_scope_and_atomicity(base_payload, operations, case["field_path"])
             row["scope_valid"] = True
             candidate_payload = copy.deepcopy(base_payload)
             for operation in operations:

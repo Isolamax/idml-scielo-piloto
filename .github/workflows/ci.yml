@@ -32,9 +32,11 @@ jobs:
       - run: pytest
       - name: Verify corpus provenance metadata and holdout isolation
         run: python ops/gate_phase7_v01.py --metadata-only
+      - name: Run V-02 IDML ingestion security matrix
+        run: python ops/gate_phase7_v02.py
       - name: Check repository for obvious secrets
         run: |
-          if git grep -nE '(sk-proj-|BEGIN (RSA|OPENSSH) PRIVATE KEY|password=[^$<{])' -- ':!*.md' ':!.env.example'; then
+          if git grep -nE '(sk-proj-|BEGIN (RSA|OPENSSH) PRIVATE KEY|password=[^$<{])' -- ':!*.md' ':!.env.example' ':!.github/workflows/ci.yml'; then
             echo "Possible secret found"
             exit 1
           fi
