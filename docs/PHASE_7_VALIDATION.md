@@ -164,6 +164,14 @@ revisão explícitos. A suíte integral aprovou 249 testes com 86,11% de cobertu
 strict foi revalidado após os ajustes finais. Relatório:
 `benchmarks/qualification/reports/v05-jats-construction-v1.json`.
 
+O backup `/opt/idml-platform/backups/20260908T195957Z` passou no restore isolado com 21 tabelas
+públicas, 1 artefato e 14 arquivos OpenClaw. O gate sintético foi reproduzido na própria imagem em
+container read-only, sem rede e sem dependência de `pytest`. A imagem
+`idml-foundation:phase7-v05-jats-construction-v1`
+(`sha256:5ef4a27be69a7d90c91e1717f38b998473821ccf7b3d52d677e7e080ad2ec4e6`) deixou API, worker,
+PostgreSQL, Redis e OpenClaw saudáveis. As flags OpenClaw, swarm e ClamAV permanecem falsas, com
+zero `agent_runs`, `agent_proposals` e sessões OpenClaw.
+
 ## Decisão
 
 V-01 a V-05 estão aprovados. Isso não aprova o Pacote 7.1, o Gate G7-T ou produção. A próxima
