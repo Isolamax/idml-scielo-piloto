@@ -1,6 +1,6 @@
 # Fase 7 — Homologação automatizada e piloto simulado
 
-Data inicial: 2026-09-04. Estado: **EM EXECUÇÃO — V-01 E V-02 CONCLUÍDOS**.
+Data inicial: 2026-09-04. Estado: **EM EXECUÇÃO — V-01, V-02 E V-03 CONCLUÍDOS**.
 
 ## Estado das famílias V-01 a V-11
 
@@ -8,7 +8,7 @@ Data inicial: 2026-09-04. Estado: **EM EXECUÇÃO — V-01 E V-02 CONCLUÍDOS**.
 |---|---|---|
 | V-01 Proveniência e integridade | PASSOU | catálogo e gate reproduzível |
 | V-02 Segurança da ingestão | PASSOU | matriz negativa, regressão e VPS |
-| V-03 Leitura e fidelidade IDML | PENDENTE | próxima execução |
+| V-03 Leitura e fidelidade IDML | PASSOU | conservação textual, estrutura e VPS |
 | V-04 Canonical Article Model | PENDENTE | — |
 | V-05 Construção JATS/SPS | PENDENTE | — |
 | V-06 Validadores formais | PENDENTE | — |
@@ -80,7 +80,37 @@ com 21 tabelas públicas, 1 artefato e 14 arquivos do estado OpenClaw. A imagem
 (`sha256:8807135f2d0df6f98a9fe83177ae6cced08c25b7e4ddd4641bf67f08bd59ec15`) deixou API, worker e
 OpenClaw saudáveis. As flags OpenClaw, swarm e ClamAV permanecem falsas.
 
+## V-03 — Leitura e fidelidade do IDML
+
+O parser passou a seguir a sequência de spreads declarada no `designmap.xml` e a determinar página
+e coluna pela geometria transformada dos pages e frames. A chave de leitura combina página, coluna,
+posição vertical/horizontal, thread e `StoryList`, mantendo classificação explícita para referências
+incompletas. O modelo Raw preserva as propriedades diretas de parágrafo e caractere, inclusive
+negrito, itálico, combinações, sobrescrito e subscrito.
+
+Conteúdo de `Footnote`/`Note`, inclusive texto após processing instructions ACE, agora é separado do
+corpo sem duplicação e emitido como `fn-group`. Hyperlinks são associados a todos os runs abrangidos,
+inclusive quando o `HyperlinkTextSource` envolve os ranges. O Raw conserva a URL original; na
+normalização canônica somente `http`, `https` e `mailto` bem formados viram `ext-link`. Outros
+esquemas permanecem auditáveis como texto e geram motivo de revisão. `Bold Italic` vira elementos
+JATS aninhados e os valores exatos `BulletList`/`NumberedList` viram listas. Parágrafos e células
+vazios permanecem no Raw; a ausência de conteúdo semântico não produz elemento JATS vazio.
+
+O gate `ops/gate_phase7_v03.py` aprovou 10 verificações sintéticas e os seis IDMLs autorizados. A
+reconstituição independente do fluxo textual foi exata em 209/209 stories, sem `SequenceMatcher`,
+sem chamadas de rede e sem emitir conteúdo restrito. Foram conferidas também páginas, tabelas,
+spans, células vazias, notas e cobertura de hyperlinks. A suíte integral aprovou 229 testes, com
+85,68% de cobertura, Ruff e mypy strict aprovados. O relatório sanitizado está em
+`benchmarks/qualification/reports/v03-idml-fidelity-v1.json`.
+
+Antes do deploy, o backup `/opt/idml-platform/backups/20260908T143455Z` passou no restore isolado
+com 21 tabelas públicas, 1 artefato e 14 arquivos do estado OpenClaw. O gate sintético foi
+reproduzido na VPS em container read-only e sem rede. A imagem
+`idml-foundation:phase7-v03-idml-fidelity-v1`
+(`sha256:e614f5dde04a286a896cf837c411df277b497f25533a57c3f265d170e51802b6`)
+deixou API, worker e OpenClaw saudáveis. As flags OpenClaw, swarm e ClamAV permanecem falsas.
+
 ## Decisão
 
-V-01 e V-02 estão aprovados. Isso não aprova o Pacote 7.1, o Gate G7-T ou produção. A próxima família
-é V-03, leitura e fidelidade do IDML.
+V-01, V-02 e V-03 estão aprovados. Isso não aprova o Pacote 7.1, o Gate G7-T ou produção. A próxima
+família é V-04, invariantes e robustez do Canonical Article Model.

@@ -55,5 +55,11 @@
   ],
   "synthetic_cases": 1,
   "synthetic_passed": true,
+  "test_suite": {
+    "coverage_percent": 85.68,
+    "mypy_strict": "passed",
+    "passed": 229,
+    "ruff": "passed"
+  },
   "version": "phase7-v03-gate-1.0"
 }
