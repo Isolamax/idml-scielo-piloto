@@ -32,6 +32,7 @@ from idml_foundation.domain.canonical import (
     Section,
     SourcedText,
     TableBlock,
+    TableCellSpan,
 )
 from idml_foundation.domain.common import (
     Evidence,
@@ -851,6 +852,18 @@ class CanonicalMapper:
                 rows.append(tuple(row))
             return tuple(rows)
 
+        def table_cell_spans(table_id: str) -> tuple[TableCellSpan, ...]:
+            return tuple(
+                TableCellSpan(
+                    row=cell.row,
+                    column=cell.column,
+                    row_span=cell.row_span,
+                    column_span=cell.column_span,
+                )
+                for cell in raw_tables[table_id].cells
+                if cell.row_span > 1 or cell.column_span > 1
+            )
+
         for story, paragraph in captions:
             runs = {run.id: run for run in story.runs}
             caption_value = "".join(runs[item].text for item in paragraph.text_run_ids)
@@ -912,6 +925,7 @@ class CanonicalMapper:
                         ),
                         caption=caption,
                         rows=table_rows(table_id),
+                        cell_spans=table_cell_spans(table_id),
                         evidence_ids=table.evidence_ids,
                     )
                 )

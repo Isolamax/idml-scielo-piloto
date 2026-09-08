@@ -81,6 +81,22 @@ def _canonical_1_0_to_1_1(payload: dict[str, Any]) -> dict[str, Any]:
 
 def _canonical_1_1_to_1_2(payload: dict[str, Any]) -> dict[str, Any]:
     migrated = copy.deepcopy(payload)
+    migrated["schema_version"] = "1.2.0"
+    return migrated
+
+
+def _canonical_1_2_to_1_3(payload: dict[str, Any]) -> dict[str, Any]:
+    migrated = copy.deepcopy(payload)
+
+    def add_table_spans(section: dict[str, Any]) -> None:
+        for block in section.get("blocks", []):
+            if block.get("kind") == "table":
+                block.setdefault("cell_spans", [])
+        for child in section.get("children", []):
+            add_table_spans(child)
+
+    for section in migrated.get("body", []):
+        add_table_spans(section)
     migrated["schema_version"] = CANONICAL_SCHEMA_VERSION
     return migrated
 
@@ -92,7 +108,8 @@ MIGRATIONS: dict[tuple[ModelKind, str], tuple[str, Migration]] = {
     ("raw", "1.2.0"): (RAW_SCHEMA_VERSION, _raw_1_2_to_1_3),
     ("canonical", "0.1.0"): ("1.0.0", _canonical_0_1_to_1_0),
     ("canonical", "1.0.0"): ("1.1.0", _canonical_1_0_to_1_1),
-    ("canonical", "1.1.0"): (CANONICAL_SCHEMA_VERSION, _canonical_1_1_to_1_2),
+    ("canonical", "1.1.0"): ("1.2.0", _canonical_1_1_to_1_2),
+    ("canonical", "1.2.0"): (CANONICAL_SCHEMA_VERSION, _canonical_1_2_to_1_3),
 }
 
 LATEST_VERSIONS: dict[ModelKind, str] = {

@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field, model_validator
 from idml_foundation.domain.common import SHA256_PATTERN, Evidence, StrictModel
 from idml_foundation.mathml import parse_mathml_fragment
 
-CANONICAL_SCHEMA_VERSION = "1.2.0"
+CANONICAL_SCHEMA_VERSION = "1.3.0"
 
 _ORCID = re.compile(r"^(?:https?://orcid\.org/)?(\d{4})-(\d{4})-(\d{4})-(\d{3}[\dXx])$")
 
@@ -253,14 +253,50 @@ class FigureBlock(StrictModel):
     evidence_ids: tuple[str, ...] = ()
 
 
+class TableCellSpan(StrictModel):
+    row: int = Field(ge=0)
+    column: int = Field(ge=0)
+    row_span: int = Field(default=1, ge=1)
+    column_span: int = Field(default=1, ge=1)
+
+
 class TableBlock(StrictModel):
     kind: Literal["table"] = "table"
     id: str
     label: SourcedText
     caption: RichText
     rows: tuple[tuple[RichText, ...], ...] = Field(min_length=1)
+    cell_spans: tuple[TableCellSpan, ...] = ()
     footnotes: tuple[RichText, ...] = ()
     evidence_ids: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def spans_fit_the_table_and_do_not_overlap(self) -> Self:
+        occupied: set[tuple[int, int]] = set()
+        origins: set[tuple[int, int]] = set()
+        for span in self.cell_spans:
+            if span.row >= len(self.rows) or span.column >= len(self.rows[span.row]):
+                raise ValueError("table cell span origin is outside the table")
+            if span.row + span.row_span > len(self.rows):
+                raise ValueError("table cell span exceeds the table rows")
+            if any(
+                span.column + span.column_span > len(row)
+                for row in self.rows[span.row : span.row + span.row_span]
+            ):
+                raise ValueError("table cell span exceeds the table columns")
+            coordinates = {
+                (row, column)
+                for row in range(span.row, span.row + span.row_span)
+                for column in range(span.column, span.column + span.column_span)
+            }
+            if occupied & coordinates:
+                raise ValueError("table cell spans cannot overlap")
+            occupied.update(coordinates)
+            origins.add((span.row, span.column))
+        for row, column in occupied - origins:
+            if self.rows[row][column].plain.value is not None:
+                raise ValueError("covered table cell cannot contain independent content")
+        return self
 
 
 class FormulaBlock(StrictModel):
