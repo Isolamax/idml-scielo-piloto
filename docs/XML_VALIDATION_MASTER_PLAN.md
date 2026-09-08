@@ -1,6 +1,6 @@
 # Plano mestre de validação XML e homologação final
 
-Data: 2026-09-01. Estado: **EM EXECUÇÃO — V-01, V-02 E V-03 CONCLUÍDOS**.
+Data: 2026-09-01. Estado: **EM EXECUÇÃO — V-01 A V-04 CONCLUÍDOS**.
 
 ## 1. Objetivo
 
@@ -149,6 +149,13 @@ Relatório: `benchmarks/qualification/reports/v03-idml-fidelity-v1.json`.
 - property tests para operações idempotentes e ordem estável.
 
 Aceite: 100% dos modelos candidatos válidos e nenhuma referência interna pendente silenciosa.
+
+Evidência: Raw Article 1.3.0 e Canonical Article 1.2.0 publicados com schemas preservando as versões
+anteriores e migrations explícitas. O gate rejeitou 13 classes de grafo inválido, aprovou 128 casos
+de propriedade Unicode, migrou as duas versões imediatamente anteriores e confirmou round-trip
+determinístico nos seis IDMLs autorizados. Estilos desconhecidos viram placeholders auditáveis,
+sem definição inventada; células possuem identidade estável. Relatório:
+`benchmarks/qualification/reports/v04-domain-model-integrity-v1.json`.
 
 ### V-05 — Construção XML JATS/SPS
 

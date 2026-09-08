@@ -36,6 +36,8 @@ jobs:
         run: python ops/gate_phase7_v02.py
       - name: Run V-03 IDML reading and fidelity gate
         run: python ops/gate_phase7_v03.py
+      - name: Run V-04 domain-model integrity gate
+        run: python ops/gate_phase7_v04.py
       - name: Check repository for obvious secrets
         run: |
           if git grep -nE '(sk-proj-|BEGIN (RSA|OPENSSH) PRIVATE KEY|password=[^$<{])' -- ':!*.md' ':!.env.example' ':!.github/workflows/ci.yml'; then

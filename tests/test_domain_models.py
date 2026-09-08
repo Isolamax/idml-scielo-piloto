@@ -45,7 +45,7 @@ def test_canonical_round_trip_and_graph_integrity() -> None:
 
     payload = original.model_dump(mode="json")
     payload["body"][0]["blocks"][0]["cross_references"][0]["target_id"] = "missing"
-    with pytest.raises(ValidationError, match="target is unknown"):
+    with pytest.raises(ValidationError, match="cross-reference"):
         CanonicalArticle.model_validate(payload)
 
 
@@ -94,7 +94,7 @@ def test_versioned_schema_migrations_are_explicit_and_non_mutating() -> None:
 
 def test_exported_json_schemas_match_runtime_contracts() -> None:
     schema_root = Path(__file__).parents[1] / "schemas"
-    raw_schema = json.loads((schema_root / "raw-article-1.2.0.schema.json").read_text())
-    canonical_schema = json.loads((schema_root / "canonical-article-1.1.0.schema.json").read_text())
+    raw_schema = json.loads((schema_root / "raw-article-1.3.0.schema.json").read_text())
+    canonical_schema = json.loads((schema_root / "canonical-article-1.2.0.schema.json").read_text())
     assert raw_schema == RawArticle.model_json_schema()
     assert canonical_schema == CanonicalArticle.model_json_schema()

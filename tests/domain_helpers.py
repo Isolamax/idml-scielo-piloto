@@ -99,6 +99,7 @@ def raw_article() -> RawArticle:
         stories=(story,),
         frames=(frame,),
         spreads=(spread,),
+        reading_order=(story.id,),
         evidence=(evidence(),),
     )
 

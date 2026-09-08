@@ -467,7 +467,7 @@ class CanonicalMapper:
         inlines: list[InlineNode] = []
         plain = ""
         selected_run_ids = run_ids if run_ids is not None else paragraph.text_run_ids
-        for position, run_id in enumerate(selected_run_ids):
+        for run_id in selected_run_ids:
             run = runs[run_id]
             for formula_position, formula in enumerate(
                 (inline_formulas_by_run or {}).get(run_id, ())
@@ -480,7 +480,7 @@ class CanonicalMapper:
                         id=stable_id(
                             article_id,
                             "inline-formula",
-                            f"{paragraph.id}:{position}:{formula_position}",
+                            f"{paragraph.id}:{run_id}:{formula_position}",
                         ),
                         kind=InlineKind.INLINE_FORMULA,
                         text="",
@@ -523,7 +523,7 @@ class CanonicalMapper:
                     )
             inlines.append(
                 InlineNode(
-                    id=stable_id(article_id, "inline", f"{paragraph.id}:{position}"),
+                    id=stable_id(article_id, "inline", f"{paragraph.id}:{run_id}"),
                     kind=kind,
                     text=run.text,
                     href=href,
@@ -539,7 +539,7 @@ class CanonicalMapper:
         )
         return RichText(
             plain=SourcedText(
-                value=plain if plain.strip() else None,
+                value=plain or None,
                 state=FieldState.PRESENT if plain.strip() else FieldState.NEEDS_REVIEW,
                 evidence_ids=paragraph.evidence_ids,
                 transformation="lossless-run-concatenation",

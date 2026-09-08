@@ -3,6 +3,7 @@ from collections.abc import Callable
 from typing import Any, Literal
 
 from idml_foundation.domain.canonical import CANONICAL_SCHEMA_VERSION
+from idml_foundation.domain.common import stable_id
 from idml_foundation.domain.raw import RAW_SCHEMA_VERSION
 
 ModelKind = Literal["raw", "canonical"]
@@ -34,6 +35,30 @@ def _raw_1_1_to_1_2(payload: dict[str, Any]) -> dict[str, Any]:
     migrated = copy.deepcopy(payload)
     for anchored_object in migrated.get("anchored_objects", []):
         anchored_object.setdefault("placement", "unknown")
+    migrated["schema_version"] = "1.2.0"
+    return migrated
+
+
+def _raw_1_2_to_1_3(payload: dict[str, Any]) -> dict[str, Any]:
+    migrated = copy.deepcopy(payload)
+    owner_by_table = {
+        table_id: story.get("source_self_id", story["id"])
+        for story in migrated.get("stories", [])
+        for table_id in story.get("table_ids", [])
+    }
+    article_id = migrated.get("article_id", "legacy-article")
+    for table in migrated.get("tables", []):
+        owner = owner_by_table.get(table.get("id"), "unowned-story")
+        table_self = table.get("source_self_id", table.get("id", "table"))
+        for cell in table.get("cells", []):
+            cell.setdefault(
+                "id",
+                stable_id(
+                    article_id,
+                    "cell",
+                    f"{owner}:{table_self}:{cell.get('column', 0)}:{cell.get('row', 0)}",
+                ),
+            )
     migrated["schema_version"] = RAW_SCHEMA_VERSION
     return migrated
 
@@ -50,6 +75,12 @@ def _canonical_0_1_to_1_0(payload: dict[str, Any]) -> dict[str, Any]:
 
 def _canonical_1_0_to_1_1(payload: dict[str, Any]) -> dict[str, Any]:
     migrated = copy.deepcopy(payload)
+    migrated["schema_version"] = "1.1.0"
+    return migrated
+
+
+def _canonical_1_1_to_1_2(payload: dict[str, Any]) -> dict[str, Any]:
+    migrated = copy.deepcopy(payload)
     migrated["schema_version"] = CANONICAL_SCHEMA_VERSION
     return migrated
 
@@ -57,9 +88,11 @@ def _canonical_1_0_to_1_1(payload: dict[str, Any]) -> dict[str, Any]:
 MIGRATIONS: dict[tuple[ModelKind, str], tuple[str, Migration]] = {
     ("raw", "0.1.0"): ("1.0.0", _raw_0_1_to_1_0),
     ("raw", "1.0.0"): ("1.1.0", _raw_1_0_to_1_1),
-    ("raw", "1.1.0"): (RAW_SCHEMA_VERSION, _raw_1_1_to_1_2),
+    ("raw", "1.1.0"): ("1.2.0", _raw_1_1_to_1_2),
+    ("raw", "1.2.0"): (RAW_SCHEMA_VERSION, _raw_1_2_to_1_3),
     ("canonical", "0.1.0"): ("1.0.0", _canonical_0_1_to_1_0),
-    ("canonical", "1.0.0"): (CANONICAL_SCHEMA_VERSION, _canonical_1_0_to_1_1),
+    ("canonical", "1.0.0"): ("1.1.0", _canonical_1_0_to_1_1),
+    ("canonical", "1.1.0"): (CANONICAL_SCHEMA_VERSION, _canonical_1_1_to_1_2),
 }
 
 LATEST_VERSIONS: dict[ModelKind, str] = {
@@ -84,6 +117,8 @@ def migrate_payload(
         step = MIGRATIONS.get((kind, current))
         if step is None:
             raise UnsupportedSchemaVersion(f"no {kind} schema migration from {current}")
-        _next_version, migration = step
+        next_version, migration = step
         migrated = migration(migrated)
+        if migrated.get("schema_version") != next_version:
+            raise RuntimeError(f"{kind} migration did not produce {next_version}")
     return migrated

@@ -1,3 +1,4 @@
+import re
 from enum import StrEnum
 from typing import Annotated, Literal, Self
 
@@ -6,7 +7,9 @@ from pydantic import BaseModel, Field, model_validator
 from idml_foundation.domain.common import SHA256_PATTERN, Evidence, StrictModel
 from idml_foundation.mathml import parse_mathml_fragment
 
-CANONICAL_SCHEMA_VERSION = "1.1.0"
+CANONICAL_SCHEMA_VERSION = "1.2.0"
+
+_ORCID = re.compile(r"^(?:https?://orcid\.org/)?(\d{4})-(\d{4})-(\d{4})-(\d{3}[\dXx])$")
 
 
 class FieldState(StrEnum):
@@ -87,6 +90,14 @@ class Contributor(StrictModel):
             raise ValueError("person contributor requires a structured name")
         if self.contributor_type == "group" and self.group_name is None:
             raise ValueError("group contributor requires group_name")
+        if self.contributor_type == "person" and self.group_name is not None:
+            raise ValueError("person contributor cannot contain group_name")
+        if self.contributor_type == "group" and self.name is not None:
+            raise ValueError("group contributor cannot contain a structured name")
+        if len(set(self.affiliation_ids)) != len(self.affiliation_ids):
+            raise ValueError("contributor affiliation references cannot be duplicated")
+        if self.orcid and self.orcid.value and not _valid_orcid(self.orcid.value):
+            raise ValueError("contributor ORCID checksum is invalid")
         return self
 
 
@@ -160,6 +171,12 @@ class InlineNode(StrictModel):
             raise ValueError("external link inline requires href")
         if self.kind == InlineKind.NAMED_CONTENT and self.name is None:
             raise ValueError("named content inline requires name")
+        if self.kind != InlineKind.CROSS_REFERENCE and self.target_id is not None:
+            raise ValueError("target_id is exclusive to cross-reference inlines")
+        if self.kind != InlineKind.EXTERNAL_LINK and self.href is not None:
+            raise ValueError("href is exclusive to external-link inlines")
+        if self.kind != InlineKind.NAMED_CONTENT and self.name is not None:
+            raise ValueError("name is exclusive to named-content inlines")
         formula_fields = (
             self.formula_source,
             self.formula_representation,
@@ -188,6 +205,8 @@ class RichText(StrictModel):
 
     @model_validator(mode="after")
     def inline_text_preserves_plain_value(self) -> Self:
+        if self.plain.value is None and any(item.text for item in self.inlines):
+            raise ValueError("inline text requires a plain value")
         if self.inlines and self.plain.value is not None:
             reconstructed = "".join(item.text for item in self.inlines)
             if reconstructed != self.plain.value:
@@ -213,7 +232,7 @@ class ListBlock(StrictModel):
     kind: Literal["list"] = "list"
     id: str
     ordered: bool
-    items: tuple[ListItem, ...]
+    items: tuple[ListItem, ...] = Field(min_length=1)
     evidence_ids: tuple[str, ...] = ()
 
 
@@ -239,7 +258,7 @@ class TableBlock(StrictModel):
     id: str
     label: SourcedText
     caption: RichText
-    rows: tuple[tuple[RichText, ...], ...]
+    rows: tuple[tuple[RichText, ...], ...] = Field(min_length=1)
     footnotes: tuple[RichText, ...] = ()
     evidence_ids: tuple[str, ...] = ()
 
@@ -356,6 +375,10 @@ class CanonicalArticle(StrictModel):
         identified = [item.id for item in models if hasattr(item, "id")]
         if len(set(identified)) != len(identified):
             raise ValueError("canonical IDs must be globally unique")
+        if any(not item_id.strip() for item_id in identified):
+            raise ValueError("canonical IDs cannot be empty")
+        if any(section.level != 1 for section in self.body):
+            raise ValueError("top-level sections must have level one")
 
         evidence_ids = {item.id for item in self.evidence}
         for item in models:
@@ -370,6 +393,19 @@ class CanonicalArticle(StrictModel):
 
         asset_ids = {item.id for item in self.assets}
         target_ids = set(identified)
+        target_types: dict[str, str] = {}
+        for item in models:
+            for model_type, reference_type in (
+                (FigureBlock, "figure"),
+                (TableBlock, "table"),
+                (FormulaBlock, "formula"),
+                (NoteBlock, "note"),
+                (Section, "section"),
+                (Reference, "reference"),
+            ):
+                if isinstance(item, model_type):
+                    target_types[item.id] = reference_type
+                    break
         for item in models:
             if isinstance(item, (FigureBlock, FormulaBlock)):
                 if item.asset_id and item.asset_id not in asset_ids:
@@ -379,10 +415,38 @@ class CanonicalArticle(StrictModel):
                     raise ValueError("inline formula references an unknown asset")
             if isinstance(item, CrossReference) and item.target_id not in target_ids:
                 raise ValueError("cross-reference target is unknown")
+            if isinstance(item, CrossReference) and (
+                target_types.get(item.target_id) != item.reference_type
+            ):
+                raise ValueError("cross-reference type does not match its target")
             if (
                 isinstance(item, InlineNode)
                 and item.kind == InlineKind.CROSS_REFERENCE
                 and item.target_id not in target_ids
             ):
                 raise ValueError("inline cross-reference target is unknown")
+            if isinstance(item, Paragraph):
+                inline_targets = {
+                    inline.target_id
+                    for inline in item.content.inlines
+                    if inline.kind == InlineKind.CROSS_REFERENCE
+                }
+                declared_targets = {reference.target_id for reference in item.cross_references}
+                if inline_targets != declared_targets:
+                    raise ValueError(
+                        "paragraph cross-reference metadata must match its inline targets"
+                    )
         return self
+
+
+def _valid_orcid(value: str) -> bool:
+    match = _ORCID.fullmatch(value.strip())
+    if match is None:
+        return False
+    digits = "".join(match.groups())
+    total = 0
+    for character in digits[:-1]:
+        total = (total + int(character)) * 2
+    result = (12 - total % 11) % 11
+    expected = "X" if result == 10 else str(result)
+    return digits[-1].upper() == expected

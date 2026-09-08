@@ -311,7 +311,13 @@ class IdmlParser:
             raise UnsafeArchiveError(
                 "invalid_idml_structure", "IDML contains invalid internal structure"
             ) from exc
-        styles = styles + tuple(style for result in story_results for style in result.styles)
+        discovered_styles = styles + tuple(
+            style for result in story_results for style in result.styles
+        )
+        unique_styles: dict[str, RawStyle] = {}
+        for style in discovered_styles:
+            unique_styles.setdefault(style.id, style)
+        styles = tuple(unique_styles.values())
         known_style_ids = {style.id for style in styles}
         styles = tuple(
             style.model_copy(
@@ -534,6 +540,8 @@ class IdmlParser:
         runs: list[RawTextRun] = []
         paragraphs: list[RawParagraph] = []
         override_styles: list[RawStyle] = []
+        unresolved_styles: list[RawStyle] = []
+        unresolved_style_ids: set[str] = set()
         run_ids_by_cell: defaultdict[str, list[str]] = defaultdict(list)
         run_ids_by_note: defaultdict[str, list[str]] = defaultdict(list)
         hyperlink_run_ids: defaultdict[str, list[str]] = defaultdict(list)
@@ -551,6 +559,29 @@ class IdmlParser:
         }
         override_style_by_element: dict[etree._Element, str] = {}
 
+        def ensure_source_style(
+            source_style: str | None,
+            kind: StyleKind,
+            source_evidence: Evidence,
+        ) -> str | None:
+            if source_style is None:
+                return None
+            style_id = stable_id(article_key, "style", source_style)
+            if style_id not in unresolved_style_ids:
+                unresolved_style_ids.add(style_id)
+                source_name = source_style.rsplit("/", 1)[-1]
+                unresolved_styles.append(
+                    RawStyle(
+                        id=style_id,
+                        source_name=source_name,
+                        normalized_name=_normalize_style_name(source_name),
+                        kind=kind,
+                        properties={"unresolved": True},
+                        evidence_ids=(source_evidence.id,),
+                    )
+                )
+            return style_id
+
         def cell_key(cell: etree._Element) -> str:
             table = next(
                 (ancestor for ancestor in cell.iterancestors() if _local_name(ancestor) == "Table"),
@@ -567,8 +598,10 @@ class IdmlParser:
             )
             evidence.append(paragraph_evidence)
             paragraph_style = paragraph_range.get("AppliedParagraphStyle")
-            paragraph_style_id = (
-                stable_id(article_key, "style", paragraph_style) if paragraph_style else None
+            paragraph_style_id = ensure_source_style(
+                paragraph_style,
+                StyleKind.PARAGRAPH,
+                paragraph_evidence,
             )
             paragraph_properties = {
                 cast(str, key): cast(str, value)
@@ -645,13 +678,18 @@ class IdmlParser:
                 paragraph_evidence: Evidence = paragraph_evidence,
             ) -> str | None:
                 base_style = character_range.get("AppliedCharacterStyle")
+                base_style_id = ensure_source_style(
+                    base_style,
+                    StyleKind.CHARACTER,
+                    paragraph_evidence,
+                )
                 properties = {
                     cast(str, key): cast(str, value)
                     for key, value in character_range.attrib.items()
                     if key != "AppliedCharacterStyle"
                 }
                 if not properties:
-                    return stable_id(article_key, "style", base_style) if base_style else None
+                    return base_style_id
                 if character_range in override_style_by_element:
                     return override_style_by_element[character_range]
                 source_override_id = (
@@ -668,9 +706,7 @@ class IdmlParser:
                             " ".join((base_style or "", *properties.values()))
                         ),
                         kind=StyleKind.CHARACTER,
-                        parent_style_id=(
-                            stable_id(article_key, "style", base_style) if base_style else None
-                        ),
+                        parent_style_id=(base_style_id),
                         properties=properties,
                         evidence_ids=(paragraph_evidence.id,),
                     )
@@ -785,6 +821,11 @@ class IdmlParser:
                 article_key, artifact_sha, path, source_table_id, "IDML table"
             )
             evidence.append(table_evidence)
+            table_style_id = ensure_source_style(
+                table_element.get("AppliedTableStyle"),
+                StyleKind.TABLE,
+                table_evidence,
+            )
             cells: list[RawTableCell] = []
             max_row = max_column = 0
             for cell in _elements(table_element, "Cell"):
@@ -796,6 +837,11 @@ class IdmlParser:
                 max_column = max(max_column, column + column_span)
                 cells.append(
                     RawTableCell(
+                        id=stable_id(
+                            article_key,
+                            "cell",
+                            f"{source_self}:{cell_key(cell)}",
+                        ),
                         row=row,
                         column=column,
                         row_span=row_span,
@@ -815,11 +861,7 @@ class IdmlParser:
                     row_count=max(row_count, max_row, 1),
                     column_count=max(column_count, max_column, 1),
                     cells=tuple(cells),
-                    style_id=(
-                        stable_id(article_key, "style", table_element.get("AppliedTableStyle", ""))
-                        if table_element.get("AppliedTableStyle")
-                        else None
-                    ),
+                    style_id=table_style_id,
                     evidence_ids=(table_evidence.id,),
                 )
             )
@@ -913,7 +955,7 @@ class IdmlParser:
                 note_ids=tuple(item.id for item in notes),
                 evidence_ids=(story_evidence.id,),
             ),
-            styles=tuple(override_styles),
+            styles=tuple((*unresolved_styles, *override_styles)),
             tables=tuple(tables),
             notes=tuple(notes),
             objects=tuple(objects),
