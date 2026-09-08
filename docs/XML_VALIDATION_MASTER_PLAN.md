@@ -1,6 +1,6 @@
 # Plano mestre de validação XML e homologação final
 
-Data: 2026-09-01. Estado: **EM EXECUÇÃO — V-01 E V-02 CONCLUÍDOS**.
+Data: 2026-09-01. Estado: **EM EXECUÇÃO — V-01, V-02 E V-03 CONCLUÍDOS**.
 
 ## 1. Objetivo
 
@@ -130,6 +130,14 @@ privado. Relatório: `benchmarks/qualification/reports/v02-ingestion-security-v1
 - estilos conhecidos, desconhecidos, ausentes e combinados.
 
 Aceite: nenhuma perda textual não autorizada e toda normalização explicada por regra versionada.
+
+Evidência: o gate independente reconstituiu exatamente 209/209 stories dos seis IDMLs autorizados,
+sem emitir conteúdo restrito. O parser segue a ordem de spreads do `designmap.xml`, combina página,
+coluna, coordenadas e thread, preserva propriedades diretas de caractere e parágrafo, notas,
+hiperlinks, tabelas e vazios. A normalização canônica permite apenas hyperlinks `http`, `https` e
+`mailto`; esquemas inseguros permanecem no Raw, são convertidos em texto sem link e geram revisão.
+Negrito, itálico, combinações, sobrescrito, subscrito, listas e footnotes possuem regressão JATS.
+Relatório: `benchmarks/qualification/reports/v03-idml-fidelity-v1.json`.
 
 ### V-04 — Canonical Article Model
 

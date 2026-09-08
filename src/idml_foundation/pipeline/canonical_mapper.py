@@ -4,6 +4,7 @@ import hashlib
 import re
 from collections import defaultdict
 from typing import cast
+from urllib.parse import urlparse
 
 from idml_foundation.domain.canonical import (
     Affiliation,
@@ -21,7 +22,10 @@ from idml_foundation.domain.canonical import (
     InlineKind,
     InlineNode,
     JournalIdentity,
+    ListBlock,
+    ListItem,
     LocalizedText,
+    NoteBlock,
     Paragraph,
     Reference,
     RichText,
@@ -53,6 +57,17 @@ _ARTICLE_NUMBER = re.compile(r"(?:^|_)(20\d{2})(\d{1,4})(?:_|$)")
 _AUTHOR_MARKERS = re.compile(r"[\d*]+")
 _NUMBERED_GRAPHIC = re.compile(r"^\s*(figure|table)\s*([1-9]\d*)\b", re.IGNORECASE)
 _MISSING_INLINE_FORMULA = re.compile(r"(?m)^[ \t]*(?=:[ \t]+\S)")
+
+
+def _safe_external_href(value: str) -> str | None:
+    if len(value) > 2048 or any(ord(character) < 32 for character in value):
+        return None
+    parsed = urlparse(value)
+    if parsed.scheme.casefold() in {"http", "https"} and parsed.netloc:
+        return value
+    if parsed.scheme.casefold() == "mailto" and parsed.path:
+        return value
+    return None
 
 
 def _present(value: str, evidence_ids: tuple[str, ...], transformation: str) -> SourcedText:
@@ -144,6 +159,7 @@ class CanonicalMapper:
 
     def map(self, raw: RawArticle) -> CanonicalArticle:
         style_names = {style.id: style.source_name for style in raw.styles}
+        style_properties = {style.id: style.properties for style in raw.styles}
         character_names = {style.id: style.normalized_name for style in raw.styles}
         story_by_id = {story.id: story for story in raw.stories}
         paragraphs_by_role: defaultdict[str, list[tuple[RawStory, RawParagraph]]] = defaultdict(
@@ -245,9 +261,11 @@ class CanonicalMapper:
             paragraphs_by_role,
             style_names,
             character_names,
+            style_properties,
             article_id,
             references,
         )
+        notes = self._notes(raw, character_names, article_id)
         assets = tuple(
             Asset(
                 id=item.id,
@@ -314,11 +332,52 @@ class CanonicalMapper:
                 keywords=tuple(keywords),
             ),
             body=sections,
-            back=BackMatter(references=references),
+            back=BackMatter(notes=notes, references=references),
             assets=assets,
             evidence=evidence,
             review_reasons=tuple(dict.fromkeys(review_reasons)),
         )
+
+    def _notes(
+        self,
+        raw: RawArticle,
+        character_names: dict[str, str],
+        article_id: str,
+    ) -> tuple[NoteBlock, ...]:
+        story_by_note_id = {note_id: story for story in raw.stories for note_id in story.note_ids}
+        hyperlinks_by_run = {
+            link.source_id: target
+            for link in raw.links
+            if link.relationship == "external-hyperlink"
+            and (target := _safe_external_href(link.target)) is not None
+        }
+        notes: list[NoteBlock] = []
+        for position, note in enumerate(raw.notes):
+            story = story_by_note_id.get(note.id)
+            if story is None:
+                continue
+            paragraph = RawParagraph(
+                id=stable_id(article_id, "note-paragraph", note.id),
+                position=position,
+                text_run_ids=note.text_run_ids,
+                evidence_ids=note.evidence_ids,
+            )
+            notes.append(
+                NoteBlock(
+                    id=stable_id(article_id, "note", note.id),
+                    note_type="footnote",
+                    content=self._rich_text(
+                        story,
+                        paragraph,
+                        character_names,
+                        article_id,
+                        run_ids=note.text_run_ids,
+                        hyperlinks_by_run=hyperlinks_by_run,
+                    ),
+                    evidence_ids=note.evidence_ids,
+                )
+            )
+        return tuple(notes)
 
     def _contributors(
         self,
@@ -402,6 +461,7 @@ class CanonicalMapper:
         run_ids: tuple[str, ...] | None = None,
         inline_formulas_by_run: dict[str, list[RawAnchoredObject]] | None = None,
         raw_assets: dict[str, RawAsset] | None = None,
+        hyperlinks_by_run: dict[str, str] | None = None,
     ) -> RichText:
         runs = {run.id: run for run in story.runs}
         inlines: list[InlineNode] = []
@@ -439,17 +499,35 @@ class CanonicalMapper:
                 continue
             style_name = character_names.get(run.character_style_id or "", "")
             kind = InlineKind.TEXT
-            if "italic" in style_name or "italico" in style_name:
-                kind = InlineKind.EMPHASIS
-            elif "superscript" in style_name or "sobrescrito" in style_name:
+            is_italic = "italic" in style_name or "italico" in style_name
+            is_bold = "bold" in style_name or "negrito" in style_name
+            if "superscript" in style_name or "sobrescrito" in style_name:
                 kind = InlineKind.SUPERSCRIPT
             elif "subscript" in style_name or "subscrito" in style_name:
                 kind = InlineKind.SUBSCRIPT
+            elif is_bold:
+                kind = InlineKind.STRONG
+            elif is_italic:
+                kind = InlineKind.EMPHASIS
+            attributes: dict[str, str] = {}
+            if is_bold and is_italic:
+                attributes["source-emphasis"] = "bold italic"
+            href = (hyperlinks_by_run or {}).get(run_id)
+            if href is not None:
+                kind = InlineKind.EXTERNAL_LINK
+                if is_bold or is_italic:
+                    attributes["source-emphasis"] = " ".join(
+                        name
+                        for name, enabled in (("bold", is_bold), ("italic", is_italic))
+                        if enabled
+                    )
             inlines.append(
                 InlineNode(
                     id=stable_id(article_id, "inline", f"{paragraph.id}:{position}"),
                     kind=kind,
                     text=run.text,
+                    href=href,
+                    attributes=attributes,
                     evidence_ids=run.evidence_ids,
                 )
             )
@@ -476,6 +554,7 @@ class CanonicalMapper:
         by_role: defaultdict[str, list[tuple[RawStory, RawParagraph]]],
         style_names: dict[str, str],
         character_names: dict[str, str],
+        style_properties: dict[str, dict[str, str | int | float | bool | None]],
         article_id: str,
         references: tuple[Reference, ...],
     ) -> tuple[tuple[Section, ...], tuple[str, ...]]:
@@ -489,6 +568,14 @@ class CanonicalMapper:
         section_stack: list[dict[str, object]] = []
         citation_review_reasons: list[str] = []
         formula_review_reasons: list[str] = []
+        hyperlinks_by_run: dict[str, str] = {}
+        for link in raw.links:
+            if link.relationship != "external-hyperlink":
+                continue
+            if safe_target := _safe_external_href(link.target):
+                hyperlinks_by_run[link.source_id] = safe_target
+            else:
+                citation_review_reasons.append(f"unsafe_external_hyperlink:{link.id}")
         raw_assets = {asset.id: asset for asset in raw.assets}
         block_formulas_by_run: defaultdict[str, list[RawAnchoredObject]] = defaultdict(list)
         inline_formulas_by_run: defaultdict[str, list[RawAnchoredObject]] = defaultdict(list)
@@ -555,6 +642,48 @@ class CanonicalMapper:
                     sections.append(current)
                     section_stack.append(current)
                 blocks = cast(list[object], current["blocks"])
+                properties = style_properties.get(paragraph.paragraph_style_id or "", {})
+                list_type = str(properties.get("BulletsAndNumberingListType", ""))
+                if list_type in {"BulletList", "NumberedList"}:
+                    content = self._rich_text(
+                        story,
+                        paragraph,
+                        character_names,
+                        article_id,
+                        hyperlinks_by_run=hyperlinks_by_run,
+                    )
+                    item = ListItem(
+                        id=stable_id(article_id, "list-item", paragraph.id),
+                        content=content,
+                        evidence_ids=paragraph.evidence_ids,
+                    )
+                    ordered = list_type == "NumberedList"
+                    if (
+                        blocks
+                        and isinstance(blocks[-1], ListBlock)
+                        and blocks[-1].ordered == ordered
+                    ):
+                        previous_list = blocks[-1]
+                        blocks[-1] = previous_list.model_copy(
+                            update={
+                                "items": (*previous_list.items, item),
+                                "evidence_ids": tuple(
+                                    dict.fromkeys(
+                                        (*previous_list.evidence_ids, *paragraph.evidence_ids)
+                                    )
+                                ),
+                            }
+                        )
+                    else:
+                        blocks.append(
+                            ListBlock(
+                                id=stable_id(article_id, "list", paragraph.id),
+                                ordered=ordered,
+                                items=(item,),
+                                evidence_ids=paragraph.evidence_ids,
+                            )
+                        )
+                    continue
 
                 def append_paragraph(
                     run_ids: list[str],
@@ -575,6 +704,7 @@ class CanonicalMapper:
                         run_ids=tuple(run_ids),
                         inline_formulas_by_run=inline_formulas_by_run,
                         raw_assets=raw_assets,
+                        hyperlinks_by_run=hyperlinks_by_run,
                     )
                     if rich_text.plain.value is None and not any(
                         inline.kind == InlineKind.INLINE_FORMULA for inline in rich_text.inlines
@@ -732,7 +862,13 @@ class CanonicalMapper:
             kind, number_text = numbered.group(1).casefold(), numbered.group(2)
             number = int(number_text)
             caption_source = (
-                self._rich_text(story, paragraph, character_names, article_id)
+                self._rich_text(
+                    story,
+                    paragraph,
+                    character_names,
+                    article_id,
+                    hyperlinks_by_run=hyperlinks_by_run,
+                )
                 if caption_value.strip()
                 else RichText(plain=_missing("caption-style-contained-no-caption-text"))
             )

@@ -407,7 +407,16 @@ class JatsBuilder:
                 )
             elif inline.kind == InlineKind.NAMED_CONTENT and inline.name:
                 attributes["content-type"] = inline.name
-            previous = _add(parent, tag, inline.text, **attributes)
+            combined_emphasis = inline.attributes.get("source-emphasis") == "bold italic"
+            if combined_emphasis and inline.kind == InlineKind.STRONG:
+                previous = _add(parent, "bold", **attributes)
+                _add(previous, "italic", inline.text)
+            elif combined_emphasis and inline.kind == InlineKind.EXTERNAL_LINK:
+                previous = _add(parent, tag, **attributes)
+                bold = _add(previous, "bold")
+                _add(bold, "italic", inline.text)
+            else:
+                previous = _add(parent, tag, inline.text, **attributes)
 
     def _back(
         self,
@@ -427,3 +436,15 @@ class JatsBuilder:
                 _add(element, "label", str(position))
                 citation = _add(element, "mixed-citation")
                 self._rich(citation, reference.mixed_citation, registry, asset_names)
+        if article.back.notes:
+            note_group = _add(back, "fn-group")
+            for position, note in enumerate(article.back.notes, start=1):
+                element = _add(
+                    note_group,
+                    "fn",
+                    id=registry.resolve(note.id),
+                    **{"fn-type": "other"},
+                )
+                _add(element, "label", str(position))
+                paragraph = _add(element, "p")
+                self._rich(paragraph, note.content, registry, asset_names)

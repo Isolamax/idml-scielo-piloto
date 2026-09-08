@@ -27,6 +27,7 @@ from idml_foundation.domain.raw import (
     RawArticle,
     RawAsset,
     RawLink,
+    RawNote,
     RawObjectKind,
     RawParagraph,
     RawSpread,
@@ -81,6 +82,22 @@ def _numbers(value: str | None, expected: int) -> tuple[float, ...]:
     return parts if len(parts) == expected else (0.0,) * expected
 
 
+def _content_value(element: etree._Element) -> str:
+    return "".join(cast(str, item) for item in element.itertext())
+
+
+def _page_interval_score(
+    page_range: tuple[float, float],
+    frame_left: float,
+    frame_right: float,
+    frame_center: float,
+) -> tuple[bool, float, float]:
+    page_left, page_right = page_range
+    overlap = max(0.0, min(frame_right, page_right) - max(frame_left, page_left))
+    distance = abs(frame_center - ((page_left + page_right) / 2))
+    return overlap > 0, overlap, -distance
+
+
 def _sanitized_asset_name(uri: str) -> str:
     parsed = urlparse(uri)
     candidate = PurePosixPath(unquote(parsed.path.replace("\\", "/"))).name
@@ -101,6 +118,9 @@ def _media_type(name: str, resource_format: str | None) -> str:
 def _text_of_range(element: etree._Element) -> str:
     pieces: list[str] = []
     range_is_table_cell = any(_local_name(item) == "Cell" for item in element.iterancestors())
+    range_is_note = any(
+        _local_name(item) in {"Note", "Footnote"} for item in element.iterancestors()
+    )
 
     def nested_below(descendant: etree._Element, name: str) -> bool:
         for ancestor in descendant.iterancestors():
@@ -112,12 +132,15 @@ def _text_of_range(element: etree._Element) -> str:
 
     for descendant in element.iter():
         name = _local_name(descendant)
-        if name == "Content" and descendant.text:
+        if (not range_is_table_cell and nested_below(descendant, "Table")) or (
+            not range_is_note
+            and any(nested_below(descendant, note_name) for note_name in ("Note", "Footnote"))
+        ):
+            continue
+        if name == "Content":
             if nested_below(descendant, "TextVariableInstance"):
                 continue
-            if not range_is_table_cell and nested_below(descendant, "Table"):
-                continue
-            pieces.append(descendant.text)
+            pieces.append(_content_value(descendant))
         elif name == "Br":
             pieces.append("\n")
         elif name == "TextVariableInstance":
@@ -127,9 +150,19 @@ def _text_of_range(element: etree._Element) -> str:
     return "".join(pieces)
 
 
-def _range_events(element: etree._Element) -> list[tuple[str, str]]:
-    events: list[tuple[str, str]] = []
+@dataclass(frozen=True)
+class _RangeEvent:
+    kind: str
+    value: str
+    hyperlink_source_id: str | None = None
+
+
+def _range_events(element: etree._Element) -> list[_RangeEvent]:
+    events: list[_RangeEvent] = []
     range_is_table_cell = any(_local_name(item) == "Cell" for item in element.iterancestors())
+    range_is_note = any(
+        _local_name(item) in {"Note", "Footnote"} for item in element.iterancestors()
+    )
 
     def nested_below(descendant: etree._Element, name: str) -> bool:
         for ancestor in descendant.iterancestors():
@@ -139,42 +172,73 @@ def _range_events(element: etree._Element) -> list[tuple[str, str]]:
                 return True
         return False
 
+    def hyperlink_source_id(descendant: etree._Element) -> str | None:
+        return next(
+            (
+                ancestor.get("Self")
+                for ancestor in descendant.iterancestors()
+                if _local_name(ancestor) == "HyperlinkTextSource" and ancestor.get("Self")
+            ),
+            None,
+        )
+
     for descendant in element.iter():
         name = _local_name(descendant)
-        if name == "Content" and descendant.text:
+        if (not range_is_table_cell and nested_below(descendant, "Table")) or (
+            not range_is_note
+            and any(nested_below(descendant, note_name) for note_name in ("Note", "Footnote"))
+        ):
+            continue
+        if name == "Content":
             if nested_below(descendant, "TextVariableInstance"):
                 continue
-            if not range_is_table_cell and nested_below(descendant, "Table"):
-                continue
-            events.append(("text", descendant.text))
+            events.append(
+                _RangeEvent(
+                    kind="text",
+                    value=_content_value(descendant),
+                    hyperlink_source_id=hyperlink_source_id(descendant),
+                )
+            )
         elif name == "Br":
-            events.append(("text", "\n"))
+            events.append(
+                _RangeEvent(
+                    kind="text",
+                    value="\n",
+                    hyperlink_source_id=hyperlink_source_id(descendant),
+                )
+            )
         elif name == "TextVariableInstance":
             if result := descendant.get("ResultText"):
-                events.append(("text", result))
+                events.append(
+                    _RangeEvent(
+                        kind="text",
+                        value=result,
+                        hyperlink_source_id=hyperlink_source_id(descendant),
+                    )
+                )
         elif name == "Link" and (link_self := descendant.get("Self")):
-            events.append(("link", link_self))
+            events.append(_RangeEvent(kind="asset_link", value=link_self))
     return events
 
 
 def _anchor_context(
-    events: list[tuple[str, str]],
+    events: list[_RangeEvent],
     position: int,
 ) -> tuple[AnchoredPlacement, str | None]:
     left = ""
-    for kind, value in reversed(events[:position]):
-        if kind == "link":
+    for event in reversed(events[:position]):
+        if event.kind == "asset_link":
             break
-        left = value + left
-        if "\n" in value:
+        left = event.value + left
+        if "\n" in event.value:
             left = left.rsplit("\n", maxsplit=1)[-1]
             break
     right = ""
-    for kind, value in events[position + 1 :]:
-        if kind == "link":
+    for event in events[position + 1 :]:
+        if event.kind == "asset_link":
             break
-        right += value
-        if "\n" in value:
+        right += event.value
+        if "\n" in event.value:
             right = right.split("\n", maxsplit=1)[0]
             break
     label_match = re.fullmatch(r"\s*(\(\d+\))\s*", right)
@@ -186,7 +250,9 @@ def _anchor_context(
 @dataclass(frozen=True)
 class _StoryResult:
     story: RawStory
+    styles: tuple[RawStyle, ...]
     tables: tuple[RawTable, ...]
+    notes: tuple[RawNote, ...]
     objects: tuple[RawAnchoredObject, ...]
     assets: tuple[RawAsset, ...]
     links: tuple[RawLink, ...]
@@ -226,10 +292,17 @@ class IdmlParser:
 
         design = roots["designmap.xml"]
         document_self_id = design.get("Self", "document")
+        hyperlink_targets = self._hyperlink_targets(roots)
         try:
             styles, style_evidence = self._parse_styles(roots, article_key, artifact_sha)
             story_results = [
-                self._parse_story(path, root, article_key, artifact_sha)
+                self._parse_story(
+                    path,
+                    root,
+                    article_key,
+                    artifact_sha,
+                    hyperlink_targets,
+                )
                 for path, root in sorted(roots.items())
                 if path.startswith("Stories/")
             ]
@@ -238,6 +311,18 @@ class IdmlParser:
             raise UnsafeArchiveError(
                 "invalid_idml_structure", "IDML contains invalid internal structure"
             ) from exc
+        styles = styles + tuple(style for result in story_results for style in result.styles)
+        known_style_ids = {style.id for style in styles}
+        styles = tuple(
+            style.model_copy(
+                update={
+                    "parent_style_id": (
+                        style.parent_style_id if style.parent_style_id in known_style_ids else None
+                    )
+                }
+            )
+            for style in styles
+        )
         frames, spreads = layout.frames, layout.spreads
         stories = tuple(result.story for result in story_results)
         known_story_ids = {story.id for story in stories}
@@ -317,6 +402,7 @@ class IdmlParser:
                 + layout.assets,
                 links=tuple(link for result in story_results for link in result.links)
                 + layout.links,
+                notes=tuple(note for result in story_results for note in result.notes),
                 reading_order=order,
                 reading_order_issues=issues,
                 evidence=tuple(
@@ -417,12 +503,28 @@ class IdmlParser:
         ]
         return tuple(styles), tuple(evidence)
 
+    def _hyperlink_targets(self, roots: dict[str, etree._Element]) -> dict[str, str]:
+        destination_by_key = {
+            element.get("DestinationUniqueKey", ""): element.get("DestinationURL", "")
+            for root in roots.values()
+            for element in _elements(root, "HyperlinkURLDestination")
+            if element.get("DestinationUniqueKey") and element.get("DestinationURL")
+        }
+        return {
+            source: destination_by_key[key]
+            for root in roots.values()
+            for element in _elements(root, "Hyperlink")
+            if (source := element.get("Source"))
+            and (key := element.get("DestinationUniqueKey")) in destination_by_key
+        }
+
     def _parse_story(
         self,
         path: str,
         root: etree._Element,
         article_key: str,
         artifact_sha: str,
+        hyperlink_targets: dict[str, str],
     ) -> _StoryResult:
         story_element = next(element for element in _elements(root, "Story") if element.get("Self"))
         source_self = story_element.get("Self", PurePosixPath(path).stem)
@@ -431,10 +533,23 @@ class IdmlParser:
         evidence: list[Evidence] = [story_evidence]
         runs: list[RawTextRun] = []
         paragraphs: list[RawParagraph] = []
+        override_styles: list[RawStyle] = []
         run_ids_by_cell: defaultdict[str, list[str]] = defaultdict(list)
+        run_ids_by_note: defaultdict[str, list[str]] = defaultdict(list)
+        hyperlink_run_ids: defaultdict[str, list[str]] = defaultdict(list)
         anchor_run_by_link: dict[str, str] = {}
         anchor_placement_by_link: dict[str, AnchoredPlacement] = {}
         anchor_label_by_link: dict[str, str] = {}
+        note_elements = [
+            element
+            for element in story_element.iter()
+            if _local_name(element) in {"Note", "Footnote"}
+        ]
+        note_key_by_element = {
+            element: element.get("Self", f"{source_self}:note:{position}")
+            for position, element in enumerate(note_elements)
+        }
+        override_style_by_element: dict[etree._Element, str] = {}
 
         def cell_key(cell: etree._Element) -> str:
             table = next(
@@ -455,6 +570,38 @@ class IdmlParser:
             paragraph_style_id = (
                 stable_id(article_key, "style", paragraph_style) if paragraph_style else None
             )
+            paragraph_properties = {
+                cast(str, key): cast(str, value)
+                for key, value in paragraph_range.attrib.items()
+                if key != "AppliedParagraphStyle"
+            }
+            if paragraph_properties:
+                paragraph_override_source = (
+                    f"{source_self}:paragraph:{paragraph_position}:paragraph-style"
+                )
+                paragraph_style_id = stable_id(
+                    article_key, "inline-paragraph-style", paragraph_override_source
+                )
+                base_name = (
+                    paragraph_style.rsplit("/", 1)[-1] if paragraph_style else "missing-style"
+                )
+                override_styles.append(
+                    RawStyle(
+                        id=paragraph_style_id,
+                        source_name=f"{base_name} [direct paragraph properties]",
+                        normalized_name=_normalize_style_name(
+                            " ".join((paragraph_style or "", *paragraph_properties.values()))
+                        ),
+                        kind=StyleKind.PARAGRAPH,
+                        parent_style_id=(
+                            stable_id(article_key, "style", paragraph_style)
+                            if paragraph_style
+                            else None
+                        ),
+                        properties=paragraph_properties,
+                        evidence_ids=(paragraph_evidence.id,),
+                    )
+                )
             paragraph_run_ids: list[str] = []
             cell = next(
                 (
@@ -464,45 +611,92 @@ class IdmlParser:
                 ),
                 None,
             )
-            character_ranges = [
-                child for child in paragraph_range if _local_name(child) == "CharacterStyleRange"
-            ]
+            note = next(
+                (
+                    ancestor
+                    for ancestor in paragraph_range.iterancestors()
+                    if _local_name(ancestor) in {"Note", "Footnote"}
+                ),
+                None,
+            )
+            character_ranges: list[etree._Element] = []
+            for child in paragraph_range:
+                if _local_name(child) == "CharacterStyleRange":
+                    character_ranges.append(child)
+                elif _local_name(child) == "HyperlinkTextSource":
+                    nested_ranges = _direct_elements(child, "CharacterStyleRange")
+                    character_ranges.extend(nested_ranges or [child])
             range_events = [
                 (character_range, _range_events(character_range))
                 for character_range in character_ranges
             ]
             paragraph_events = [event for _, events in range_events for event in events]
-            for event_position, (kind, value) in enumerate(paragraph_events):
-                if kind != "link":
+            for event_position, event in enumerate(paragraph_events):
+                if event.kind != "asset_link":
                     continue
                 placement, label = _anchor_context(paragraph_events, event_position)
-                anchor_placement_by_link[value] = placement
+                anchor_placement_by_link[event.value] = placement
                 if label is not None:
-                    anchor_label_by_link[value] = label
+                    anchor_label_by_link[event.value] = label
+
+            def character_style_id(
+                character_range: etree._Element,
+                paragraph_position: int = paragraph_position,
+                paragraph_evidence: Evidence = paragraph_evidence,
+            ) -> str | None:
+                base_style = character_range.get("AppliedCharacterStyle")
+                properties = {
+                    cast(str, key): cast(str, value)
+                    for key, value in character_range.attrib.items()
+                    if key != "AppliedCharacterStyle"
+                }
+                if not properties:
+                    return stable_id(article_key, "style", base_style) if base_style else None
+                if character_range in override_style_by_element:
+                    return override_style_by_element[character_range]
+                source_override_id = (
+                    f"{source_self}:paragraph:{paragraph_position}:"
+                    f"inline-style:{len(override_styles)}"
+                )
+                override_id = stable_id(article_key, "inline-style", source_override_id)
+                override_style_by_element[character_range] = override_id
+                override_styles.append(
+                    RawStyle(
+                        id=override_id,
+                        source_name=source_override_id,
+                        normalized_name=_normalize_style_name(
+                            " ".join((base_style or "", *properties.values()))
+                        ),
+                        kind=StyleKind.CHARACTER,
+                        parent_style_id=(
+                            stable_id(article_key, "style", base_style) if base_style else None
+                        ),
+                        properties=properties,
+                        evidence_ids=(paragraph_evidence.id,),
+                    )
+                )
+                return override_id
 
             def append_run(
                 text: str,
                 character_range: etree._Element,
                 *,
                 anchor_link_self: str | None = None,
+                hyperlink_source_id: str | None = None,
                 paragraph_style_id: str | None = paragraph_style_id,
                 paragraph_evidence: Evidence = paragraph_evidence,
                 paragraph_run_ids: list[str] = paragraph_run_ids,
                 cell: etree._Element | None = cell,
+                note: etree._Element | None = note,
             ) -> None:
                 position = len(runs)
                 run_id = stable_id(article_key, "run", f"{source_self}:{position}")
-                character_style = character_range.get("AppliedCharacterStyle")
                 runs.append(
                     RawTextRun(
                         id=run_id,
                         text=text,
                         paragraph_style_id=paragraph_style_id,
-                        character_style_id=(
-                            stable_id(article_key, "style", character_style)
-                            if character_style
-                            else None
-                        ),
+                        character_style_id=character_style_id(character_range),
                         position=position,
                         evidence_ids=(paragraph_evidence.id,),
                     )
@@ -510,31 +704,58 @@ class IdmlParser:
                 paragraph_run_ids.append(run_id)
                 if cell is not None:
                     run_ids_by_cell[cell_key(cell)].append(run_id)
+                if note is not None:
+                    run_ids_by_note[note_key_by_element[note]].append(run_id)
+                if hyperlink_source_id is not None:
+                    hyperlink_run_ids[hyperlink_source_id].append(run_id)
                 if anchor_link_self is not None:
                     anchor_run_by_link[anchor_link_self] = run_id
 
             for character_range, events in range_events:
                 buffered_text = ""
+                buffered_hyperlink_source_id: str | None = None
                 pending_label: str | None = None
-                for kind, value in events:
-                    if kind == "text":
+                for event in events:
+                    if event.kind == "text":
+                        if (
+                            buffered_text
+                            and buffered_hyperlink_source_id != event.hyperlink_source_id
+                        ):
+                            append_run(
+                                buffered_text,
+                                character_range,
+                                hyperlink_source_id=buffered_hyperlink_source_id,
+                            )
+                            buffered_text = ""
                         if pending_label is not None:
                             value = re.sub(
                                 rf"^\s*{re.escape(pending_label)}\s*",
                                 "",
-                                value,
+                                event.value,
                                 count=1,
                             )
                             pending_label = None
+                        else:
+                            value = event.value
                         buffered_text += value
+                        buffered_hyperlink_source_id = event.hyperlink_source_id
                         continue
                     if buffered_text:
-                        append_run(buffered_text, character_range)
+                        append_run(
+                            buffered_text,
+                            character_range,
+                            hyperlink_source_id=buffered_hyperlink_source_id,
+                        )
                         buffered_text = ""
-                    append_run("", character_range, anchor_link_self=value)
-                    pending_label = anchor_label_by_link.get(value)
+                        buffered_hyperlink_source_id = None
+                    append_run("", character_range, anchor_link_self=event.value)
+                    pending_label = anchor_label_by_link.get(event.value)
                 if buffered_text:
-                    append_run(buffered_text, character_range)
+                    append_run(
+                        buffered_text,
+                        character_range,
+                        hyperlink_source_id=buffered_hyperlink_source_id,
+                    )
             paragraph_id = stable_id(article_key, "paragraph", paragraph_locator)
             cell_id = (
                 stable_id(
@@ -545,16 +766,17 @@ class IdmlParser:
                 if cell is not None
                 else None
             )
-            paragraphs.append(
-                RawParagraph(
-                    id=paragraph_id,
-                    position=paragraph_position,
-                    paragraph_style_id=paragraph_style_id,
-                    text_run_ids=tuple(paragraph_run_ids),
-                    table_cell_id=cell_id,
-                    evidence_ids=(paragraph_evidence.id,),
+            if note is None:
+                paragraphs.append(
+                    RawParagraph(
+                        id=paragraph_id,
+                        position=paragraph_position,
+                        paragraph_style_id=paragraph_style_id,
+                        text_run_ids=tuple(paragraph_run_ids),
+                        table_cell_id=cell_id,
+                        evidence_ids=(paragraph_evidence.id,),
+                    )
                 )
-            )
 
         tables: list[RawTable] = []
         for table_position, table_element in enumerate(_elements(story_element, "Table")):
@@ -648,6 +870,38 @@ class IdmlParser:
                 )
             )
 
+        run_by_id = {run.id: run for run in runs}
+        for hyperlink_source_id, run_ids in sorted(hyperlink_run_ids.items()):
+            target = hyperlink_targets.get(hyperlink_source_id)
+            if target is None:
+                continue
+            for run_id in run_ids:
+                links.append(
+                    RawLink(
+                        id=stable_id(article_key, "hyperlink", run_id),
+                        source_id=run_id,
+                        target=target,
+                        relationship="external-hyperlink",
+                        evidence_ids=run_by_id[run_id].evidence_ids,
+                    )
+                )
+
+        notes: list[RawNote] = []
+        for note_element in note_elements:
+            note_key = note_key_by_element[note_element]
+            note_evidence = self._evidence(
+                article_key, artifact_sha, path, note_key, "IDML note or footnote"
+            )
+            evidence.append(note_evidence)
+            notes.append(
+                RawNote(
+                    id=stable_id(article_key, "note", note_key),
+                    source_self_id=note_key,
+                    text_run_ids=tuple(run_ids_by_note[note_key]),
+                    evidence_ids=(note_evidence.id,),
+                )
+            )
+
         return _StoryResult(
             story=RawStory(
                 id=story_id,
@@ -656,9 +910,12 @@ class IdmlParser:
                 paragraphs=tuple(paragraphs),
                 table_ids=tuple(item.id for item in tables),
                 anchored_object_ids=tuple(item.id for item in objects),
+                note_ids=tuple(item.id for item in notes),
                 evidence_ids=(story_evidence.id,),
             ),
+            styles=tuple(override_styles),
             tables=tuple(tables),
+            notes=tuple(notes),
             objects=tuple(objects),
             assets=tuple(assets),
             links=tuple(links),
@@ -678,15 +935,30 @@ class IdmlParser:
         links: list[RawLink] = []
         evidence: list[Evidence] = []
         page_counter = 0
-        for path, root in sorted(roots.items()):
-            if not path.startswith("Spreads/"):
-                continue
+        referenced_paths = [
+            normalized_source
+            for element in _elements(roots["designmap.xml"], "Spread")
+            if (source := element.get("src"))
+            and (normalized_source := source.replace("\\", "/")) in roots
+        ]
+        remaining_paths = sorted(
+            path for path in roots if path.startswith("Spreads/") and path not in referenced_paths
+        )
+        for path in dict.fromkeys((*referenced_paths, *remaining_paths)):
+            root = roots[path]
             spread_element = next(
                 element for element in _elements(root, "Spread") if element.get("Self")
             )
             spread_self = spread_element.get("Self", PurePosixPath(path).stem)
             pages = _elements(spread_element, "Page")
             page_indices = tuple(range(page_counter, page_counter + len(pages)))
+            page_ranges: list[tuple[float, float]] = []
+            for page in pages:
+                page_transform = _numbers(page.get("ItemTransform"), 6)
+                page_bounds = _numbers(page.get("GeometricBounds"), 4)
+                left = page_transform[4] + page_bounds[1]
+                right = page_transform[4] + page_bounds[3]
+                page_ranges.append((min(left, right), max(left, right)))
             page_counter += len(pages)
             spread_frame_ids: list[str] = []
             for frame_element in _elements(spread_element, "TextFrame"):
@@ -703,8 +975,18 @@ class IdmlParser:
                 second = transform[5] + min((point[1] for point in anchors), default=0.0)
                 first_max = transform[4] + max((point[0] for point in anchors), default=0.0)
                 second_max = transform[5] + max((point[1] for point in anchors), default=0.0)
-                local_page = 0 if len(pages) < 2 or transform[4] < 0 else 1
-                page_index = page_indices[min(local_page, len(page_indices) - 1)]
+                frame_left, frame_right = sorted((first, first_max))
+                frame_center = (frame_left + frame_right) / 2
+
+                local_page = max(
+                    range(len(pages)),
+                    key=lambda index: _page_interval_score(
+                        page_ranges[index], frame_left, frame_right, frame_center
+                    ),
+                )
+                page_index = page_indices[local_page]
+                page_left, page_right = page_ranges[local_page]
+                column_index = 0 if frame_center <= (page_left + page_right) / 2 else 1
                 frame_evidence = self._evidence(
                     article_key, artifact_sha, path, source_self, "IDML text frame"
                 )
@@ -734,6 +1016,7 @@ class IdmlParser:
                             if (following := _reference(frame_element.get("NextTextFrame")))
                             else None
                         ),
+                        column_index=column_index,
                         evidence_ids=(frame_evidence.id,),
                     )
                 )
@@ -824,13 +1107,14 @@ class IdmlParser:
             for source_story_id in story_list
             if source_story_id not in known_source_story_ids
         )
-        first_positions: dict[str, tuple[int, float, float, int]] = {}
+        first_positions: dict[str, tuple[int, int, float, float, int]] = {}
         for story in stories:
             story_frames = frames_by_story[story.id]
             starts = [item for item in story_frames if item.previous_frame_id is None]
             if not story_frames:
                 issues.append(ReadingOrderIssue(code="story_without_frame", story_id=story.id))
                 first_positions[story.id] = (
+                    10**9,
                     10**9,
                     0.0,
                     0.0,
@@ -887,6 +1171,7 @@ class IdmlParser:
             )
             first_positions[story.id] = (
                 first.page_index,
+                first.column_index or 0,
                 first.box.y,
                 first.box.x,
                 source_hint.get(story.source_self_id, 10**9),
