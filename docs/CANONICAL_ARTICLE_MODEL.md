@@ -82,12 +82,13 @@ conteúdo. Dados obrigatórios ausentes permanecem ausentes.
 mesmo artigo/localizador produz o mesmo ID entre retries; localizadores distintos
 produzem IDs distintos.
 
-Raw usa `schema_version=1.2.0`; Canonical usa `1.1.0`. O incremento Raw 1.2
-adiciona posição e rótulo de objetos ancorados; o Canonical 1.1 formaliza a
-representação das fórmulas display/inline e sua validação MathML. JSON canônico usa
+Raw usa `schema_version=1.3.0`; Canonical usa `1.3.0`. O Raw 1.2 adicionou posição e rótulo de
+objetos ancorados e o Raw 1.3 atribuiu identidade estável a células. O Canonical 1.1 formalizou a
+representação das fórmulas display/inline e sua validação MathML; o Canonical 1.3 leva a geometria
+de células mescladas até o builder JATS. JSON canônico usa
 chaves ordenadas e SHA-256 do conteúdo. Os JSON Schemas ficam em `schemas/`.
-Migrations explícitas encadeiam Raw `0.1.0 -> 1.0.0 -> 1.1.0 -> 1.2.0` e
-Canonical `0.1.0 -> 1.0.0 -> 1.1.0`, recusando versões desconhecidas.
+Migrations explícitas encadeiam Raw `0.1.0 -> 1.0.0 -> 1.1.0 -> 1.2.0 -> 1.3.0` e
+Canonical `0.1.0 -> 1.0.0 -> 1.1.0 -> 1.2.0 -> 1.3.0`, recusando versões desconhecidas.
 
 `DomainSnapshot` persiste payload imutável por empresa, recurso, tipo, revisão,
 hash, artefato fonte e snapshot pai. Unicidade impede revisão duplicada e o

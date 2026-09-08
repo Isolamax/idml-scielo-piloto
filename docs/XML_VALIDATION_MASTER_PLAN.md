@@ -1,6 +1,6 @@
 # Plano mestre de validação XML e homologação final
 
-Data: 2026-09-01. Estado: **EM EXECUÇÃO — V-01 A V-04 CONCLUÍDOS**.
+Data: 2026-09-01. Estado: **EM EXECUÇÃO — V-01 A V-05 CONCLUÍDOS**.
 
 ## 1. Objetivo
 
@@ -170,6 +170,16 @@ sem definição inventada; células possuem identidade estável. Relatório:
 - saída determinística para a mesma entrada e configuração.
 
 Aceite: zero erro de formação, zero referência quebrada e XML determinístico.
+
+Evidência: o builder produz declaração UTF-8 e DOCTYPE JATS Publishing 1.3 fixos, namespaces
+XLink/MathML, metadados editoriais, autoria/ORCID/correspondência, afiliações/ROR, datas, licença,
+financiamento, back matter, referências mistas e estruturadas e `xref` com tipo derivado do alvo.
+O Canonical Article 1.3.0 passou a levar spans de tabela até `rowspan`/`colspan`, com migration
+explícita desde 1.2.0. Caracteres invisíveis perigosos são preservados no modelo auditável e
+removidos somente na serialização XML. O gate rejeitou 13 mutações negativas e confirmou saída
+byte a byte determinística; o ESA real passou JATS/SPS, com 13 spans e zero referência quebrada.
+Os cinco RBEdu permaneceram contraste explícito de profile, sem adaptação de regras. Relatório:
+`benchmarks/qualification/reports/v05-jats-construction-v1.json`.
 
 ### V-06 — Validadores formais e regras editoriais
 

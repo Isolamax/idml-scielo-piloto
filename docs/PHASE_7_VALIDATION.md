@@ -10,6 +10,7 @@ Data inicial: 2026-09-04. Estado: **EM EXECUÇÃO — V-01 A V-04 CONCLUÍDOS**.
 | V-02 Segurança da ingestão | PASSOU | matriz negativa, regressão e VPS |
 | V-03 Leitura e fidelidade IDML | PASSOU | conservação textual, estrutura e VPS |
 | V-04 Canonical Article Model | PASSOU | schemas, invariantes, migrations e round-trip |
+| V-05 Construção XML JATS/SPS | PASSOU | builder determinístico, DTD, SPS e referências |
 | V-05 Construção JATS/SPS | PENDENTE | — |
 | V-06 Validadores formais | PENDENTE | — |
 | V-07 Fidelidade comparativa | PENDENTE | — |
@@ -139,7 +140,31 @@ rede. A imagem `idml-foundation:phase7-v04-model-integrity-v1`
 (`sha256:4f46504912f4c5ccfdf46542b2afe28cfe355dfce2875a880d611f9f4834d310`) deixou API, worker e
 OpenClaw saudáveis, com OpenClaw, swarm e ClamAV desativados.
 
+## V-05 — Construção XML JATS/SPS
+
+O builder passou a emitir o contrato editorial disponível no Canonical Article: ORCID, prefixo e
+sufixo de nome, papéis, e-mail e correspondência ligada por `xref`; afiliação estruturada com
+departamento, instituição, ROR e endereço; data ISO estruturada, volume, fascículo, licença e
+financiamento; agradecimentos, contribuições, disponibilidade de dados, conflitos, notas e
+referências em forma mista e estruturada. O tipo de cada `xref` agora é derivado do alvo registrado,
+não de um atributo livre. Declaração UTF-8, DOCTYPE público/sistema e SPS 1.10 são fixos.
+
+O Canonical Article evoluiu para 1.3.0 com `TableCellSpan` e migration aditiva desde 1.2.0. O mapper
+leva os spans preservados no Raw até o JATS e o builder gera `rowspan`/`colspan` sem células cobertas
+duplicadas. Controles bidirecionais, BOM interno, zero-width space e word joiner permanecem no
+Canonical auditável, mas são removidos da serialização para não contaminar o XML.
+
+O validador offline passou a verificar declaração, DOCTYPE, namespaces, idioma, metadados mínimos,
+ISSN/DOI, cardinalidade do publisher-id, compatibilidade entre `ref-type` e alvo, gráficos inline e
+de bloco, links externos e caracteres invisíveis. O gate `ops/gate_phase7_v05.py` rejeitou 13
+mutações negativas, confirmou duas construções idênticas e validou o ESA real com JATS/SPS, zero
+referência quebrada e 13 spans preservados. Os cinco RBEdu foram exercitados como contraste: são
+bem formados e determinísticos, permanecem reprovados sob o profile ESA e possuem motivos de
+revisão explícitos. A suíte integral aprovou 249 testes com 86,11% de cobertura; Ruff passou e mypy
+strict foi revalidado após os ajustes finais. Relatório:
+`benchmarks/qualification/reports/v05-jats-construction-v1.json`.
+
 ## Decisão
 
-V-01 a V-04 estão aprovados. Isso não aprova o Pacote 7.1, o Gate G7-T ou produção. A próxima
-família é V-05, construção XML JATS/SPS.
+V-01 a V-05 estão aprovados. Isso não aprova o Pacote 7.1, o Gate G7-T ou produção. A próxima
+família é V-06, validadores formais e regras editoriais.

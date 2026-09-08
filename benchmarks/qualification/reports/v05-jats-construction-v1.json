@@ -1,0 +1,28 @@
+{
+  "approved": true,
+  "canonical_schema_version": "1.3.0",
+  "contrast_packages": 5,
+  "family": "V-05",
+  "network_required": false,
+  "profile_matches": 1,
+  "real_packages_requested": 6,
+  "real_packages_verified": 6,
+  "restricted_content_emitted": false,
+  "synthetic": {
+    "deterministic_builds": 2,
+    "merged_cells": 1,
+    "negative_cases": 13,
+    "resolved_rids": 7,
+    "structured_references": 1,
+    "xml_ids": 15
+  },
+  "real": {
+    "broken_references": 0,
+    "esa_jats_sps_valid": 1,
+    "esa_table_spans": 13,
+    "expected_profile_contrasts": 5,
+    "xml_well_formed": 6
+  },
+  "validation_profile": "jats-1.3-mathml3+sps-baseline-1.1.0",
+  "version": "phase7-v05-gate-1.0"
+}
