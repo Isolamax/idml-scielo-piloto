@@ -244,6 +244,13 @@ quatro notas e cross-references com F1 0,943396. Portanto, o mecanismo V-07 est�
 candidato e a família V-07 **não estão aprovados**. Relatório:
 `benchmarks/qualification/reports/v07-semantic-fidelity-v1.json`.
 
+A suíte integral aprovou 272 testes com 86,40% de cobertura. Após backup e restore isolado, a imagem
+`idml-foundation:phase7-v07-semantic-fidelity-v1`
+(`sha256:95ec8c7cc6c1a862c353f7129363fc69c657d3a2013a34106eb310f94dafd905`) foi implantada. O gate
+sintético passou na VPS em container read-only e sem rede; o corpus restrito permaneceu local. API,
+worker, PostgreSQL, Redis e OpenClaw ficaram saudáveis, as três flags permaneceram falsas e as
+tabelas registraram zero execuções e zero propostas de agentes.
+
 ## Decisão
 
 V-01 a V-05 estão aprovados e a infraestrutura V-06 está qualificada com a restrição explícita do
