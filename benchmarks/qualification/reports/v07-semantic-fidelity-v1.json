@@ -2,15 +2,15 @@
   "approved": false,
   "backup_restore": {
     "artifact_files": 1,
-    "backup_path": "/opt/idml-platform/backups/20260909T195728Z",
+    "backup_path": "/opt/idml-platform/backups/20260909T204841Z",
     "openclaw_state_files": 14,
     "public_tables": 21,
     "status": "passed"
   },
   "authorized_corpus": {
-    "blocking_findings": 37,
+    "blocking_findings": 35,
     "candidate_approved": false,
-    "candidate_xml_sha256": "0e226110fd639255a967c9c62bdedc7ecd60c7c6946dc9a2c645bddd2e714009",
+    "candidate_xml_sha256": "33c1c7d9436b469d2073be0f153669731859461038e999bb880bfc542a17bcf2",
     "corpus_id": "esa-e20240086",
     "cross_references": {
       "actual": 81,
@@ -225,22 +225,22 @@
         "text_fidelity": 0.0
       },
       {
-        "actual": 0,
-        "altered": 0,
+        "actual": 4,
+        "altered": 2,
         "comparison_unit": "elements",
         "displacements": 0,
         "domain": "notes",
         "duplications": 0,
-        "exact": 0,
+        "exact": 2,
         "expected": 4,
-        "f1": 0.0,
+        "f1": 0.5,
         "inventions": 0,
         "normalized": 0,
-        "omissions": 4,
+        "omissions": 0,
         "passed": false,
-        "precision": 0.0,
-        "recall": 0.0,
-        "text_fidelity": 0.0
+        "precision": 0.5,
+        "recall": 0.5,
+        "text_fidelity": 0.903848
       },
       {
         "actual": 5,
@@ -262,12 +262,12 @@
       }
     ],
     "finding_counts": {
-      "alteration": 6,
+      "alteration": 8,
       "displacement": 0,
       "duplication": 1,
       "invention": 5,
       "normalization": 60,
-      "omission": 25
+      "omission": 21
     },
     "manifest_sha256": "5fba59d536e62f5796714608a565d3831b14292e2b9f7254232b6d5d0041cff7",
     "reference_xml_sha256": "739b4c3247a06d6d5253ad2805fb830d09692cb306cbb5c785ad99707e539de9",
@@ -294,16 +294,16 @@
     "feature_ai_swarm": false,
     "feature_clamav": false,
     "feature_openclaw": false,
-    "image": "idml-foundation:phase7-v07-deterministic-fixes-v1",
-    "image_id": "sha256:e185f4ffe5be5b94a407ad6b97f847b2f19a0f65c46d35c957d409f7abb83667",
+    "image": "idml-foundation:phase7-v07-correspondence-v1",
+    "image_id": "sha256:23c26409962c93c8162a8c5bd443d69c21a8ebe56fe3154167c587ff8e3966ac",
     "services_healthy": true,
     "vps_gate_network": "none",
     "vps_gate_restricted_corpus": false,
     "vps_gate_read_only": true
   },
   "test_suite": {
-    "coverage_percent": 86.37,
-    "passed": 272
+    "coverage_percent": 86.32,
+    "passed": 274
   },
   "synthetic": {
     "detected": {

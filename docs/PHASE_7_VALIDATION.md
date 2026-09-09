@@ -239,10 +239,17 @@ precisão e recall 1,0. O corpo atingiu recall de tokens 0,999269, precisão 0,9
 fidelidade sequencial 0,991692. O primeiro lote de correções passou a extrair o DOI diretamente do
 estilo fonte `0.1.doi`, separou rótulo e texto de caption e ordenou figuras numeradas sem alterar a
 intercalação com tabelas. Com isso, o DOI passou a ser correspondência exata e figuras passaram a
-precisão/recall 1,0, sem deslocamentos. O baseline caiu de 39 para 37 achados bloqueadores.
+precisão/recall 1,0, sem deslocamentos. O segundo lote passou a interpretar o bloco fonte de
+correspondência: e-mail ligado ao autor marcado, datas de recebimento e aceite em ISO 8601,
+financiamento, conflito de interesse e notas dos editores. O comparador também passou a tratar como
+equivalentes as representações por `fn`, `funding-group` e seção de conflito, preservando rótulos
+semânticos e eliminando duplicidades. As quatro notas agora estão presentes: conflito e
+financiamento são exatos; as duas notas editoriais permanecem alteradas apenas pelos ORCIDs que não
+existem no texto nem nos hyperlinks do IDML e ficaram marcados para enriquecimento. O baseline caiu
+de 39 para 37 e depois para 35 achados bloqueadores, com omissões reduzidas de 25 para 21.
 Permanecem desvios reais em outros metadados, três seções adicionais, quatro tokens ausentes no
-corpo, tabelas, duas fórmulas inline, transcrição semântica das 17 fórmulas, quatro notas e
-cross-references com F1 0,943396. Portanto, o mecanismo V-07 está qualificado, mas o candidato e a
+corpo, tabelas, duas fórmulas inline, transcrição semântica das 17 fórmulas, os dois ORCIDs editoriais
+e cross-references com F1 0,943396. Portanto, o mecanismo V-07 está qualificado, mas o candidato e a
 família V-07 **não estão aprovados**. Relatório:
 `benchmarks/qualification/reports/v07-semantic-fidelity-v1.json`.
 
@@ -258,6 +265,15 @@ O primeiro lote corretivo foi implantado como
 (`sha256:e185f4ffe5be5b94a407ad6b97f847b2f19a0f65c46d35c957d409f7abb83667`) após novo backup/restore.
 O gate sintético voltou a passar sem rede, API e worker ficaram saudáveis, as flags permaneceram
 falsas e não houve execução nem proposta de agente.
+
+O segundo lote corretivo aprovou 274 testes com 86,32% de cobertura e foi implantado como
+`idml-foundation:phase7-v07-correspondence-v1`
+(`sha256:23c26409962c93c8162a8c5bd443d69c21a8ebe56fe3154167c587ff8e3966ac`). O backup
+`/opt/idml-platform/backups/20260909T204841Z` passou no restore isolado com 21 tabelas públicas, um
+artefato e 14 arquivos do OpenClaw. O gate sintético passou novamente em container read-only e sem
+rede. API, worker, PostgreSQL, Redis e OpenClaw ficaram saudáveis; as três flags continuaram falsas
+e o banco permaneceu com zero execuções e zero propostas de agentes. O corpus restrito não foi
+transferido para a VPS.
 
 ## Decisão
 
