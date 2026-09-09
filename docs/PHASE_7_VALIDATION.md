@@ -253,6 +253,12 @@ sintético passou na VPS em container read-only e sem rede; o corpus restrito pe
 worker, PostgreSQL, Redis e OpenClaw ficaram saudáveis, as três flags permaneceram falsas e as
 tabelas registraram zero execuções e zero propostas de agentes.
 
+O primeiro lote corretivo foi implantado como
+`idml-foundation:phase7-v07-deterministic-fixes-v1`
+(`sha256:e185f4ffe5be5b94a407ad6b97f847b2f19a0f65c46d35c957d409f7abb83667`) após novo backup/restore.
+O gate sintético voltou a passar sem rede, API e worker ficaram saudáveis, as flags permaneceram
+falsas e não houve execução nem proposta de agente.
+
 ## Decisão
 
 V-01 a V-05 estão aprovados e a infraestrutura V-06 está qualificada com a restrição explícita do

@@ -1,5 +1,12 @@
 {
   "approved": false,
+  "backup_restore": {
+    "artifact_files": 1,
+    "backup_path": "/opt/idml-platform/backups/20260909T195728Z",
+    "openclaw_state_files": 14,
+    "public_tables": 21,
+    "status": "passed"
+  },
   "authorized_corpus": {
     "blocking_findings": 37,
     "candidate_approved": false,
@@ -281,6 +288,23 @@
   "qualification_approved": true,
   "release_candidate_approved": false,
   "restricted_content_emitted": false,
+  "runtime": {
+    "agent_proposals": 0,
+    "agent_runs": 0,
+    "feature_ai_swarm": false,
+    "feature_clamav": false,
+    "feature_openclaw": false,
+    "image": "idml-foundation:phase7-v07-deterministic-fixes-v1",
+    "image_id": "sha256:e185f4ffe5be5b94a407ad6b97f847b2f19a0f65c46d35c957d409f7abb83667",
+    "services_healthy": true,
+    "vps_gate_network": "none",
+    "vps_gate_restricted_corpus": false,
+    "vps_gate_read_only": true
+  },
+  "test_suite": {
+    "coverage_percent": 86.37,
+    "passed": 272
+  },
   "synthetic": {
     "detected": {
       "alteration": 1,
