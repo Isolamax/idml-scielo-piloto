@@ -3,11 +3,15 @@ from __future__ import annotations
 import hashlib
 import re
 from collections import defaultdict
-from typing import cast
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Literal, cast
 from urllib.parse import urlparse
 
 from idml_foundation.domain.canonical import (
     Affiliation,
+    ArticleHistoryDate,
     Asset,
     BackMatter,
     CanonicalArticle,
@@ -18,6 +22,7 @@ from idml_foundation.domain.canonical import (
     FormulaBlock,
     FormulaRepresentation,
     FrontMatter,
+    FundingStatement,
     Identifier,
     InlineKind,
     InlineNode,
@@ -59,6 +64,22 @@ _AUTHOR_MARKERS = re.compile(r"[\d*]+")
 _NUMBERED_GRAPHIC = re.compile(r"^\s*(figure|table)\s*([1-9]\d*)\b", re.IGNORECASE)
 _CAPTION_SEPARATOR = re.compile(r"^[\s.\-\u2013\u2014:]*")
 _MISSING_INLINE_FORMULA = re.compile(r"(?m)^[ \t]*(?=:[ \t]+\S)")
+_EMAIL = re.compile(r"[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}", re.IGNORECASE)
+_HISTORY = re.compile(
+    r"^Received\s+on:\s*(\d{2}/\d{2}/\d{4})\s*[\-\u2013\u2014]\s*"
+    r"Accepted\s+on:\s*(\d{2}/\d{2}/\d{4})$",
+    re.IGNORECASE,
+)
+
+
+@dataclass(frozen=True)
+class _CorrespondenceData:
+    email: SourcedText | None = None
+    history_dates: tuple[ArticleHistoryDate, ...] = ()
+    funding: tuple[FundingStatement, ...] = ()
+    conflicts: SourcedText | None = None
+    notes: tuple[NoteBlock, ...] = ()
+    review_reasons: tuple[str, ...] = ()
 
 
 def _safe_external_href(value: str) -> str | None:
@@ -274,6 +295,21 @@ class CanonicalMapper:
             article_id,
             tuple(item.id for item in affiliations),
         )
+        correspondence = self._correspondence(paragraphs_by_role, text_for, article_id)
+        if correspondence.email is not None:
+            corresponding_positions = [
+                position
+                for position, contributor in enumerate(contributors)
+                if contributor.corresponding
+            ]
+            if len(corresponding_positions) == 1:
+                position = corresponding_positions[0]
+                contributors = tuple(
+                    contributor.model_copy(update={"email": correspondence.email})
+                    if index == position
+                    else contributor
+                    for index, contributor in enumerate(contributors)
+                )
         abstracts: list[LocalizedText] = []
         keywords: list[LocalizedText] = []
         for position, (story, paragraph) in enumerate(paragraphs_by_role["abstract"]):
@@ -313,7 +349,7 @@ class CanonicalMapper:
             article_id,
             references,
         )
-        notes = self._notes(raw, character_names, article_id)
+        notes = (*self._notes(raw, character_names, article_id), *correspondence.notes)
         assets = tuple(
             Asset(
                 id=item.id,
@@ -333,6 +369,13 @@ class CanonicalMapper:
         if any(item.external for item in raw.assets):
             review_reasons.append("external_assets_require_package_resolution")
         review_reasons.extend(section_review_reasons)
+        review_reasons.extend(correspondence.review_reasons)
+        if correspondence.email is not None:
+            corresponding_count = sum(item.corresponding for item in contributors)
+            if corresponding_count != 1:
+                review_reasons.append(
+                    "correspondence_email_requires_single_marked_contributor"
+                )
 
         return CanonicalArticle(
             article_id=article_id,
@@ -371,13 +414,156 @@ class CanonicalMapper:
                 contributors=contributors,
                 affiliations=affiliations,
                 publication_date=_missing("not-present-in-idml-style-profile"),
+                history_dates=correspondence.history_dates,
                 abstracts=tuple(abstracts),
                 keywords=tuple(keywords),
+                funding=correspondence.funding,
             ),
             body=sections,
-            back=BackMatter(notes=notes, references=references),
+            back=BackMatter(
+                conflicts=correspondence.conflicts,
+                notes=notes,
+                references=references,
+            ),
             assets=assets,
             evidence=evidence,
+            review_reasons=tuple(dict.fromkeys(review_reasons)),
+        )
+
+    def _correspondence(
+        self,
+        by_role: defaultdict[str, list[tuple[RawStory, RawParagraph]]],
+        text_for: Callable[[RawStory, RawParagraph], str],
+        article_id: str,
+    ) -> _CorrespondenceData:
+        email: SourcedText | None = None
+        conflicts: SourcedText | None = None
+        history_dates: list[ArticleHistoryDate] = []
+        funding: list[FundingStatement] = []
+        notes: list[NoteBlock] = []
+        review_reasons: list[str] = []
+        seen_history: set[str] = set()
+
+        for story, paragraph in by_role["correspondence"]:
+            evidence_ids = paragraph.evidence_ids
+            lines = tuple(line.strip() for line in text_for(story, paragraph).splitlines())
+            for line_position, line in enumerate(lines):
+                if not line:
+                    continue
+                lowered = line.casefold()
+                if lowered.startswith("*corresponding author:"):
+                    match = _EMAIL.search(line)
+                    if match is None:
+                        review_reasons.append("correspondence_email_not_parseable")
+                    elif email is None:
+                        email = _present(
+                            match.group(0), evidence_ids, "correspondence-labeled-email"
+                        )
+                    else:
+                        review_reasons.append("multiple_correspondence_emails")
+                    continue
+                if lowered.startswith("conflicts of interest:"):
+                    value = line.split(":", 1)[1].strip()
+                    if value and conflicts is None:
+                        conflicts = _present(
+                            value, evidence_ids, "correspondence-labeled-conflicts"
+                        )
+                    elif value:
+                        review_reasons.append("multiple_conflicts_statements")
+                    else:
+                        review_reasons.append("empty_conflicts_statement")
+                    continue
+                if lowered.startswith("funding:"):
+                    value = line.split(":", 1)[1].strip()
+                    if not value:
+                        review_reasons.append("empty_funding_statement")
+                        continue
+                    agency = value.split(",", 1)[0].strip()
+                    funding.append(
+                        FundingStatement(
+                            agency=_present(
+                                agency, evidence_ids, "funding-agency-before-first-comma"
+                            ),
+                            statement=_present(
+                                value, evidence_ids, "correspondence-labeled-funding"
+                            ),
+                        )
+                    )
+                    continue
+                history_match = _HISTORY.fullmatch(line)
+                if history_match is not None:
+                    for date_type, raw_date in zip(
+                        ("received", "accepted"), history_match.groups(), strict=True
+                    ):
+                        if date_type in seen_history:
+                            review_reasons.append(f"duplicate_history_date:{date_type}")
+                            continue
+                        try:
+                            iso_date = datetime.strptime(raw_date, "%d/%m/%Y").date().isoformat()
+                        except ValueError:
+                            review_reasons.append(f"invalid_history_date:{date_type}")
+                            continue
+                        history_dates.append(
+                            ArticleHistoryDate(
+                                date_type=cast(
+                                    Literal["received", "rev-request", "rev-recd", "accepted"],
+                                    date_type,
+                                ),
+                                date=_present(
+                                    iso_date,
+                                    evidence_ids,
+                                    "correspondence-dd-mm-yyyy-to-iso-8601",
+                                ),
+                            )
+                        )
+                        seen_history.add(date_type)
+                    continue
+                editor_type = next(
+                    (
+                        label
+                        for label in ("Associate editor", "Scientific editor")
+                        if lowered.startswith(f"{label.casefold()}:")
+                    ),
+                    None,
+                )
+                if editor_type is not None:
+                    value = line.split(":", 1)[1].strip()
+                    if not value:
+                        review_reasons.append(
+                            f"empty_{editor_type.casefold().replace(' ', '_')}"
+                        )
+                        continue
+                    content = f"{editor_type}: {value}"
+                    notes.append(
+                        NoteBlock(
+                            id=stable_id(
+                                article_id,
+                                "correspondence-note",
+                                f"{paragraph.id}:{line_position}:{editor_type.casefold()}",
+                            ),
+                            note_type=editor_type.casefold().replace(" ", "-"),
+                            content=RichText(
+                                plain=_present(
+                                    content,
+                                    evidence_ids,
+                                    "correspondence-labeled-editor",
+                                )
+                            ),
+                            evidence_ids=evidence_ids,
+                        )
+                    )
+                    review_reasons.append(
+                        f"{editor_type.casefold().replace(' ', '_')}_orcid_requires_enrichment"
+                    )
+                    continue
+                review_reasons.append("unmapped_correspondence_line")
+
+        return _CorrespondenceData(
+            email=email,
+            history_dates=tuple(history_dates),
+            funding=tuple(funding),
+            conflicts=conflicts,
+            notes=tuple(notes),
             review_reasons=tuple(dict.fromkeys(review_reasons)),
         )
 

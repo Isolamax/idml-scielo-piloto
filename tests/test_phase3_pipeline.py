@@ -46,6 +46,44 @@ def test_mapper_records_missing_and_ambiguities_without_using_gold_xml() -> None
     assert "external_assets_require_package_resolution" in article.review_reasons
 
 
+def test_pipeline_structures_labeled_correspondence_without_inference() -> None:
+    result = DeterministicPipeline().run(
+        synthetic_idml(include_correspondence=True),
+        logical_name="ESA_2024001_AOP.idml",
+    )
+    article = result.canonical
+    root = etree.fromstring(result.xml)
+
+    contributor = article.front.contributors[0]
+    assert contributor.corresponding is True
+    assert contributor.email is not None
+    assert contributor.email.value == "ana@example.org"
+    assert [(item.date_type, item.date.value) for item in article.front.history_dates] == [
+        ("received", "2024-02-01"),
+        ("accepted", "2024-04-03"),
+    ]
+    assert len(article.front.funding) == 1
+    assert article.front.funding[0].agency.value == "Foundation Alpha"
+    assert article.front.funding[0].statement is not None
+    assert article.front.funding[0].statement.value == "Foundation Alpha, grant 123."
+    assert article.back.conflicts is not None
+    assert article.back.conflicts.value == "The authors declare no conflicts."
+    assert [note.note_type for note in article.back.notes] == [
+        "associate-editor",
+        "scientific-editor",
+    ]
+    assert root.xpath("string(front/article-meta/author-notes/corresp/email)") == (
+        "ana@example.org"
+    )
+    assert root.xpath("count(front/article-meta/history/date)") == 2.0
+    assert root.xpath("count(front/article-meta/funding-group/funding-statement)") == 1.0
+    assert root.xpath("count(back/sec[title='Conflicts of interest'])") == 1.0
+    assert root.xpath("count(back/fn-group/fn)") == 2.0
+    assert "associate_editor_orcid_requires_enrichment" in article.review_reasons
+    assert "scientific_editor_orcid_requires_enrichment" in article.review_reasons
+    assert result.validation.valid
+
+
 def test_mapper_nests_level_two_sections_under_the_preceding_level_one() -> None:
     raw = IdmlParser().parse(
         synthetic_idml(include_subsection=True),

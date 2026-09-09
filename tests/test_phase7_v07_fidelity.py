@@ -88,6 +88,31 @@ def test_editorial_punctuation_in_reference_is_nonblocking_normalization() -> No
     assert reference_score.altered == 0  # type: ignore[attr-defined]
 
 
+def test_equivalent_structured_conflict_and_funding_notes_compare_equal() -> None:
+    original_note = b"<fn-group><fn><p>Funding note</p></fn></fn-group>"
+    reference = _article("Stable body").replace(
+        original_note,
+        b"<fn-group>"
+        b"<fn><p>Conflicts of interest: None declared.</p></fn>"
+        b"<fn><p>Funding: Foundation Alpha.</p></fn>"
+        b"</fn-group>",
+    )
+    candidate = _article("Stable body").replace(
+        b"</article-meta>",
+        b"<funding-group><funding-statement>Foundation Alpha.</funding-statement>"
+        b"</funding-group></article-meta>",
+    ).replace(
+        original_note,
+        b"<sec><title>Conflicts of interest</title><p>None declared.</p></sec>",
+    )
+
+    report = XmlSemanticComparator().compare(reference, candidate)
+
+    notes = _domain(report, "notes")
+    assert notes.passed is True  # type: ignore[attr-defined]
+    assert notes.exact == 2  # type: ignore[attr-defined]
+
+
 @pytest.mark.parametrize(
     ("reference_paragraphs", "candidate_paragraphs", "expected_kind"),
     [

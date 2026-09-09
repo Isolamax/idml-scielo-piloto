@@ -9,6 +9,7 @@ def synthetic_idml(
     include_formula: bool = False,
     include_inline_formula: bool = False,
     include_inline_formula_gap: bool = False,
+    include_correspondence: bool = False,
 ) -> bytes:
     design = b"""<?xml version="1.0" encoding="UTF-8"?>
 <Document Self="doc" DOMVersion="20.3" StoryList="u1 u2 u3 u4"/>"""
@@ -17,6 +18,7 @@ def synthetic_idml(
   <RootParagraphStyleGroup>
     <ParagraphStyle Self="ParagraphStyle/01.0.title" Name="01.0.title"/>
     <ParagraphStyle Self="ParagraphStyle/02.0.author" Name="02.0.author"/>
+    <ParagraphStyle Self="ParagraphStyle/03.5.correspondence" Name="03.5.correspondence"/>
     <ParagraphStyle Self="ParagraphStyle/04.0.section" Name="04.0.section"/>
     <ParagraphStyle Self="ParagraphStyle/04.1.subsection" Name="04.1.subsection"/>
     <ParagraphStyle Self="ParagraphStyle/05.0.text" Name="05.0.text"/>
@@ -82,11 +84,27 @@ def synthetic_idml(
         if include_inline_formula_gap
         else ""
     )
+    correspondence = (
+        paragraph(
+            "03.5.correspondence",
+            "*Corresponding author: ana@example.org\n"
+            "Conflicts of interest: The authors declare no conflicts.\n"
+            "Funding: Foundation Alpha, grant 123.\n"
+            "Received on: 01/02/2024 - Accepted on: 03/04/2024\n"
+            "Associate editor: Bruno Costa\n"
+            "Scientific editor: Carla Souza",
+        )
+        if include_correspondence
+        else ""
+    )
     stories = {
         "Stories/Story_u1.xml": story(
             "u1",
             paragraph("01.0.title", "Deterministic conversion")
-            + paragraph("02.0.author", "Ana Silva"),
+            + paragraph(
+                "02.0.author", "Ana Silva*" if include_correspondence else "Ana Silva"
+            )
+            + correspondence,
         ),
         "Stories/Story_u2.xml": story(
             "u2",

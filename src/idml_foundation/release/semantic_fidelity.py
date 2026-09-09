@@ -141,6 +141,57 @@ def _table_text(node: etree._Element) -> str:
     return " ".join((heading, *cells)).strip()
 
 
+def _with_note_label(label: str, value: str) -> str:
+    if normalize_text(value).casefold().startswith(label.casefold()):
+        return value
+    return f"{label}: {value}"
+
+
+def _note_values(root: etree._Element) -> list[str]:
+    values: list[str] = []
+    for note in _xpath(
+        root,
+        "front/article-meta/author-notes/fn | body//fn | back//fn",
+    ):
+        label = normalize_text(note.findtext("label") or "")
+        semantic_label = label if re.search(r"[^\W\d_]", label) else ""
+        for paragraph in _values(_xpath(note, "p")):
+            values.append(" ".join((semantic_label, paragraph)).strip())
+    for section in _xpath(root, "back/sec[title]"):
+        title = normalize_text(section.findtext("title") or "")
+        if "conflict" not in title.casefold():
+            continue
+        for paragraph in _values(_xpath(section, "p")):
+            values.append(_with_note_label("Conflicts of interest", paragraph))
+    for statement in _values(_xpath(root, "front/article-meta/funding-group/funding-statement")):
+        values.append(_with_note_label("Funding", statement))
+
+    def category(value: str) -> int:
+        normalized = normalize_text(value).casefold()
+        if normalized.startswith("conflicts of interest"):
+            return 0
+        if normalized.startswith("associate editor"):
+            return 1
+        if normalized.startswith("scientific editor"):
+            return 2
+        if normalized.startswith("funding"):
+            return 3
+        return 99
+
+    ordered = sorted(
+        enumerate(values),
+        key=lambda item: (category(item[1]), item[0]),
+    )
+    unique: list[str] = []
+    seen: set[str] = set()
+    for _, value in ordered:
+        normalized = normalize_text(value).casefold()
+        if normalized not in seen:
+            unique.append(value)
+            seen.add(normalized)
+    return unique
+
+
 def _formula_parts(node: etree._Element) -> tuple[str, str | None]:
     kind = "inline" if etree.QName(node).localname == "inline-formula" else "display"
     label = normalize_text(node.findtext("label") or "")
@@ -209,12 +260,7 @@ def extract_semantic_fields(root: etree._Element) -> dict[str, tuple[_SemanticFi
         "tables": tables,
         "formulas": [identity for identity, _ in formula_parts],
         "formula_content": [content for _, content in formula_parts if content is not None],
-        "notes": _values(
-            _xpath(
-                root,
-                "front/article-meta/author-notes/fn/p | body//fn/p | back//fn/p",
-            )
-        ),
+        "notes": _note_values(root),
         "media": media,
     }
     return {
