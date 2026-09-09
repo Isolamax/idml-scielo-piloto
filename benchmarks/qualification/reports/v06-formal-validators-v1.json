@@ -1,5 +1,12 @@
 {
   "approved": true,
+  "backup_restore": {
+    "artifact_files": 1,
+    "backup_path": "/opt/idml-platform/backups/20260909T134128Z",
+    "openclaw_state_files": 14,
+    "public_tables": 21,
+    "status": "passed"
+  },
   "canonical_schema_version": "1.4.0",
   "external_validator_runs": 4,
   "family": "V-06",
@@ -20,6 +27,18 @@
   "registry_sha256": "5c17b26e40d9621ca9f344c09306b626f2c596b2fa04dec1deb0ddb444ebbab5",
   "release_candidate_approved": false,
   "restricted_content_emitted": false,
+  "runtime": {
+    "agent_proposals": 0,
+    "agent_runs": 0,
+    "feature_ai_swarm": false,
+    "feature_clamav": false,
+    "feature_openclaw": false,
+    "image": "idml-foundation:phase7-v06-formal-validators-v1",
+    "image_id": "sha256:998e00c388f66a326812d85543b4a246c27e05c55c4fd195e34474d46e0baf65",
+    "services_healthy": true,
+    "vps_gate_network": "none",
+    "vps_gate_read_only": true
+  },
   "synthetic_candidates": {
     "package_sha256": "33c956a683d1421d26b9b27b743831f3f0c19899d44b0278988836483a2c0242",
     "xml_sha256": "622a2e60873c7fd035d422cac5f74619eb6d298425d238b0542835b62e32bd7d"

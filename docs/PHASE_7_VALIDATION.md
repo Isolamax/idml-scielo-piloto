@@ -210,6 +210,14 @@ A suíte integral aprovou 257 testes com 86,44% de cobertura; Ruff, formatação
 passaram. Nenhum corpus privado foi enviado à VPS: as execuções externas usaram somente a fixture
 sintética sem conteúdo restrito.
 
+O backup `/opt/idml-platform/backups/20260909T134128Z` passou no restore isolado com 21 tabelas
+públicas, 1 artefato e 14 arquivos OpenClaw. O gate com as quatro evidências externas foi
+reproduzido na VPS em container read-only e sem rede. A imagem
+`idml-foundation:phase7-v06-formal-validators-v1`
+(`sha256:998e00c388f66a326812d85543b4a246c27e05c55c4fd195e34474d46e0baf65`) deixou API, worker,
+PostgreSQL, Redis e OpenClaw saudáveis. OpenClaw, swarm e ClamAV permanecem desativados, com zero
+`agent_runs` e `agent_proposals`.
+
 ## Decisão
 
 V-01 a V-05 estão aprovados e a infraestrutura V-06 está qualificada com a restrição explícita do
