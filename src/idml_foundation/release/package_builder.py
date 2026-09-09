@@ -91,7 +91,12 @@ class PackageBuilder:
             raise ValueError("asset source names must be unique")
         package_assets: list[PackageInput] = []
         used: set[str] = set()
-        for position, graphic in enumerate(root.iter("graphic"), start=1):
+        graphics = (
+            element
+            for element in root.iter()
+            if etree.QName(element).localname in {"graphic", "inline-graphic"}
+        )
+        for position, graphic in enumerate(graphics, start=1):
             source_name = graphic.get(_XLINK_HREF, "")
             payload = by_source.get(source_name)
             if payload is None:

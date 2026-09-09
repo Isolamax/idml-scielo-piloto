@@ -69,7 +69,7 @@ def xref_paragraph(
         cross_references=(
             CrossReference(
                 target_id=target_id,
-                reference_type=reference_type,  # type: ignore[arg-type]
+                reference_type=reference_type,
                 evidence_ids=EVIDENCE,
             ),
         ),

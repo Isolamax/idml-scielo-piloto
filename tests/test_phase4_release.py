@@ -22,7 +22,11 @@ from idml_foundation.release.policy import (
 )
 from idml_foundation.release.repair import RepairKind, SafeRepairEngine
 from idml_foundation.release.validation_engine import ValidationEngine
-from idml_foundation.release.xpm import XpmReportParser
+from idml_foundation.release.xpm import (
+    XpmAttestation,
+    XpmReportParser,
+    XpmWarningAcceptance,
+)
 from tests.phase3_helpers import synthetic_idml
 
 
@@ -161,10 +165,33 @@ def test_xpm_contract_and_release_policy_fail_closed() -> None:
     report = b"""<html><body><!-- 4.0.096 22/04/2019 -->
     <span>Total of blocking errors</span>: 0 <span>Total of fatal errors</span>: 0
     <span>Total of errors</span>: 0 <span>Total of warnings</span>: 2</body></html>"""
-    xpm = XpmReportParser().parse(
-        report, candidate_package_sha256=package_sha, tool_sha256="c" * 64
+    report_sha = hashlib.sha256(report).hexdigest()
+    parser = XpmReportParser()
+    xpm = parser.parse_attested(
+        report,
+        XpmAttestation(
+            candidate_package_sha256=package_sha,
+            report_sha256=report_sha,
+            tool_sha256="c" * 64,
+            xpm_version="4.0.096",
+            command_id="xpm-package-maker",
+            environment="dedicated-windows-worker",
+        ),
     )
-    assert xpm.passed and xpm.xpm_version == "4.0.096"
+    assert not xpm.passed and xpm.xpm_version == "4.0.096"
+    xpm = parser.accept_warnings(
+        xpm,
+        XpmWarningAcceptance(
+            acceptance_id="accept-xpm-warnings-1",
+            xpm_version="4.0.096",
+            warning_count=2,
+            report_sha256=report_sha,
+            accepted_by="phase-4-test-policy",
+            justification="As duas advertências pertencem à fixture controlada deste teste.",
+            evidence_sha256=report_sha,
+        ),
+    )
+    assert xpm.passed
 
     validation_engine = ValidationEngine()
     validator = validation_engine.packtools_run(archive, [], tool_sha256="b" * 64)
