@@ -1,6 +1,6 @@
 # Fase 7 — Homologação automatizada e piloto simulado
 
-Data inicial: 2026-09-04. Estado: **EM EXECUÇÃO — V-01 A V-06 QUALIFICADOS**.
+Data inicial: 2026-09-04. Estado: **EM EXECUÇÃO — V-01 A V-06 QUALIFICADOS; V-07 EM CORREÇÃO**.
 
 ## Estado das famílias V-01 a V-11
 
@@ -12,7 +12,7 @@ Data inicial: 2026-09-04. Estado: **EM EXECUÇÃO — V-01 A V-06 QUALIFICADOS**
 | V-04 Canonical Article Model | PASSOU | schemas, invariantes, migrations e round-trip |
 | V-05 Construção XML JATS/SPS | PASSOU | builder determinístico, DTD, SPS e referências |
 | V-06 Validadores formais | PASSOU COM RESTRIÇÃO | 4 contêineres qualificados; XPM SPS 1.10 aguarda worker Windows |
-| V-07 Fidelidade comparativa | PENDENTE | — |
+| V-07 Fidelidade comparativa | EM EXECUÇÃO | comparador/gate qualificados; candidato real ainda bloqueado |
 | V-08 OpenClaw assistivo | PENDENTE | evidências da Fase 6 serão reexecutadas no gate consolidado |
 | V-09 Segurança e multiempresa | PENDENTE | — |
 | V-10 Fluxo ponta a ponta | PENDENTE | — |
@@ -218,8 +218,36 @@ reproduzido na VPS em container read-only e sem rede. A imagem
 PostgreSQL, Redis e OpenClaw saudáveis. OpenClaw, swarm e ClamAV permanecem desativados, com zero
 `agent_runs` e `agent_proposals`.
 
+## V-07 — Fidelidade e comparação semântica
+
+Foi introduzido um comparador determinístico e seguro de XML aprovado versus XML candidato. O
+relatório separa metadados, autores, afiliações, estrutura, fluxo textual do corpo, referências,
+figuras, tabelas, identidade e conteúdo de fórmulas, notas e mídia. Para cada domínio ele registra
+hashes, posições, precisão, recall, F1 e fidelidade textual, sem copiar conteúdo restrito. O fluxo do
+corpo é comparado por tokens, independentemente das quebras de parágrafo, enquanto elementos cuja
+ordem é semântica continuam sujeitos a alinhamento ordenado.
+
+O gate `ops/gate_phase7_v07.py` detecta e bloqueia omissão, invenção, alteração, duplicação e
+deslocamento, aceita somente normalização segura e falha se a evidência visual não cobrir todas as
+páginas. Os testes sintéticos aprovaram dois casos positivos e cinco mutações negativas. O PDF de
+referência foi renderizado a 110 DPI e suas 10/10 páginas foram inspecionadas quanto a legibilidade,
+fluxo em duas colunas, figuras, tabelas, fórmulas, referências, cabeçalhos e rodapés, sem anomalia
+visual. Somente hashes, contagens e a decisão foram persistidos.
+
+No artigo ESA de desenvolvimento, autores, afiliações, referências e ativos de figuras atingiram
+precisão e recall 1,0. O corpo atingiu recall de tokens 0,999269, precisão 0,989683, F1 0,994453 e
+fidelidade sequencial 0,991692. A comparação identificou corretamente a troca de posição das
+figuras 2 e 3 e, sem confundir imagens de fórmulas com figuras inventadas, confirmou 15 fórmulas
+display por identidade. Permanecem bloqueadores reais em metadados, três seções adicionais, quatro
+tokens ausentes no corpo, tabelas, duas fórmulas inline, transcrição semântica das 17 fórmulas,
+quatro notas e cross-references com F1 0,943396. Portanto, o mecanismo V-07 está qualificado, mas o
+candidato e a família V-07 **não estão aprovados**. Relatório:
+`benchmarks/qualification/reports/v07-semantic-fidelity-v1.json`.
+
 ## Decisão
 
 V-01 a V-05 estão aprovados e a infraestrutura V-06 está qualificada com a restrição explícita do
-XPM/Windows e do defeito conhecido do validador externo. Isso não aprova candidato XML, o Pacote
-7.1, o Gate G7-T ou produção. A próxima família é V-07, fidelidade e comparação com referências.
+XPM/Windows e do defeito conhecido do validador externo. A instrumentação V-07 também está
+qualificada, porém seu baseline real reprova corretamente o candidato. A próxima ação é corrigir os
+desvios V-07 por domínio e reexecutar o mesmo gate até zerar omissões, invenções, duplicações e
+deslocamentos. Isso não aprova o Pacote 7.1, o Gate G7-T nem produção.

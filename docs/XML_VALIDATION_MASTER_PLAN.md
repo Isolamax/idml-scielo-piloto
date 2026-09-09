@@ -215,6 +215,13 @@ Relatório: `benchmarks/qualification/reports/v06-formal-validators-v1.json`.
 Aceite: 100% dos campos críticos corretos; nenhuma omissão/invenção; divergências não críticas
 classificadas e rastreáveis.
 
+Estado em 2026-09-09: comparador e gate de mutações qualificados, inclusive comparação por fluxo de
+tokens para não confundir resegmentação de parágrafos com omissão. O baseline ESA atingiu recall
+textual 0,999269, referências/autores/afiliações/mídia com precisão e recall 1,0 e inspeção visual
+10/10 páginas, mas continua reprovado por desvios reais de metadados, estrutura, ordem de figuras,
+tabelas, fórmulas, notas e cross-references. Nenhum waiver foi aplicado. Relatório content-safe:
+`benchmarks/qualification/reports/v07-semantic-fidelity-v1.json`.
+
 ### V-08 — Validação assistiva OpenClaw
 
 - executar todos os domínios em casos positivos, negativos, ambíguos e de abstenção;

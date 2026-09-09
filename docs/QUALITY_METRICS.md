@@ -20,6 +20,15 @@ sequência normalizada; o relatório deve manter contagens/diffs explicáveis.
 - STP: artigos liberáveis sem revisão / artigos processados;
 - Human Review Rate: artigos com pendência / artigos processados.
 
+Na V-07, o corpo também possui uma comparação por fluxo de tokens: quebras de parágrafo não alteram
+o resultado, mas tokens ausentes, excedentes, repetidos ou fora de ordem continuam classificados.
+Metadados e objetos estruturados são alinhados em ordem; diferenças somente de espaço e pontuação
+editorial são normalizações não bloqueadoras, sem relaxar dígitos ou palavras. Fórmulas têm duas
+medições independentes: identidade/ordem e conteúdo matemático textual. Uma fórmula presente apenas
+como imagem satisfaz a primeira e reprova a segunda até ser transcrita e validada. Todos os achados
+persistidos contêm somente domínio, tipo, posição, similaridade e SHA-256, nunca o conteúdo do
+artigo.
+
 STP e tempo/custo serão medidos apenas quando existir pipeline. Não são simulados
 na Fase 2.
 

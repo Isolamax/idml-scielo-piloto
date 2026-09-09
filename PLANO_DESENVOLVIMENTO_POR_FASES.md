@@ -22,7 +22,7 @@ docs/XML_VALIDATION_MASTER_PLAN.md
 
 ```text
 PROJECT_STATUS: PHASE_7_VALIDATION_IN_PROGRESS
-CURRENT_PHASE: FASE 7 — Pacote 7.1; próxima ação: V-03, leitura e fidelidade do IDML
+CURRENT_PHASE: FASE 7 — Pacote 7.1; V-07 em correção por domínio
 CURRENT_IMPLEMENTATION_AUTHORIZED: PHASE_7
 DEVELOPMENT_ROADMAP_AUTHORIZED: THROUGH_PHASE_8_PRODUCTION_READINESS
 PRODUCTION_ACTIVATION_AUTHORIZED: NO — REQUIRES XML_EXPERT_FINAL_ACCEPTANCE
@@ -122,7 +122,7 @@ Antes de qualquer implantação futura na VPS:
 | 4 | Validação, fidelidade e pacote | Pacote validado e política de release | Implementada — Gate G4 bloqueado por validadores externos/crossrefs |
 | 5 | Revisão humana e interface mínima | Correção humana auditável | Concluída — Gate G5 aprovado |
 | 6 | IA assistiva e OpenClaw | Assistência semântica controlada | Concluída — Gate G6-T aprovado; produção não autorizada |
-| 7 | Homologação automatizada e piloto simulado | Sistema completo validado antes da revisão humana | Em andamento — V-01 e V-02 aprovados; próxima família V-03 |
+| 7 | Homologação automatizada e piloto simulado | Sistema completo validado antes da revisão humana | Em andamento — V-01 a V-06 qualificados; V-07 em correção |
 | 8 | Prontidão, homologação humana e produção | RC operacional, aceite do especialista e rollout | Não iniciada — ativação real bloqueada pelo G8-H |
 | 9 | Expansão controlada | Novos periódicos e casos complexos | Não iniciada |
 
@@ -682,11 +682,11 @@ o especialista sem depender de revisão humana intermediária.
 - [ ] Executar integralmente V-01 a V-11 do plano mestre.
 - [x] V-01 — proveniência, integridade, segregação e reprodução do catálogo do corpus.
 - [x] V-02 — segurança da ingestão IDML.
-- [ ] V-03 — leitura e fidelidade do IDML.
-- [ ] V-04 — invariantes do Canonical Article Model.
-- [ ] V-05 — construção XML JATS/SPS.
-- [ ] V-06 — validadores formais e regras editoriais.
-- [ ] V-07 — fidelidade e comparação com referências.
+- [x] V-03 — leitura e fidelidade do IDML.
+- [x] V-04 — invariantes do Canonical Article Model.
+- [x] V-05 — construção XML JATS/SPS.
+- [x] V-06 — validadores formais e regras editoriais, com restrições documentadas.
+- [ ] V-07 — comparador e gate qualificados; candidato real ainda bloqueado e em correção.
 - [ ] V-08 — validação assistiva OpenClaw.
 - [ ] V-09 — segurança, identidade e multiempresa.
 - [ ] V-10 — fluxo ponta a ponta e experiência operacional.
@@ -1007,3 +1007,4 @@ ADRs iniciais esperados:
 | 2026-09-08 | V-02 concluído: ingestão ZIP/XML endurecida, referências IDML incompletas classificadas, scanner fail-closed e limpeza/cancelamento testados; 26/26 casos sintéticos, 6/6 IDML reais, 226 testes/85,29%, gate local/CI/VPS sem rede, backup/restore e imagem `phase7-v02-ingest-security-v1` saudáveis; Pacote 7.1 segue em V-03 | Codex |
 | 2026-09-08 | V-03 a V-05 concluídos: leitura/fidelidade IDML, invariantes do modelo canônico e construção JATS/SPS determinística foram validadas localmente, no corpus autorizado e na VPS; imagem `phase7-v05-jats-construction-v1` saudável | Codex |
 | 2026-09-09 | V-06 qualificado e implantado com restrição: Packtools/SPSValidator ativo e rollback fixados em quatro imagens e executados isoladamente sem exceções; Canonical Article 1.4.0 incorporou metadados formais; 257 testes/86,44%; backup/restore, gate VPS sem rede e imagem `phase7-v06-formal-validators-v1` saudáveis; falso positivo externo de afiliação e worker XPM Windows permanecem explícitos e sem waiver de release; próxima família V-07 | Codex |
+| 2026-09-09 | V-07 instrumentado: comparador semântico content-safe e gate de mutações detectam omissão, invenção, alteração, duplicação e deslocamento; inspeção visual aprovou 10/10 páginas do PDF ESA; baseline real atingiu recall textual 0,999269 e revelou bloqueios rastreáveis em metadados, estrutura, figuras, tabelas, fórmulas, notas e cross-references; candidato permanece corretamente reprovado e segue para correção por domínio | Codex |

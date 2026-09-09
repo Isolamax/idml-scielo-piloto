@@ -2,11 +2,11 @@
 
 Monorepo da plataforma de conversão auditável de IDML para SciELO SPS/JATS.
 
-Estado atual: **Fase 7 em execução — V-01 a V-06 qualificados, agentes desativados**. O pipeline gera JATS
+Estado atual: **Fase 7 em execução — V-01 a V-06 qualificados; V-07 em correção, agentes desativados**. O pipeline gera JATS
 1.3/SPS 1.10 e pacote determinístico sem IA, com revisão humana auditável,
 interface mínima, MFA, dupla aprovação editorial e contratos assistivos com patches
 atômicos de `RichText` e MathML seguro. O Gate G6-T foi aprovado apenas para iniciar a Fase 7;
-XPM SPS 1.10, fidelidade consolidada e homologação final continuam pendentes, portanto
+XPM SPS 1.10, desvios semânticos apontados pelo gate V-07 e homologação final continuam pendentes, portanto
 `READY_FOR_SCIELO` segue corretamente negado.
 
 ## Estrutura
