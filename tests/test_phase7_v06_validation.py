@@ -295,10 +295,8 @@ def test_validator_registry_has_distinct_update_and_rollback_revisions() -> None
         rollback = registry.select(name, ValidatorChannel.ROLLBACK)
         assert active.source_revision != rollback.source_revision
         assert active.version != rollback.version
-        with pytest.raises(ValueError, match="not been qualified"):
-            active.command_specification()
-        qualified = active.model_copy(update={"image_id": f"sha256:{TOOL_SHA}"})
-        assert qualified.command_specification().tool_sha256 == TOOL_SHA
+        assert active.image_id is not None
+        assert active.command_specification().tool_sha256 == active.image_id.removeprefix("sha256:")
 
     raw = json.loads(
         (Path(__file__).parents[1] / "config" / "validator-registry-v1.json").read_text()

@@ -35,13 +35,41 @@ def test_builder_emits_complete_dtd_valid_and_deterministic_jats() -> None:
         "0000-0002-1825-0097"
     )
     assert root.xpath("string(front/article-meta/pub-date/@iso-8601-date)") == "2026-09-08"
+    assert root.xpath("string(front/journal-meta/publisher/publisher-name)") == "Example Publisher"
+    assert root.xpath("count(front/article-meta/history/date)") == 5.0
+    assert set(root.xpath("front/article-meta/history/date/@date-type")) == {
+        "received",
+        "rev-request",
+        "rev-recd",
+        "accepted",
+        "pub",
+    }
     assert root.xpath("string(front/article-meta/volume)") == "31"
     assert root.xpath("string(front/article-meta/issue)") == "1"
+    assert root.xpath("string(front/article-meta/elocation-id)") == "e20260001"
     assert root.xpath("count(front/article-meta/permissions/license/license-p)") == 1.0
+    assert (
+        root.xpath(
+            "string(front/article-meta/permissions/license/@xlink:href)",
+            namespaces={"xlink": XLINK_NS},
+        )
+        == "https://creativecommons.org/licenses/by/4.0/"
+    )
+    assert (
+        root.xpath("string(front/article-meta/aff/institution[@content-type='orgname'])")
+        == "Example University"
+    )
+    assert root.xpath(
+        "string(front/article-meta/contrib-group/contrib/role[1]/@content-type)"
+    ).startswith("https://credit.niso.org/contributor-roles/")
+    assert root.xpath("string(back/sec[@sec-type='data-availability']/@specific-use)") == (
+        "data-available"
+    )
     assert root.xpath("count(front/article-meta/funding-group/award-group)") == 1.0
     assert root.xpath("count(back/ack)") == 1.0
     assert root.xpath("count(back/sec)") == 3.0
     assert root.xpath("count(back/ref-list/ref/element-citation/pub-id)") == 1.0
+    assert root.xpath("starts-with(string(body//disp-formula/@id), 'e-')")
 
 
 def test_builder_preserves_table_spans_and_infers_every_xref_type() -> None:

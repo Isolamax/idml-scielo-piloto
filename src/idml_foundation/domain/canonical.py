@@ -1,4 +1,5 @@
 import re
+from datetime import date
 from enum import StrEnum
 from typing import Annotated, Literal, Self
 
@@ -7,7 +8,7 @@ from pydantic import BaseModel, Field, model_validator
 from idml_foundation.domain.common import SHA256_PATTERN, Evidence, StrictModel
 from idml_foundation.mathml import parse_mathml_fragment
 
-CANONICAL_SCHEMA_VERSION = "1.3.0"
+CANONICAL_SCHEMA_VERSION = "1.4.0"
 
 _ORCID = re.compile(r"^(?:https?://orcid\.org/)?(\d{4})-(\d{4})-(\d{4})-(\d{3}[\dXx])$")
 
@@ -52,17 +53,29 @@ class JournalIdentity(StrictModel):
     title: SourcedText
     abbreviated_title: SourcedText | None = None
     identifiers: tuple[Identifier, ...] = ()
+    publisher_name: SourcedText | None = None
 
 
 class Affiliation(StrictModel):
     id: str
     institution: SourcedText
+    original_text: SourcedText | None = None
     department: SourcedText | None = None
     city: SourcedText | None = None
     state_or_province: SourcedText | None = None
     country: SourcedText | None = None
+    country_code: SourcedText | None = None
     ror: SourcedText | None = None
     evidence_ids: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def country_code_is_iso_3166_alpha_2(self) -> Self:
+        if self.country_code and self.country_code.value:
+            if not re.fullmatch(r"[A-Z]{2}", self.country_code.value):
+                raise ValueError(
+                    "affiliation country_code must be an uppercase ISO 3166-1 alpha-2 code"
+                )
+        return self
 
 
 class ContributorName(StrictModel):
@@ -107,6 +120,21 @@ class FundingStatement(StrictModel):
     statement: SourcedText | None = None
 
 
+class ArticleHistoryDate(StrictModel):
+    date_type: Literal["received", "rev-request", "rev-recd", "accepted"]
+    date: SourcedText
+
+    @model_validator(mode="after")
+    def date_is_present_iso_8601(self) -> Self:
+        if self.date.state != FieldState.PRESENT or self.date.value is None:
+            raise ValueError("article history date must be present")
+        try:
+            date.fromisoformat(self.date.value)
+        except ValueError as exc:
+            raise ValueError("article history date must use ISO 8601 YYYY-MM-DD") from exc
+        return self
+
+
 class FrontMatter(StrictModel):
     journal: JournalIdentity
     article_identifiers: tuple[Identifier, ...]
@@ -115,12 +143,24 @@ class FrontMatter(StrictModel):
     contributors: tuple[Contributor, ...]
     affiliations: tuple[Affiliation, ...]
     publication_date: SourcedText
+    history_dates: tuple[ArticleHistoryDate, ...] = ()
     volume: SourcedText | None = None
     issue: SourcedText | None = None
     abstracts: tuple[LocalizedText, ...] = ()
     keywords: tuple[LocalizedText, ...] = ()
     license_text: SourcedText | None = None
+    license_url: SourcedText | None = None
     funding: tuple[FundingStatement, ...] = ()
+
+    @model_validator(mode="after")
+    def license_url_is_https(self) -> Self:
+        if self.license_url and self.license_url.value:
+            if not re.fullmatch(r"https://[^\s]+", self.license_url.value):
+                raise ValueError("license_url must use HTTPS")
+        date_types = [item.date_type for item in self.history_dates]
+        if len(set(date_types)) != len(date_types):
+            raise ValueError("article history date types cannot be duplicated")
+        return self
 
 
 class CrossReference(StrictModel):
@@ -371,9 +411,18 @@ class BackMatter(StrictModel):
     acknowledgements: tuple[Paragraph, ...] = ()
     contribution_statement: SourcedText | None = None
     data_availability: SourcedText | None = None
+    data_availability_mode: Literal["data-available", "data-available-upon-request"] | None = None
     conflicts: SourcedText | None = None
     notes: tuple[NoteBlock, ...] = ()
     references: tuple[Reference, ...] = ()
+
+    @model_validator(mode="after")
+    def availability_mode_requires_statement(self) -> Self:
+        if self.data_availability_mode and not (
+            self.data_availability and self.data_availability.value
+        ):
+            raise ValueError("data availability mode requires a statement")
+        return self
 
 
 def _walk_models(value: object) -> list[BaseModel]:

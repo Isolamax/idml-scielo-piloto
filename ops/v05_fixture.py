@@ -1,6 +1,7 @@
 """Content-free comprehensive Canonical Article fixture for the V-05 gate."""
 
 from idml_foundation.domain.canonical import (
+    ArticleHistoryDate,
     BackMatter,
     CanonicalArticle,
     Contributor,
@@ -81,10 +82,14 @@ def complete_article() -> CanonicalArticle:
     base = canonical_article()
     affiliation = base.front.affiliations[0].model_copy(
         update={
+            "original_text": sourced(
+                "Department of Sanitary Engineering, Example University, Rio de Janeiro, RJ, Brazil"
+            ),
             "department": sourced("Department of Sanitary Engineering"),
             "city": sourced("Rio de Janeiro"),
             "state_or_province": sourced("RJ"),
             "country": sourced("Brazil"),
+            "country_code": sourced("BR"),
             "ror": sourced("https://ror.org/012345678"),
         }
     )
@@ -99,7 +104,7 @@ def complete_article() -> CanonicalArticle:
         ),
         orcid=sourced("0000-0002-1825-0097"),
         affiliation_ids=(affiliation.id,),
-        roles=("Conceptualization", "Writing"),
+        roles=("Conceptualization", "Writing \N{EN DASH} original draft"),
         corresponding=True,
         email=sourced("ana@example.org"),
         evidence_ids=EVIDENCE,
@@ -161,6 +166,7 @@ def complete_article() -> CanonicalArticle:
             update={
                 "abbreviated_title": sourced("Ex. J."),
                 "identifiers": (Identifier(kind="eissn", value=sourced("1234-5678")),),
+                "publisher_name": sourced("Example Publisher"),
             }
         ),
         article_identifiers=(
@@ -172,11 +178,18 @@ def complete_article() -> CanonicalArticle:
         contributors=(contributor,),
         affiliations=(affiliation,),
         publication_date=sourced("2026-09-08"),
+        history_dates=(
+            ArticleHistoryDate(date_type="received", date=sourced("2025-10-01")),
+            ArticleHistoryDate(date_type="rev-request", date=sourced("2025-11-01")),
+            ArticleHistoryDate(date_type="rev-recd", date=sourced("2025-12-01")),
+            ArticleHistoryDate(date_type="accepted", date=sourced("2026-01-15")),
+        ),
         volume=sourced("31"),
         issue=sourced("1"),
         abstracts=base.front.titles,
         keywords=base.front.titles,
         license_text=sourced("Creative Commons Attribution 4.0 International."),
+        license_url=sourced("https://creativecommons.org/licenses/by/4.0/"),
         funding=(
             FundingStatement(
                 agency=sourced("Example Foundation"),
@@ -193,12 +206,13 @@ def complete_article() -> CanonicalArticle:
                 acknowledgements=(
                     Paragraph(
                         id="acknowledgement-1",
-                        content=rich("acknowledgement", "We thank the laboratory."),
+                        content=rich("acknowledgement", "Funded by Example Foundation."),
                         evidence_ids=EVIDENCE,
                     ),
                 ),
                 contribution_statement=sourced("Ana Silva designed and wrote the study."),
                 data_availability=sourced("Data are available in the repository."),
+                data_availability_mode="data-available",
                 conflicts=sourced("The authors declare no conflicts."),
                 notes=(note,),
                 references=(reference,),

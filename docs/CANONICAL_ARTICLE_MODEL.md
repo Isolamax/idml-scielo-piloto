@@ -1,4 +1,4 @@
-# Raw Article 1.2.0 e Canonical Article 1.1.0
+# Raw Article 1.3.0 e Canonical Article 1.4.0
 
 ## Limites de responsabilidade
 
@@ -43,11 +43,12 @@ duplicados.
 
 O contrato separa:
 
-- `front`: periódico, identificadores, categoria, títulos/idiomas, autores,
-  grupos, ORCID, afiliações, datas, resumos, palavras-chave, licença e funding;
+- `front`: periódico e editora, identificadores, categoria, títulos/idiomas, autores,
+  grupos, ORCID, afiliações, datas de publicação e histórico editorial, resumos,
+  palavras-chave, licença e funding;
 - `body`: seções hierárquicas e blocos de parágrafo, lista, citação, figura,
   tabela, fórmula e nota;
-- `back`: agradecimentos, contribuições, disponibilidade de dados, conflitos,
+- `back`: agradecimentos, contribuições, disponibilidade e modo de acesso aos dados, conflitos,
   notas e referências estruturadas;
 - assets e cross-references por IDs validados.
 
@@ -82,13 +83,15 @@ conteúdo. Dados obrigatórios ausentes permanecem ausentes.
 mesmo artigo/localizador produz o mesmo ID entre retries; localizadores distintos
 produzem IDs distintos.
 
-Raw usa `schema_version=1.3.0`; Canonical usa `1.3.0`. O Raw 1.2 adicionou posição e rótulo de
+Raw usa `schema_version=1.3.0`; Canonical usa `1.4.0`. O Raw 1.2 adicionou posição e rótulo de
 objetos ancorados e o Raw 1.3 atribuiu identidade estável a células. O Canonical 1.1 formalizou a
 representação das fórmulas display/inline e sua validação MathML; o Canonical 1.3 leva a geometria
-de células mescladas até o builder JATS. JSON canônico usa
+de células mescladas até o builder JATS. O Canonical 1.4 adiciona, sem tornar dados ausentes
+implícitos, editora, texto original/código de país da afiliação, URL HTTPS da licença, histórico
+editorial e classificação SPS da disponibilidade de dados. JSON canônico usa
 chaves ordenadas e SHA-256 do conteúdo. Os JSON Schemas ficam em `schemas/`.
 Migrations explícitas encadeiam Raw `0.1.0 -> 1.0.0 -> 1.1.0 -> 1.2.0 -> 1.3.0` e
-Canonical `0.1.0 -> 1.0.0 -> 1.1.0 -> 1.2.0 -> 1.3.0`, recusando versões desconhecidas.
+Canonical `0.1.0 -> 1.0.0 -> 1.1.0 -> 1.2.0 -> 1.3.0 -> 1.4.0`, recusando versões desconhecidas.
 
 `DomainSnapshot` persiste payload imutável por empresa, recurso, tipo, revisão,
 hash, artefato fonte e snapshot pai. Unicidade impede revisão duplicada e o

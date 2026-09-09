@@ -37,6 +37,25 @@ _UNSAFE_INVISIBLE_CHARACTERS = frozenset(
         *(chr(value) for value in range(0x2066, 0x206A)),
     }
 )
+_CREDIT_ROLE_URIS = {
+    role: f"https://credit.niso.org/contributor-roles/{slug}/"
+    for role, slug in (
+        ("Conceptualization", "conceptualization"),
+        ("Data curation", "data-curation"),
+        ("Formal analysis", "formal-analysis"),
+        ("Funding acquisition", "funding-acquisition"),
+        ("Investigation", "investigation"),
+        ("Methodology", "methodology"),
+        ("Project administration", "project-administration"),
+        ("Resources", "resources"),
+        ("Software", "software"),
+        ("Supervision", "supervision"),
+        ("Validation", "validation"),
+        ("Visualization", "visualization"),
+        ("Writing \N{EN DASH} original draft", "writing-original-draft"),
+        ("Writing \N{EN DASH} review & editing", "writing-review-editing"),
+    )
+}
 
 
 class IdRegistryError(ValueError):
@@ -55,6 +74,8 @@ class IdRegistry:
         candidate = _INVALID_NCNAME.sub("-", source_id).strip("-.") or "id"
         if not candidate[0].isalpha() and candidate[0] != "_":
             candidate = f"id-{candidate}"
+        if target_type == "disp-formula" and not candidate.startswith("e"):
+            candidate = f"e-{candidate}"
         if candidate in self._used:
             raise IdRegistryError(f"normalized XML ID collision: {candidate}")
         self._by_source[source_id] = candidate
@@ -189,6 +210,9 @@ class JatsBuilder:
         for identifier in article.front.journal.identifiers:
             if identifier.value.value and "issn" in identifier.kind:
                 _add(journal_meta, "issn", identifier.value.value, **{"pub-type": "epub"})
+        if article.front.journal.publisher_name and article.front.journal.publisher_name.value:
+            publisher = _add(journal_meta, "publisher")
+            _add(publisher, "publisher-name", article.front.journal.publisher_name.value)
 
         article_meta = _add(front, "article-meta")
         for identifier in article.front.article_identifiers:
@@ -218,7 +242,7 @@ class JatsBuilder:
                 _add(translated, "trans-title", localized.text.value)
 
         if article.front.contributors:
-            group = _add(article_meta, "contrib-group", **{"content-type": "author"})
+            group = _add(article_meta, "contrib-group")
             for contributor in article.front.contributors:
                 contrib = _add(
                     group,
@@ -236,7 +260,7 @@ class JatsBuilder:
                     _add(
                         contrib,
                         "contrib-id",
-                        f"https://orcid.org/{orcid}",
+                        orcid,
                         **{"contrib-id-type": "orcid", "authenticated": "false"},
                     )
                 if contributor.name:
@@ -276,14 +300,24 @@ class JatsBuilder:
                         },
                     )
                 for role in contributor.roles:
-                    _add(contrib, "role", role)
+                    attributes = {}
+                    if role in _CREDIT_ROLE_URIS:
+                        attributes["content-type"] = _CREDIT_ROLE_URIS[role]
+                    _add(contrib, "role", role, **attributes)
                 if contributor.email and contributor.email.value:
                     _add(contrib, "email", contributor.email.value)
         for position, affiliation in enumerate(article.front.affiliations, start=1):
             aff = _add(article_meta, "aff", id=registry.resolve(affiliation.id))
             _add(aff, "label", str(position))
-            institution_wrap = _add(aff, "institution-wrap")
+            if affiliation.original_text and affiliation.original_text.value:
+                _add(
+                    aff,
+                    "institution",
+                    affiliation.original_text.value,
+                    **{"content-type": "original"},
+                )
             if affiliation.ror and affiliation.ror.value:
+                institution_wrap = _add(aff, "institution-wrap")
                 _add(
                     institution_wrap,
                     "institution-id",
@@ -292,23 +326,43 @@ class JatsBuilder:
                 )
             if affiliation.department and affiliation.department.value:
                 _add(
-                    institution_wrap,
+                    aff,
                     "institution",
                     affiliation.department.value,
-                    **{"content-type": "dept"},
+                    **{"content-type": "orgdiv1"},
                 )
             _add(
-                institution_wrap,
+                aff,
                 "institution",
                 affiliation.institution.value or "",
                 **{"content-type": "orgname"},
             )
-            if affiliation.city and affiliation.city.value:
-                _add(aff, "city", affiliation.city.value)
-            if affiliation.state_or_province and affiliation.state_or_province.value:
-                _add(aff, "state", affiliation.state_or_province.value)
+            if any(
+                (
+                    affiliation.city and affiliation.city.value,
+                    affiliation.state_or_province and affiliation.state_or_province.value,
+                )
+            ):
+                address = _add(aff, "addr-line")
+                if affiliation.city and affiliation.city.value:
+                    _add(
+                        address,
+                        "named-content",
+                        affiliation.city.value,
+                        **{"content-type": "city"},
+                    )
+                if affiliation.state_or_province and affiliation.state_or_province.value:
+                    _add(
+                        address,
+                        "named-content",
+                        affiliation.state_or_province.value,
+                        **{"content-type": "state"},
+                    )
             if affiliation.country and affiliation.country.value:
-                _add(aff, "country", affiliation.country.value)
+                country_attributes = {}
+                if affiliation.country_code and affiliation.country_code.value:
+                    country_attributes["country"] = affiliation.country_code.value
+                _add(aff, "country", affiliation.country.value, **country_attributes)
 
         corresponding = tuple(
             contributor
@@ -326,6 +380,7 @@ class JatsBuilder:
                     "corresp",
                     id=registry.resolve(f"{contributor.id}:corresp"),
                 )
+                _add(corresp, "label", "*")
                 _add(corresp, "email", email.value)
 
         if article.front.publication_date.state == FieldState.PRESENT:
@@ -334,9 +389,37 @@ class JatsBuilder:
             _add(article_meta, "volume", article.front.volume.value)
         if article.front.issue and article.front.issue.value:
             _add(article_meta, "issue", article.front.issue.value)
+        publisher_id = next(
+            (
+                identifier.value.value
+                for identifier in article.front.article_identifiers
+                if identifier.kind == "publisher-id" and identifier.value.value
+            ),
+            None,
+        )
+        if publisher_id and publisher_id.lower().startswith("e"):
+            _add(article_meta, "elocation-id", publisher_id)
+        if article.front.history_dates:
+            history = _add(article_meta, "history")
+            for event in article.front.history_dates:
+                self._history_date(history, event.date.value or "", event.date_type)
+            if article.front.publication_date.state == FieldState.PRESENT:
+                publication_value = article.front.publication_date.value or ""
+                try:
+                    date.fromisoformat(publication_value)
+                except ValueError:
+                    pass
+                else:
+                    self._history_date(history, publication_value, "pub")
         if article.front.license_text and article.front.license_text.value:
             permissions = _add(article_meta, "permissions")
-            license_element = _add(permissions, "license")
+            license_attributes = {
+                "license-type": "open-access",
+                f"{{{XML_NS}}}lang": self._primary_language(article),
+            }
+            if article.front.license_url and article.front.license_url.value:
+                license_attributes[f"{{{XLINK_NS}}}href"] = article.front.license_url.value
+            license_element = _add(permissions, "license", **license_attributes)
             _add(license_element, "license-p", article.front.license_text.value)
         for abstract in article.front.abstracts:
             if abstract.text.value:
@@ -345,6 +428,7 @@ class JatsBuilder:
                     "abstract",
                     **{f"{{{XML_NS}}}lang": abstract.language},
                 )
+                _add(element, "title", "Abstract")
                 _add(element, "p", abstract.text.value)
         for keyword_group in article.front.keywords:
             if not keyword_group.text.value:
@@ -370,7 +454,7 @@ class JatsBuilder:
                     _add(funding_group, "funding-statement", funding.statement.value)
 
     def _publication_date(self, article_meta: etree._Element, value: str) -> None:
-        attributes = {"pub-type": "epub"}
+        attributes = {"publication-format": "electronic", "date-type": "pub"}
         parsed: date | None = None
         try:
             parsed = date.fromisoformat(value)
@@ -387,6 +471,29 @@ class JatsBuilder:
             _add(pub_date, "year", value)
         else:
             _add(pub_date, "string-date", value)
+        if parsed is not None or re.fullmatch(r"\d{4}", value):
+            collection = _add(
+                article_meta,
+                "pub-date",
+                **{"publication-format": "electronic", "date-type": "collection"},
+            )
+            _add(collection, "year", str(parsed.year) if parsed is not None else value)
+
+    def _history_date(
+        self,
+        history: etree._Element,
+        value: str,
+        date_type: str,
+    ) -> None:
+        parsed = date.fromisoformat(value)
+        element = _add(
+            history,
+            "date",
+            **{"date-type": date_type, "iso-8601-date": parsed.isoformat()},
+        )
+        _add(element, "day", str(parsed.day).zfill(2))
+        _add(element, "month", str(parsed.month).zfill(2))
+        _add(element, "year", str(parsed.year))
 
     def _body(
         self,
@@ -424,6 +531,7 @@ class JatsBuilder:
                     _add(
                         figure,
                         "graphic",
+                        id=f"{registry.resolve(block.id)}-g1",
                         **{f"{{{XLINK_NS}}}href": asset_names[block.asset_id]},
                     )
             elif isinstance(block, TableBlock):
@@ -489,6 +597,7 @@ class JatsBuilder:
                     _add(
                         formula,
                         "graphic",
+                        id=f"{registry.resolve(block.id)}-g1",
                         **{f"{{{XLINK_NS}}}href": asset_names[block.asset_id]},
                     )
                 elif block.representation == FormulaRepresentation.MATHML:
@@ -541,6 +650,7 @@ class JatsBuilder:
                     _add(
                         inline_formula,
                         "inline-graphic",
+                        id=f"{_INVALID_NCNAME.sub('-', inline.id).strip('-.') or 'inline'}-g1",
                         **{f"{{{XLINK_NS}}}href": asset_names[inline.formula_asset_id]},
                     )
                 else:
@@ -614,7 +724,12 @@ class JatsBuilder:
             ("conflict-of-interest", "Conflicts of interest", article.back.conflicts),
         ):
             if sourced and sourced.value:
-                section = _add(back, "sec", **{"sec-type": section_type})
+                attributes: dict[str, str] = {}
+                if section_type == "data-availability":
+                    attributes["sec-type"] = section_type
+                    if article.back.data_availability_mode:
+                        attributes["specific-use"] = article.back.data_availability_mode
+                section = _add(back, "sec", **attributes)
                 _add(section, "title", title)
                 _add(section, "p", sourced.value)
         if article.back.notes:

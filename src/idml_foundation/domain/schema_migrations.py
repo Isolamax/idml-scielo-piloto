@@ -97,6 +97,22 @@ def _canonical_1_2_to_1_3(payload: dict[str, Any]) -> dict[str, Any]:
 
     for section in migrated.get("body", []):
         add_table_spans(section)
+    migrated["schema_version"] = "1.3.0"
+    return migrated
+
+
+def _canonical_1_3_to_1_4(payload: dict[str, Any]) -> dict[str, Any]:
+    migrated = copy.deepcopy(payload)
+    front = migrated.get("front", {})
+    journal = front.get("journal", {})
+    journal.setdefault("publisher_name", None)
+    for affiliation in front.get("affiliations", []):
+        affiliation.setdefault("original_text", None)
+        affiliation.setdefault("country_code", None)
+    front.setdefault("license_url", None)
+    front.setdefault("history_dates", [])
+    back = migrated.get("back", {})
+    back.setdefault("data_availability_mode", None)
     migrated["schema_version"] = CANONICAL_SCHEMA_VERSION
     return migrated
 
@@ -109,7 +125,8 @@ MIGRATIONS: dict[tuple[ModelKind, str], tuple[str, Migration]] = {
     ("canonical", "0.1.0"): ("1.0.0", _canonical_0_1_to_1_0),
     ("canonical", "1.0.0"): ("1.1.0", _canonical_1_0_to_1_1),
     ("canonical", "1.1.0"): ("1.2.0", _canonical_1_1_to_1_2),
-    ("canonical", "1.2.0"): (CANONICAL_SCHEMA_VERSION, _canonical_1_2_to_1_3),
+    ("canonical", "1.2.0"): ("1.3.0", _canonical_1_2_to_1_3),
+    ("canonical", "1.3.0"): (CANONICAL_SCHEMA_VERSION, _canonical_1_3_to_1_4),
 }
 
 LATEST_VERSIONS: dict[ModelKind, str] = {

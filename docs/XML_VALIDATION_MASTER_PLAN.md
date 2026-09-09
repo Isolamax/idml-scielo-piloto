@@ -192,6 +192,17 @@ Os cinco RBEdu permaneceram contraste explícito de profile, sem adaptação de 
 
 Aceite: zero erro bloqueador ou crítico; warnings somente com justificativa e aceite explícitos.
 
+Evidência de qualificação: Packtools 4.17.2 e 4.16.10 e SPSValidator 0.3.0 em duas revisões foram
+fixados em quatro imagens imutáveis e executados sem rede, como usuário sem privilégio e em
+filesystem read-only. O gate V-06 aprovou contratos positivo/negativos, hash/perfil/versão,
+sanitização, limites, atualização/rollback e quatro execuções externas sem exceções. O Canonical
+Article 1.4.0 passou a representar os metadados formais confirmados durante o teste. Um falso
+positivo crítico de afiliação do extrator de contribuintes externo foi reproduzido e permanece
+visível, sem waiver de release. O XPM histórico 4.0.096 é SPS 1.9 e não atesta o candidato SPS 1.10;
+a execução definitiva continua pendente do worker Windows dedicado. Assim, os validadores estão
+qualificados, mas nenhum candidato XML foi aprovado por esta evidência.
+Relatório: `benchmarks/qualification/reports/v06-formal-validators-v1.json`.
+
 ### V-07 — Fidelidade e comparação com referências
 
 - Text Fidelity por região e por tipo de conteúdo;

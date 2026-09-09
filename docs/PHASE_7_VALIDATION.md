@@ -1,6 +1,6 @@
 # Fase 7 — Homologação automatizada e piloto simulado
 
-Data inicial: 2026-09-04. Estado: **EM EXECUÇÃO — V-01 A V-04 CONCLUÍDOS**.
+Data inicial: 2026-09-04. Estado: **EM EXECUÇÃO — V-01 A V-06 QUALIFICADOS**.
 
 ## Estado das famílias V-01 a V-11
 
@@ -11,8 +11,7 @@ Data inicial: 2026-09-04. Estado: **EM EXECUÇÃO — V-01 A V-04 CONCLUÍDOS**.
 | V-03 Leitura e fidelidade IDML | PASSOU | conservação textual, estrutura e VPS |
 | V-04 Canonical Article Model | PASSOU | schemas, invariantes, migrations e round-trip |
 | V-05 Construção XML JATS/SPS | PASSOU | builder determinístico, DTD, SPS e referências |
-| V-05 Construção JATS/SPS | PENDENTE | — |
-| V-06 Validadores formais | PENDENTE | — |
+| V-06 Validadores formais | PASSOU COM RESTRIÇÃO | 4 contêineres qualificados; XPM SPS 1.10 aguarda worker Windows |
 | V-07 Fidelidade comparativa | PENDENTE | — |
 | V-08 OpenClaw assistivo | PENDENTE | evidências da Fase 6 serão reexecutadas no gate consolidado |
 | V-09 Segurança e multiempresa | PENDENTE | — |
@@ -172,7 +171,47 @@ container read-only, sem rede e sem dependência de `pytest`. A imagem
 PostgreSQL, Redis e OpenClaw saudáveis. As flags OpenClaw, swarm e ClamAV permanecem falsas, com
 zero `agent_runs`, `agent_proposals` e sessões OpenClaw.
 
+## V-06 — Validadores formais e regras editoriais
+
+Packtools e SPSValidator foram fixados por commit e empacotados em imagens separadas para os canais
+ativo e rollback. O registro versionado fixa versão declarada, revisão de origem, ID imutável da
+imagem, perfil, comando, timeout e limite de saída. As quatro execuções usam usuário sem privilégio,
+filesystem read-only, rede desativada, limites de CPU/memória/processos e `cap-drop=ALL`.
+
+O adaptador aceita somente XML/ZIP limitado, faz parsing seguro, emite um contrato JSON canônico e
+sanitiza conteúdo do artigo: permanecem apenas severidades, identidades estáveis das regras,
+localizadores em hash, contagens e hashes de evidência. O motor falha fechado para timeout, saída
+excessiva ou não UTF-8, JSON inválido, versão/perfil/hash divergentes, severidade desconhecida e
+qualquer exceção do validador. Warnings somente podem ser liberados por aceite explícito ligado ao
+validador, versão, candidato e código exatos.
+
+O Canonical Article evoluiu para 1.4.0 e o builder passou a representar editora, licença ligada por
+URL HTTPS, texto original e código ISO da afiliação, papéis CRediT, histórico editorial, datas de
+publicação/coleção, `elocation-id` e modo de disponibilidade dos dados. Isso eliminou as duas
+exceções que o SPSValidator inicialmente produzia por ausência de editora e código de licença e
+reduziu o candidato sintético de 27 para 1 achado crítico.
+
+As versões ativa e rollback de ambos os validadores concluíram sem exceção. O único crítico
+remanescente é um falso positivo reproduzível do próprio Packtools/SPSValidator: a validação de
+contribuintes usa o extrator sem enriquecimento de afiliações, embora o mesmo runtime resolva o
+`xref/@rid` e a afiliação ao usar `XMLContribs`. Ele permanece visível e **não é dispensado para
+release**. Os dois erros remanescentes são verificações externas/semânticas intencionais da fixture
+(registro ORCID sem rede e autor de referência ainda não estruturado); nove warnings também não
+foram aceitos automaticamente.
+
+O gate `ops/gate_phase7_v06.py` aprovou o registro, atualização/rollback, DTD/SPS offline, contrato
+positivo e três mutações negativas, sanitização, empacotamento de gráfico inline, quatro execuções
+externas e ingestão do relatório XPM histórico. O XPM 4.0.096 disponível é compatível apenas com SPS
+1.9, seu HTML exigiu recuperação controlada e não foi atestado para o candidato; portanto não pode
+aprovar release SPS 1.10. A integração definitiva segue reservada ao worker Windows dedicado.
+Relatório sanitizado: `benchmarks/qualification/reports/v06-formal-validators-v1.json`.
+
+A suíte integral aprovou 257 testes com 86,44% de cobertura; Ruff, formatação e mypy strict
+passaram. Nenhum corpus privado foi enviado à VPS: as execuções externas usaram somente a fixture
+sintética sem conteúdo restrito.
+
 ## Decisão
 
-V-01 a V-05 estão aprovados. Isso não aprova o Pacote 7.1, o Gate G7-T ou produção. A próxima
-família é V-06, validadores formais e regras editoriais.
+V-01 a V-05 estão aprovados e a infraestrutura V-06 está qualificada com a restrição explícita do
+XPM/Windows e do defeito conhecido do validador externo. Isso não aprova candidato XML, o Pacote
+7.1, o Gate G7-T ou produção. A próxima família é V-07, fidelidade e comparação com referências.

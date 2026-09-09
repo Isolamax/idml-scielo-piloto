@@ -134,6 +134,38 @@ def test_contributor_kind_affiliations_and_orcid_are_unambiguous() -> None:
         Contributor.model_validate(payload)
 
 
+def test_formal_metadata_contract_rejects_ambiguous_values() -> None:
+    original = canonical_article().model_dump(mode="json")
+
+    invalid_country = copy.deepcopy(original)
+    invalid_country["front"]["affiliations"][0]["country_code"] = sourced("br").model_dump(
+        mode="json"
+    )
+    with pytest.raises(ValidationError, match="country_code"):
+        CanonicalArticle.model_validate(invalid_country)
+
+    invalid_license = copy.deepcopy(original)
+    invalid_license["front"]["license_url"] = sourced("http://example.org/license").model_dump(
+        mode="json"
+    )
+    with pytest.raises(ValidationError, match="license_url"):
+        CanonicalArticle.model_validate(invalid_license)
+
+    dangling_mode = copy.deepcopy(original)
+    dangling_mode["back"]["data_availability_mode"] = "data-available"
+    with pytest.raises(ValidationError, match="mode requires a statement"):
+        CanonicalArticle.model_validate(dangling_mode)
+
+    duplicate_history = copy.deepcopy(original)
+    event = {
+        "date_type": "accepted",
+        "date": sourced("2026-01-01").model_dump(mode="json"),
+    }
+    duplicate_history["front"]["history_dates"] = [event, copy.deepcopy(event)]
+    with pytest.raises(ValidationError, match="date types cannot be duplicated"):
+        CanonicalArticle.model_validate(duplicate_history)
+
+
 def test_schema_migrations_cover_every_persisted_version_and_cell_identity() -> None:
     raw_current = fidelity_raw().model_dump(mode="json")
     canonical_current = canonical_article().model_dump(mode="json")
@@ -154,6 +186,20 @@ def test_schema_migrations_cover_every_persisted_version_and_cell_identity() -> 
     migrated_canonical = migrate_payload("canonical", canonical_legacy)
     assert migrated_canonical["schema_version"] == CANONICAL_SCHEMA_VERSION
     assert CanonicalArticle.model_validate(migrated_canonical) == canonical_article()
+
+    canonical_1_3 = copy.deepcopy(canonical_current)
+    canonical_1_3["schema_version"] = "1.3.0"
+    canonical_1_3["front"]["journal"].pop("publisher_name")
+    canonical_1_3["front"].pop("history_dates")
+    canonical_1_3["front"].pop("license_url")
+    canonical_1_3["front"]["affiliations"][0].pop("original_text")
+    canonical_1_3["front"]["affiliations"][0].pop("country_code")
+    canonical_1_3["back"].pop("data_availability_mode")
+    migrated_1_3 = migrate_payload("canonical", canonical_1_3)
+    assert migrated_1_3["schema_version"] == CANONICAL_SCHEMA_VERSION
+    assert migrated_1_3["front"]["journal"]["publisher_name"] is None
+    assert migrated_1_3["front"]["history_dates"] == []
+    assert migrated_1_3["back"]["data_availability_mode"] is None
 
     with pytest.raises(UnsupportedSchemaVersion):
         migrate_payload("raw", raw_current, target_version="1.2.0")
