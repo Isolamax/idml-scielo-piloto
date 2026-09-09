@@ -1,16 +1,9 @@
 {
   "approved": false,
-  "backup_restore": {
-    "artifact_files": 1,
-    "backup_path": "/opt/idml-platform/backups/20260909T191524Z",
-    "openclaw_state_files": 14,
-    "public_tables": 21,
-    "status": "passed"
-  },
   "authorized_corpus": {
-    "blocking_findings": 39,
+    "blocking_findings": 37,
     "candidate_approved": false,
-    "candidate_xml_sha256": "1007b807932074e7f4582cc09fdf56cb98a2f5448856ac990a914dad92e06045",
+    "candidate_xml_sha256": "0e226110fd639255a967c9c62bdedc7ecd60c7c6946dc9a2c645bddd2e714009",
     "corpus_id": "esa-e20240086",
     "cross_references": {
       "actual": 81,
@@ -45,22 +38,22 @@
     },
     "domains": [
       {
-        "actual": 4,
-        "altered": 3,
+        "actual": 5,
+        "altered": 2,
         "comparison_unit": "elements",
         "displacements": 0,
         "domain": "metadata",
         "duplications": 0,
-        "exact": 1,
+        "exact": 2,
         "expected": 5,
-        "f1": 0.222222,
-        "inventions": 0,
+        "f1": 0.4,
+        "inventions": 1,
         "normalized": 0,
         "omissions": 1,
         "passed": false,
-        "precision": 0.25,
-        "recall": 0.2,
-        "text_fidelity": 0.930572
+        "precision": 0.4,
+        "recall": 0.4,
+        "text_fidelity": 0.95424
       },
       {
         "actual": 3,
@@ -156,18 +149,18 @@
         "actual": 5,
         "altered": 0,
         "comparison_unit": "elements",
-        "displacements": 2,
+        "displacements": 0,
         "domain": "figures",
         "duplications": 0,
         "exact": 0,
         "expected": 5,
-        "f1": 0.6,
+        "f1": 1.0,
         "inventions": 0,
-        "normalized": 3,
+        "normalized": 5,
         "omissions": 0,
-        "passed": false,
-        "precision": 0.6,
-        "recall": 0.6,
+        "passed": true,
+        "precision": 1.0,
+        "recall": 1.0,
         "text_fidelity": 1.0
       },
       {
@@ -262,11 +255,11 @@
       }
     ],
     "finding_counts": {
-      "alteration": 7,
-      "displacement": 2,
+      "alteration": 6,
+      "displacement": 0,
       "duplication": 1,
-      "invention": 4,
-      "normalization": 58,
+      "invention": 5,
+      "normalization": 60,
       "omission": 25
     },
     "manifest_sha256": "5fba59d536e62f5796714608a565d3831b14292e2b9f7254232b6d5d0041cff7",
@@ -288,23 +281,6 @@
   "qualification_approved": true,
   "release_candidate_approved": false,
   "restricted_content_emitted": false,
-  "runtime": {
-    "agent_proposals": 0,
-    "agent_runs": 0,
-    "feature_ai_swarm": false,
-    "feature_clamav": false,
-    "feature_openclaw": false,
-    "image": "idml-foundation:phase7-v07-semantic-fidelity-v1",
-    "image_id": "sha256:95ec8c7cc6c1a862c353f7129363fc69c657d3a2013a34106eb310f94dafd905",
-    "services_healthy": true,
-    "vps_gate_network": "none",
-    "vps_gate_restricted_corpus": false,
-    "vps_gate_read_only": true
-  },
-  "test_suite": {
-    "coverage_percent": 86.4,
-    "passed": 272
-  },
   "synthetic": {
     "detected": {
       "alteration": 1,

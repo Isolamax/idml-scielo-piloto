@@ -26,6 +26,7 @@ def test_parser_reconstructs_raw_graph_and_sanitizes_external_paths() -> None:
     assert raw.assets[0].logical_path == "Figure 1.jpg"
     assert "private" not in canonical_bytes(raw).decode()
     assert style_prefix("05.0.texto") == "05.0"
+    assert style_prefix("0.1.doi") == "0.1"
     assert style_prefix("unknown") is None
 
 
@@ -37,6 +38,11 @@ def test_mapper_records_missing_and_ambiguities_without_using_gold_xml() -> None
     assert article.front.publication_date.value is None
     assert len(article.front.contributors) == 1
     assert len(article.back.references) == 2
+    figure = next(
+        block for section in article.body for block in section.blocks if block.kind == "figure"
+    )
+    assert figure.label.value == "Figure 1"
+    assert figure.caption.plain.value == "Figure caption"
     assert "external_assets_require_package_resolution" in article.review_reasons
 
 

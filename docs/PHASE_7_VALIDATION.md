@@ -236,12 +236,14 @@ visual. Somente hashes, contagens e a decisão foram persistidos.
 
 No artigo ESA de desenvolvimento, autores, afiliações, referências e ativos de figuras atingiram
 precisão e recall 1,0. O corpo atingiu recall de tokens 0,999269, precisão 0,989683, F1 0,994453 e
-fidelidade sequencial 0,991692. A comparação identificou corretamente a troca de posição das
-figuras 2 e 3 e, sem confundir imagens de fórmulas com figuras inventadas, confirmou 15 fórmulas
-display por identidade. Permanecem bloqueadores reais em metadados, três seções adicionais, quatro
-tokens ausentes no corpo, tabelas, duas fórmulas inline, transcrição semântica das 17 fórmulas,
-quatro notas e cross-references com F1 0,943396. Portanto, o mecanismo V-07 está qualificado, mas o
-candidato e a família V-07 **não estão aprovados**. Relatório:
+fidelidade sequencial 0,991692. O primeiro lote de correções passou a extrair o DOI diretamente do
+estilo fonte `0.1.doi`, separou rótulo e texto de caption e ordenou figuras numeradas sem alterar a
+intercalação com tabelas. Com isso, o DOI passou a ser correspondência exata e figuras passaram a
+precisão/recall 1,0, sem deslocamentos. O baseline caiu de 39 para 37 achados bloqueadores.
+Permanecem desvios reais em outros metadados, três seções adicionais, quatro tokens ausentes no
+corpo, tabelas, duas fórmulas inline, transcrição semântica das 17 fórmulas, quatro notas e
+cross-references com F1 0,943396. Portanto, o mecanismo V-07 está qualificado, mas o candidato e a
+família V-07 **não estão aprovados**. Relatório:
 `benchmarks/qualification/reports/v07-semantic-fidelity-v1.json`.
 
 A suíte integral aprovou 272 testes com 86,40% de cobertura. Após backup e restore isolado, a imagem

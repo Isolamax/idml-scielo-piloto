@@ -44,7 +44,7 @@ from idml_foundation.ingest.safe_zip import UnsafeArchiveError, inspect_idml
 from idml_foundation.ingest.xml_security import UnsafeXmlError, parse_untrusted_xml
 from idml_foundation.settings import Settings
 
-_STYLE_PREFIX = re.compile(r"^(\d{2}(?:\.\d+)?)")
+_STYLE_PREFIX = re.compile(r"^(\d{1,2}(?:\.\d+)?)")
 _NULL_REFERENCE = {"", "n", "$ID/"}
 
 

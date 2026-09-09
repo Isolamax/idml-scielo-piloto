@@ -10,6 +10,7 @@
   "sps_version": "sps-1.10",
   "package_name_template": "1809-4457-esa-30-{article_id}",
   "style_roles": {
+    "0.1": "article-doi",
     "01.0": "title-primary",
     "01.1": "title-secondary",
     "02.0": "contributors",

@@ -57,6 +57,7 @@ from idml_foundation.pipeline.profile import JournalProfile
 _ARTICLE_NUMBER = re.compile(r"(?:^|_)(20\d{2})(\d{1,4})(?:_|$)")
 _AUTHOR_MARKERS = re.compile(r"[\d*]+")
 _NUMBERED_GRAPHIC = re.compile(r"^\s*(figure|table)\s*([1-9]\d*)\b", re.IGNORECASE)
+_CAPTION_SEPARATOR = re.compile(r"^[\s.\-\u2013\u2014:]*")
 _MISSING_INLINE_FORMULA = re.compile(r"(?m)^[ \t]*(?=:[ \t]+\S)")
 
 
@@ -83,6 +84,36 @@ def _present(value: str, evidence_ids: tuple[str, ...], transformation: str) -> 
 
 def _missing(transformation: str) -> SourcedText:
     return SourcedText(state=FieldState.MISSING, transformation=transformation, confidence=1.0)
+
+
+def _without_prefix(value: RichText, length: int) -> RichText:
+    plain = value.plain.value or ""
+    if length <= 0 or length > len(plain):
+        return value
+    remaining = length
+    inlines: list[InlineNode] = []
+    for inline in value.inlines:
+        if remaining >= len(inline.text):
+            remaining -= len(inline.text)
+            if not inline.text:
+                inlines.append(inline)
+            continue
+        if remaining:
+            inline = inline.model_copy(update={"text": inline.text[remaining:]})
+            remaining = 0
+        if inline.text or inline.kind == InlineKind.INLINE_FORMULA:
+            inlines.append(inline)
+    return value.model_copy(
+        update={
+            "plain": value.plain.model_copy(
+                update={
+                    "value": plain[length:] or None,
+                    "transformation": "caption-label-extracted",
+                }
+            ),
+            "inlines": tuple(inlines),
+        }
+    )
 
 
 def _insert_missing_inline_formula_nodes(
@@ -220,6 +251,22 @@ class CanonicalMapper:
                     )
                 )
 
+        article_identifiers = [
+            Identifier(
+                kind="publisher-id",
+                value=_present(article_id, (profile_evidence.id,), "filename-rule"),
+            )
+        ]
+        article_doi = first_text("article-doi")
+        if article_doi:
+            doi = re.sub(r"^https?://(?:dx\.)?doi\.org/", "", article_doi[0], flags=re.I)
+            article_identifiers.append(
+                Identifier(
+                    kind="doi",
+                    value=_present(doi, article_doi[1], "style-role:article-doi"),
+                )
+            )
+
         affiliations = self._affiliations(paragraphs_by_role, text_for, article_id)
         contributors = self._contributors(
             paragraphs_by_role,
@@ -314,12 +361,7 @@ class CanonicalMapper:
                         ),
                     ),
                 ),
-                article_identifiers=(
-                    Identifier(
-                        kind="publisher-id",
-                        value=_present(article_id, (profile_evidence.id,), "filename-rule"),
-                    ),
-                ),
+                article_identifiers=tuple(article_identifiers),
                 article_category=_present(
                     self.profile.article_category,
                     (profile_evidence.id,),
@@ -885,6 +927,9 @@ class CanonicalMapper:
                 if caption_value.strip()
                 else RichText(plain=_missing("caption-style-contained-no-caption-text"))
             )
+            separator = _CAPTION_SEPARATOR.match(caption_value[numbered.end() :])
+            prefix_length = numbered.end() + (separator.end() if separator else 0)
+            caption_source = _without_prefix(caption_source, prefix_length)
             caption = caption_source
             if caption_value.strip():
                 caption_resolution = resolve_citations(
@@ -960,6 +1005,27 @@ class CanonicalMapper:
                         evidence_ids=paragraph.evidence_ids,
                     )
                 )
+
+        def graphic_number(block: FigureBlock | TableBlock) -> int:
+            match = re.search(r"\d+", block.label.value or "")
+            return int(match.group()) if match else 10**9
+
+        ordered_figures = iter(
+            sorted(
+                (block for block in graphic_blocks if isinstance(block, FigureBlock)),
+                key=graphic_number,
+            )
+        )
+        ordered_tables = iter(
+            sorted(
+                (block for block in graphic_blocks if isinstance(block, TableBlock)),
+                key=graphic_number,
+            )
+        )
+        graphic_blocks = [
+            next(ordered_figures) if isinstance(block, FigureBlock) else next(ordered_tables)
+            for block in graphic_blocks
+        ]
         if graphic_blocks:
             sections.append(
                 {
