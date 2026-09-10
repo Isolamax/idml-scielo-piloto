@@ -25,7 +25,7 @@ class CrossReferenceEvaluation(StrictModel):
     actual_unique_targets: int = Field(ge=0)
     expected_target_deficits: tuple[TargetDelta, ...] = ()
     actual_target_surpluses: tuple[TargetDelta, ...] = ()
-    decision: Literal["pass", "needs_review"]
+    decision: Literal["pass", "needs_review", "source_qualified"]
 
 
 def _target_sequence(root: etree._Element) -> tuple[int, ...]:

@@ -108,17 +108,33 @@ def canonical_mathml(value: str, *, display: bool) -> str:
 
 def _semantic_fingerprint(element: etree._Element) -> tuple[object, ...]:
     qname = etree.QName(element)
-    children = tuple(_semantic_fingerprint(child) for child in element)
+    children = tuple(
+        fingerprint
+        for child in element
+        if (fingerprint := _semantic_fingerprint(child))
+        if fingerprint[0] != "ignorable-space"
+    )
     attributes = tuple(
         sorted(
             (etree.QName(name).localname, value)
             for name, value in element.attrib.items()
-            if etree.QName(name).localname != "display"
+            if etree.QName(name).localname not in {"display", "stretchy"}
         )
     )
     text = " ".join((element.text or "").split())
     if qname.localname == "mo" and text == "-":
         text = "\N{MINUS SIGN}"
+    if qname.localname == "mo" and text in {".", "\N{MIDDLE DOT}", "\N{DOT OPERATOR}"}:
+        text = "."
+    if qname.localname == "mtext" and not text:
+        return ("ignorable-space", (), "", ())
+    if qname.localname == "mi" and not attributes and not children and len(text) > 1:
+        return (
+            "mrow",
+            (),
+            "",
+            tuple(("mi", (), character, ()) for character in text),
+        )
     if qname.localname == "math":
         if len(children) == 1:
             return children[0]
@@ -142,6 +158,15 @@ def _semantic_fingerprint(element: etree._Element) -> tuple[object, ...]:
         open_token = ("mo", (), element.get("open", "("), ())
         close_token = ("mo", (), element.get("close", ")"), ())
         return ("mrow", (), "", (open_token, *fenced_children, close_token))
+    if qname.localname == "msup" and len(children) == 2 and children[0][0] == "msub":
+        subscripted_children = children[0][3]
+        assert isinstance(subscripted_children, tuple)
+        return (
+            "msubsup",
+            attributes,
+            text,
+            (*subscripted_children, children[1]),
+        )
     return (qname.localname, attributes, text, children)
 
 

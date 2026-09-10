@@ -79,7 +79,11 @@ _PROPOSER_POLICY = (
     "fragment. Under visual_formula, transcribe only the target formula visible inside the "
     "authenticated image crop into well-formed presentation MathML; image metadata, never hidden "
     "evaluation XML, is the authorized evidence. Do not preserve an image filename, an empty "
-    "source, a printed equation number, 'Where:', or definition prose as formula content."
+    "source, a printed equation number, 'Where:', or definition prose as formula content. Preserve "
+    "exact capitalization and every visible zero. Encode adjacent one-letter variables or acronym "
+    "letters as separate mi elements, not one multi-character mi. Keep decimal points inside "
+    "numbers distinct from multiplication operators. Preserve the visual scope of every subscript, "
+    "superscript, prime, and parenthesized group."
 )
 _REPAIRABLE_DETERMINISTIC_ERRORS = {
     "PROPOSAL_DETERMINISTIC_REJECTED_ATOMIC_VALUES_CONSISTENT",
@@ -96,7 +100,7 @@ _EVIDENCE_INTENT_POLICY = (
     "paths, evidence metadata, segment hashes, and aggregate hash."
 )
 _CRITIC_PROMPTS: dict[CriticRole, str] = {
-    "xml_critic": "xml_critic-1.1.md",
+    "xml_critic": "xml_critic-1.2.md",
     "editorial_critic": "editorial_critic-1.1.md",
 }
 _ADJUDICATOR_PROMPT = "adjudicator-1.0.md"
@@ -164,6 +168,7 @@ class MultiAgentLabPlan(BaseModel):
     max_input_tokens_per_call: int = Field(ge=1, le=12_000)
     max_total_cost_microusd: int = Field(ge=1, le=10_000_000)
     max_repair_cycles: int = Field(default=0, ge=0, le=2)
+    require_hidden_gold_equivalence: bool = True
     thinking_level: ThinkingLevel | None = None
     concurrency: int = Field(ge=1, le=1)
     require_human_review: bool
@@ -645,6 +650,7 @@ def prepare_lab_manifest(
         "total_preflight_cost_microusd": total_preflight,
         "max_total_cost_microusd": plan.max_total_cost_microusd,
         "max_repair_cycles": plan.max_repair_cycles,
+        "hidden_gold_equivalence_required": plan.require_hidden_gold_equivalence,
         "thinking_level": plan.thinking_level,
         "maximum_calls": (
             len(cases) * (len(_ROLE_ORDER) + plan.max_repair_cycles) * plan.max_attempts
@@ -1265,6 +1271,7 @@ async def execute_multi_agent_lab(
                 assessment = assess_proposal(case, raw_proposal)
                 if (
                     isinstance(case.get("atomic_formula"), dict)
+                    and plan.require_hidden_gold_equivalence
                     and not assessment.quality["semantically_equivalent"]
                 ):
                     raise ValueError("PROPOSAL_QUALITY_REJECTED_SEMANTIC_EQUIVALENCE")

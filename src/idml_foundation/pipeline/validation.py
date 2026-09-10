@@ -199,7 +199,8 @@ class OfflineJatsValidator:
             "article category is required",
         )
         require(
-            "front/article-meta/article-id[@pub-id-type='publisher-id'][normalize-space()]",
+            "front/article-meta/article-id[(@pub-id-type='publisher-id' or "
+            "@pub-id-type='other') and normalize-space()]",
             "missing-publisher-id",
             "publisher article ID is required",
         )
@@ -211,7 +212,8 @@ class OfflineJatsValidator:
         publisher_ids = cast(
             list[etree._Element],
             root.xpath(
-                "front/article-meta/article-id[@pub-id-type='publisher-id'][normalize-space()]"
+                "front/article-meta/article-id[(@pub-id-type='publisher-id' or "
+                "@pub-id-type='other') and normalize-space()]"
             ),
         )
         if len(publisher_ids) > 1:

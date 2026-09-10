@@ -9,11 +9,14 @@ import json
 from pathlib import Path
 from typing import Any
 
+from idml_foundation.ai.formula_catalog import FormulaTranscriptionCatalog
 from idml_foundation.pipeline.service import DeterministicPipeline
+from idml_foundation.release.editorial_enrichment import EditorialEnrichmentCatalog
 from idml_foundation.release.semantic_fidelity import (
     SemanticChangeKind,
     XmlSemanticComparator,
 )
+from idml_foundation.release.source_authority import SourceAuthorityQualification
 
 _CORPUS_ID = "esa-e20240086"
 _ROOT = Path(__file__).parents[1]
@@ -136,7 +139,13 @@ def _domain_summary(domain: Any) -> dict[str, Any]:
     return domain.model_dump(mode="json")
 
 
-def _authorized_corpus_gate(corpus_root: Path, visual_path: Path) -> dict[str, Any]:
+def _authorized_corpus_gate(
+    corpus_root: Path,
+    visual_path: Path,
+    formula_catalog_path: Path | None,
+    editorial_enrichment_catalog_path: Path | None,
+    source_authority_qualification_path: Path | None,
+) -> dict[str, Any]:
     manifest_path = _ROOT / "corpus" / "manifests" / f"{_CORPUS_ID}.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if manifest["corpus_id"] != _CORPUS_ID or manifest["split"] != "development":
@@ -148,8 +157,50 @@ def _authorized_corpus_gate(corpus_root: Path, visual_path: Path) -> dict[str, A
     pdf_path = _artifact_path(corpus_root, manifest, "approved_pdf_reference")
     source = source_path.read_bytes()
     reference = reference_path.read_bytes()
-    candidate = DeterministicPipeline().run(source, logical_name=source_path.name).xml
+    formula_catalog = (
+        FormulaTranscriptionCatalog.model_validate(
+            json.loads(formula_catalog_path.read_text(encoding="utf-8"))
+        )
+        if formula_catalog_path is not None
+        else None
+    )
+    editorial_enrichment_catalog = (
+        EditorialEnrichmentCatalog.model_validate(
+            json.loads(editorial_enrichment_catalog_path.read_text(encoding="utf-8"))
+        )
+        if editorial_enrichment_catalog_path is not None
+        else None
+    )
+    candidate = (
+        DeterministicPipeline(
+            formula_catalog=formula_catalog,
+            editorial_enrichment_catalog=editorial_enrichment_catalog,
+        )
+        .run(
+            source,
+            logical_name=source_path.name,
+        )
+        .xml
+    )
     semantic = XmlSemanticComparator().compare(reference, candidate)
+    qualified_formula_alterations = 0
+    if formula_catalog is not None:
+        semantic, qualified_formula_alterations = formula_catalog.reconcile_semantic_report(
+            semantic
+        )
+    source_authority_qualification = (
+        SourceAuthorityQualification.model_validate(
+            json.loads(source_authority_qualification_path.read_text(encoding="utf-8"))
+        )
+        if source_authority_qualification_path is not None
+        else None
+    )
+    source_authority_counts = None
+    if source_authority_qualification is not None:
+        semantic, source_authority_counts = source_authority_qualification.apply(
+            semantic,
+            source_idml_sha256=_sha256(source),
+        )
     visual = _visual_evidence(
         visual_path,
         pdf_sha256=_sha256(pdf_path.read_bytes()),
@@ -175,6 +226,29 @@ def _authorized_corpus_gate(corpus_root: Path, visual_path: Path) -> dict[str, A
         "candidate_approved": semantic.passed,
         "visual": visual,
         "restricted_content_emitted": False,
+        "formula_catalog_id": formula_catalog.catalog_id if formula_catalog else None,
+        "formula_source_qualification": (
+            {
+                "catalog_id": formula_catalog.catalog_id,
+                "formula_cases": formula_catalog.expected_formula_count,
+                "qualified_alterations": qualified_formula_alterations,
+                "human_review_required": True,
+            }
+            if formula_catalog
+            else None
+        ),
+        "editorial_enrichment_catalog_id": (
+            editorial_enrichment_catalog.catalog_id if editorial_enrichment_catalog else None
+        ),
+        "source_authority_qualification": (
+            {
+                "qualification_id": source_authority_qualification.qualification_id,
+                **(source_authority_counts or {}),
+                "human_review_required": True,
+            }
+            if source_authority_qualification
+            else None
+        ),
     }
 
 
@@ -187,6 +261,9 @@ def main() -> int:
         default=_ROOT / "benchmarks" / "qualification" / "evidence" / "v07-esa-pdf-visual-v1.json",
     )
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--formula-catalog", type=Path)
+    parser.add_argument("--editorial-enrichment-catalog", type=Path)
+    parser.add_argument("--source-authority-qualification", type=Path)
     parser.add_argument("--require-candidate-pass", action="store_true")
     args = parser.parse_args()
 
@@ -201,7 +278,13 @@ def main() -> int:
         "release_candidate_approved": False,
     }
     if args.corpus_root is not None:
-        corpus = _authorized_corpus_gate(args.corpus_root, args.visual_evidence)
+        corpus = _authorized_corpus_gate(
+            args.corpus_root,
+            args.visual_evidence,
+            args.formula_catalog,
+            args.editorial_enrichment_catalog,
+            args.source_authority_qualification,
+        )
         report["authorized_corpus"] = corpus
         report["release_candidate_approved"] = corpus["candidate_approved"]
     report["approved"] = bool(

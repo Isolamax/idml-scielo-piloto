@@ -21,7 +21,11 @@ operator and its operand as separate sibling identifiers: use `<mml:mi>d</mml:mi
 for `dC` and `<mml:mi>d</mml:mi><mml:mi>t</mml:mi>` for `dt`; never place either pair in one `mi`.
 Apply the same separation to analogous visible differentials without inventing implicit operators.
 Preserve case, primes, subscripts, superscripts, fractions, operators, parentheses, and symbol
-order. Do not include markdown, TeX, a printed equation number, `Where:`, a colon, or surrounding
+order. Encode adjacent one-letter variables and acronym letters as separate `mi` elements rather
+than a single multi-character `mi`. Preserve every visible zero and the exact capitalization. Keep
+decimal points inside numeric literals distinct from multiplication operators, and preserve the
+visual scope of every subscript, superscript, prime, and parenthesized group. Do not include
+markdown, TeX, a printed equation number, `Where:`, a colon, or surrounding
 definition prose. If the target expression cannot be read, keep the current source and
 representation, lower confidence, and explain the abstention; never guess.
 

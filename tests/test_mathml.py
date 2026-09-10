@@ -59,6 +59,27 @@ def test_mathml_semantic_comparison_flattens_nested_sequence_around_parentheses(
     assert mathml_semantically_equivalent(fenced, explicit_nested, display=True)
 
 
+def test_mathml_semantic_comparison_normalizes_visual_tokenization_and_prime_scripts() -> None:
+    compact = (
+        f'<mml:math xmlns:mml="{MATHML_NS}" display="block"><mml:mrow>'
+        "<mml:mi>SOTR</mml:mi><mml:mo>\N{DOT OPERATOR}</mml:mo>"
+        "<mml:msup><mml:msub><mml:mi>C</mml:mi><mml:mi>s</mml:mi></mml:msub>"
+        "<mml:mo>\N{PRIME}</mml:mo></mml:msup></mml:mrow></mml:math>"
+    )
+    expanded = (
+        f'<mml:math xmlns:mml="{MATHML_NS}" display="block"><mml:mrow>'
+        "<mml:mi>S</mml:mi><mml:mi>O</mml:mi><mml:mi>T</mml:mi><mml:mi>R</mml:mi>"
+        "<mml:mo>.</mml:mo><mml:mtext>\N{THIN SPACE}</mml:mtext>"
+        "<mml:msubsup><mml:mi>C</mml:mi><mml:mi>s</mml:mi>"
+        "<mml:mo>\N{PRIME}</mml:mo></mml:msubsup></mml:mrow></mml:math>"
+    )
+
+    assert mathml_semantically_equivalent(compact, expanded, display=True)
+    assert not mathml_semantically_equivalent(
+        compact.replace("SOTR", "sOTR"), expanded, display=True
+    )
+
+
 @pytest.mark.parametrize(
     "fragment,error",
     [

@@ -33,7 +33,7 @@ def test_real_domain_builder_uses_authorized_structure_and_formula_gap() -> None
         source_idml_sha256=hashlib.sha256(source).hexdigest(),
     )
 
-    assert dataset["version"] == "idml-agent-real-domain-eval-1.1"
+    assert dataset["version"] == "idml-agent-real-domain-eval-1.2"
     assert [case["domain"] for case in dataset["cases"]] == ["structure", "math_notes"]
     structure, formula = dataset["cases"]
     assert structure["current_value"] != structure["expected_value"]

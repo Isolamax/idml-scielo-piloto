@@ -231,3 +231,38 @@ def test_semantic_repair_lab_is_bounded_private_and_double_gated() -> None:
         agent for agent in dedicated["agents"]["list"] if agent["id"] == "idml-evaluator"
     )
     assert evaluator["thinkingDefault"] == "medium"
+
+
+def test_complete_visual_formula_lab_covers_remaining_display_equations() -> None:
+    runner = (ROOT / "ops" / "openclaw-multi-agent-lab.sh").read_text(encoding="utf-8")
+    plan = json.loads(
+        (ROOT / "config" / "openclaw-multi-agent-lab-v15.json").read_text(encoding="utf-8")
+    )
+
+    assert "dataset-real-domains-visual-v1.2.json" in runner
+    assert "multi-agent-manifest-v15.json" in runner
+    assert "RUN_IDML_OPENCLAW_MULTI_AGENT_LAB_V15" in runner
+    assert plan["dataset_version"] == "idml-agent-real-domain-eval-1.2"
+    second_plan = json.loads(
+        (ROOT / "config" / "openclaw-multi-agent-lab-v16.json").read_text(encoding="utf-8")
+    )
+    assert "multi-agent-manifest-v16.json" in runner
+    assert "RUN_IDML_OPENCLAW_MULTI_AGENT_LAB_V16" in runner
+    assert plan["selected_case_ids"] + second_plan["selected_case_ids"] == [
+        f"esa-math-notes-observed-{index:03d}" for index in range(2, 16)
+    ]
+    assert plan["max_attempts"] == 2
+    assert plan["max_repair_cycles"] == 2
+    assert plan["require_hidden_gold_equivalence"] is False
+    assert plan["thinking_level"] == "medium"
+    assert plan["max_total_cost_microusd"] == 1_500_000
+    assert plan["require_human_review"] is True
+    assert plan["require_application_flags_false"] is True
+    assert second_plan["dataset_version"] == "idml-agent-real-domain-eval-1.2"
+    assert second_plan["max_attempts"] == 2
+    assert second_plan["max_repair_cycles"] == 2
+    assert second_plan["require_hidden_gold_equivalence"] is False
+    assert second_plan["thinking_level"] == "medium"
+    assert second_plan["max_total_cost_microusd"] == 1_500_000
+    assert second_plan["require_human_review"] is True
+    assert second_plan["require_application_flags_false"] is True

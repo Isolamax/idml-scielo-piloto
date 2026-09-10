@@ -24,8 +24,8 @@ from idml_foundation.pipeline.jats_builder import JatsBuilder
 from idml_foundation.pipeline.service import DeterministicPipeline
 from idml_foundation.pipeline.validation import OfflineJatsValidator
 
-DATASET_VERSION = "idml-agent-real-domain-eval-1.1"
-REPORT_VERSION = "idml-real-domain-qualification-1.1"
+DATASET_VERSION = "idml-agent-real-domain-eval-1.2"
+REPORT_VERSION = "idml-real-domain-qualification-1.2"
 
 
 def _approved_root(data: bytes) -> etree._Element:
@@ -236,12 +236,6 @@ def build_real_domain_corpus(
     canonical_formulas = _formula_fields(result.canonical.body)
     if not canonical_formulas or len(canonical_formulas) != len(gold_formulas):
         raise ValueError("anchored IDML formulas do not align with approved display formulas")
-    formula_path, formula = canonical_formulas[0]
-    formula_locator, formula_expected = gold_formulas[0]
-    formula_current = formula.source.value or ""
-    if not formula_current or normalize_text(formula_current) == normalize_text(formula_expected):
-        raise ValueError("authorized formula does not expose a transcription gap")
-
     cases = [
         _case(
             case_id="esa-structure-derived-001",
@@ -253,34 +247,47 @@ def build_real_domain_corpus(
             locator="approved_xml:structure:nested-title",
             fixture_kind="controlled_omission_of_authorized_real_field",
             application_ready=True,
-        ),
-        _case(
-            case_id="esa-math-notes-observed-001",
+        )
+    ]
+    display_cases: list[dict[str, Any]] = []
+    for index, ((formula_path, formula), (formula_locator, formula_expected)) in enumerate(
+        zip(canonical_formulas, gold_formulas, strict=True),
+        start=1,
+    ):
+        formula_current = formula.source.value or ""
+        if not formula_current or normalize_text(formula_current) == normalize_text(
+            formula_expected
+        ):
+            raise ValueError("authorized formula does not expose a transcription gap")
+        formula_case = _case(
+            case_id=f"esa-math-notes-observed-{index:03d}",
             domain="math_notes",
             field_path=formula_path,
             current=formula_current,
             expected=formula_expected,
-            evidence_id="gold-math-notes-observed-001",
+            evidence_id=f"gold-math-notes-observed-{index:03d}",
             locator=f"approved_xml:math_notes:{formula_locator}",
             fixture_kind="authorized_mathml_atomic_transition",
             application_ready=True,
-        ),
-    ]
-    formula_root = formula_path.removesuffix("/source/value")
-    cases[1]["atomic_formula"] = {
-        "root_path": formula_root,
-        "current_representation": formula.representation.value,
-        "display": formula.display,
-        "asset_id": formula.asset_id,
-        "required_patch_paths": [formula_path, f"{formula_root}/representation"],
-        "allowed_target_representations": ["mathml"],
-    }
+        )
+        formula_root = formula_path.removesuffix("/source/value")
+        formula_case["atomic_formula"] = {
+            "root_path": formula_root,
+            "current_representation": formula.representation.value,
+            "display": formula.display,
+            "asset_id": formula.asset_id,
+            "required_patch_paths": [formula_path, f"{formula_root}/representation"],
+            "allowed_target_representations": ["mathml"],
+        }
+        display_cases.append(formula_case)
+        cases.append(formula_case)
     gold_inline_formulas = [
         _mathml(element, display=False) for element in _xpath_elements(gold, "body//inline-formula")
     ]
     canonical_inline_formulas = _inline_formula_fields(result.canonical.body)
     if len(canonical_inline_formulas) != len(gold_inline_formulas):
         raise ValueError("IDML inline formula gaps do not align with approved inline formulas")
+    inline_cases: list[dict[str, Any]] = []
     for index, ((inline_path, inline), inline_expected) in enumerate(
         zip(canonical_inline_formulas, gold_inline_formulas, strict=True),
         start=1,
@@ -313,11 +320,15 @@ def build_real_domain_corpus(
             ],
             "allowed_target_representations": ["mathml"],
         }
+        inline_cases.append(inline_case)
         cases.append(inline_case)
     candidate_payload = copy.deepcopy(result.canonical.model_dump(mode="json"))
-    _replace_pointer(candidate_payload, formula_path, formula_expected)
-    _replace_pointer(candidate_payload, f"{formula_root}/representation", "mathml")
-    for inline_case in cases[2:]:
+    for formula_case in display_cases:
+        formula_path = str(formula_case["field_path"])
+        formula_root = formula_path.removesuffix("/source/value")
+        _replace_pointer(candidate_payload, formula_path, formula_case["expected_value"])
+        _replace_pointer(candidate_payload, f"{formula_root}/representation", "mathml")
+    for inline_case in inline_cases:
         inline_path = str(inline_case["field_path"])
         inline_root = inline_path.removesuffix("/formula_source/value")
         _replace_pointer(candidate_payload, inline_path, inline_case["expected_value"])
@@ -338,7 +349,7 @@ def build_real_domain_corpus(
         "version": DATASET_VERSION,
         "description": (
             "Restricted authorized real-domain cases; structure is a controlled mutation and "
-            "math exercises the authorized atomic image-to-MathML transition."
+            "math exercises every authorized atomic image-to-MathML transition."
         ),
         "corpus_id": corpus_id,
         "source_idml_sha256": source_idml_sha256,
@@ -379,8 +390,9 @@ def build_real_domain_corpus(
             "approved_inline_mathml_formulas": approved_inline_formula_count,
             "canonical_inline_formula_anchors": canonical_inline_formula_count,
             "detected_inline_formula_gaps": detected_inline_gaps,
-            "selected_observed_gap_cases": 1 + len(canonical_inline_formulas),
-            "selected_application_ready_cases": 1 + len(canonical_inline_formulas),
+            "selected_observed_gap_cases": len(canonical_formulas) + len(canonical_inline_formulas),
+            "selected_application_ready_cases": len(canonical_formulas)
+            + len(canonical_inline_formulas),
             "display_formula_pairing_complete": len(canonical_formulas) == len(gold_formulas),
             "native_mathml_transcription_complete": False,
             "atomic_mathml_transition_supported": True,

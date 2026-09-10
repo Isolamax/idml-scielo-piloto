@@ -215,8 +215,18 @@ class JatsBuilder:
             _add(publisher, "publisher-name", article.front.journal.publisher_name.value)
 
         article_meta = _add(front, "article-meta")
+        has_other_identifier = any(
+            identifier.kind == "other" and identifier.value.value
+            for identifier in article.front.article_identifiers
+        )
         for identifier in article.front.article_identifiers:
             if identifier.value.value:
+                if (
+                    has_other_identifier
+                    and identifier.kind == "publisher-id"
+                    and identifier.value.value.lower().startswith("e")
+                ):
+                    continue
                 _add(
                     article_meta,
                     "article-id",
