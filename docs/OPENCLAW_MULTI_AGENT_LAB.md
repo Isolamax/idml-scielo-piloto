@@ -352,3 +352,25 @@ modelo, portanto o relatório marca explicitamente que não constituem consenso 
 independentes; esse consenso nunca autoriza release e a revisão humana final permanece obrigatória.
 Após cada janela, chave, proxy e redes transitórias foram removidos, flags permaneceram falsas e o
 banco da aplicação continuou sem runs ou propostas.
+
+## Janelas visuais V15 a V17 — catálogo completo de fórmulas
+
+Em 2026-09-10, o corpus real passou a cobrir todas as 15 fórmulas display e as duas inline. A V15
+executou as equações 2–8, a V16 as equações 9–15 e a V17 repetiu isoladamente a equação 4 após o
+prompt do crítico XML esclarecer que o número impresso da equação pertence ao `label`, não ao
+conteúdo MathML. O proponente continuou sem acesso ao XML gold.
+
+A primeira V15 diagnóstica custou 189.323 micro-USD e foi rejeitada porque a igualdade estrita com o
+gold histórico conflitou com a evidência visual. Depois da separação explícita entre avaliação gold
+e autoridade visual, as janelas aceitas V15-002, V16-001 e V17-001 custaram respectivamente 179.172,
+187.622 e 39.545 micro-USD. Somadas às V12/V13 aceitas, o catálogo final usa 485.431 micro-USD de
+execuções qualificadas; todas as tentativas dessas cinco etapas somam 674.754 micro-USD.
+
+As 17 fórmulas obtiveram 34 pareceres críticos `pass`; 16 foram aceitas pelo adjudicador e uma ficou
+em abstenção controlada, com críticos unânimes e equivalência semântica ao gold, por risco de
+consenso correlacionado. Seis fórmulas são semanticamente equivalentes ao XML aprovado e onze usam a
+transcrição visual como autoridade. O resultado privado é aplicado apenas por catálogo completo,
+content-addressed e ligado aos hashes do IDML, PDF, recorte, proposta e dataset. O relatório
+sanitizado é `benchmarks/agents/reports/formula-transcription-qualification-v1.json`. Revisão humana
+final permanece obrigatória; as flags e o provider terminaram desligados, sem proxy, chave, runs ou
+propostas persistidas.

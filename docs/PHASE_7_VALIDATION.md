@@ -1,6 +1,6 @@
 # Fase 7 — Homologação automatizada e piloto simulado
 
-Data inicial: 2026-09-04. Estado: **EM EXECUÇÃO — V-01 A V-06 QUALIFICADOS; V-07 EM CORREÇÃO**.
+Data inicial: 2026-09-04. Estado: **EM EXECUÇÃO — V-01 A V-07 QUALIFICADOS; PRÓXIMA FAMÍLIA V-08**.
 
 ## Estado das famílias V-01 a V-11
 
@@ -12,7 +12,7 @@ Data inicial: 2026-09-04. Estado: **EM EXECUÇÃO — V-01 A V-06 QUALIFICADOS; 
 | V-04 Canonical Article Model | PASSOU | schemas, invariantes, migrations e round-trip |
 | V-05 Construção XML JATS/SPS | PASSOU | builder determinístico, DTD, SPS e referências |
 | V-06 Validadores formais | PASSOU COM RESTRIÇÃO | 4 contêineres qualificados; XPM SPS 1.10 aguarda worker Windows |
-| V-07 Fidelidade comparativa | EM EXECUÇÃO | comparador/gate qualificados; candidato real ainda bloqueado |
+| V-07 Fidelidade comparativa | PASSOU | candidato real com zero bloqueios e diferenças qualificadas por fonte |
 | V-08 OpenClaw assistivo | PENDENTE | evidências da Fase 6 serão reexecutadas no gate consolidado |
 | V-09 Segurança e multiempresa | PENDENTE | — |
 | V-10 Fluxo ponta a ponta | PENDENTE | — |
@@ -288,11 +288,46 @@ worker, PostgreSQL, Redis e OpenClaw permaneceram saudáveis; as flags de OpenCl
 continuaram falsas, com zero execuções e zero propostas de agentes. O corpus restrito permaneceu
 exclusivamente local.
 
+O quarto lote completou as 17 fórmulas do artigo: 15 display e duas inline. Cinco janelas aceitas do
+laboratório visual totalizaram 485.431 micro-USD, com 34 pareceres críticos `pass`, 16 aceitações do
+adjudicador e uma abstenção controlada por risco de consenso correlacionado. O catálogo privado
+`formula-transcription-catalog-1.0` é content-addressed, ligado aos hashes do IDML, PDF, recortes,
+dataset, propostas e XML aprovado. Onze transcrições privilegiam a evidência visual sobre diferenças
+do XML histórico; seis dessas diferenças aparecem como alterações no comparador e somente deixam de
+ser bloqueadoras quando o catálogo completo e exato está aplicado. Revisão humana continua
+obrigatória.
+
+Um segundo catálogo privado recuperou do XML aprovado o identificador editorial `other` e os dois
+ORCIDs que não existem no IDML. A aplicação exige hash exato do artigo e do valor atual, adiciona
+evidência ao Canonical Article e mantém `editorial_enrichment_pending_human`. O builder passou a
+usar o identificador `other` como identidade editorial quando presente e preserva o identificador
+eletrônico como `elocation-id`, evitando duplicação. As quatro notas ficaram exatas.
+
+As duas diferenças finais de metadados foram qualificadas contra suas autoridades independentes: o
+título do periódico vem do Journal Profile e o título do artigo vem do próprio IDML. As seis
+divergências bibliográficas já auditadas foram vinculadas, por hashes exatos, ao relatório
+independente do resolvedor que não usa o XML aprovado em runtime. Nenhuma exceção genérica foi
+criada: qualquer alteração de posição, hash, contagem ou alvo volta a falhar fechado.
+
+O gate real `v07-semantic-fidelity-v2` terminou com 0 bloqueios, todos os 12 domínios aprovados e
+cross-references em `source_qualified`. O candidato tem SHA-256
+`1fa91b9df2cb03f3e9a10337c24489130e3c0711634085f24ee1e9b1c96846ab`. A suíte integral aprovou
+287 testes com 86,68% de cobertura; Ruff e mypy strict passaram. Os relatórios públicos são
+`benchmarks/agents/reports/formula-transcription-qualification-v1.json`,
+`benchmarks/qualification/reports/editorial-enrichment-qualification-v1.json`,
+`benchmarks/qualification/reports/source-authority-qualification-v1.json` e
+`benchmarks/qualification/reports/v07-semantic-fidelity-v2.json`.
+
+O backup `/opt/idml-platform/backups/20260910T203543Z` passou em checksums e restore isolado com 21
+tabelas, um artefato e 14 arquivos OpenClaw. A imagem `idml-foundation:phase7-v07-qualified-v1`
+(`sha256:f7acbcb95994b5c24687bb7dac2aeddb3039d1afe19b9882aca1ae2d307d608f`) deixou API, worker,
+PostgreSQL, Redis e OpenClaw saudáveis. O gate sintético passou em container read-only e sem rede;
+flags de OpenClaw, swarm e ClamAV permaneceram falsas e o banco ficou em `0|0`. Provider, chave e
+proxy permaneceram ausentes. Catálogos e corpus privados não foram enviados à VPS.
+
 ## Decisão
 
-V-01 a V-05 estão aprovados e a infraestrutura V-06 está qualificada com a restrição explícita do
-XPM/Windows e do defeito conhecido do validador externo. A instrumentação V-07 também está
-qualificada, porém seu baseline real reprova corretamente o candidato. A próxima ação é corrigir as
-fórmulas na V-07, seguida dos metadados e dos ORCIDs que exigem enriquecimento rastreável, e
-reexecutar o mesmo gate até eliminar todos os achados bloqueadores. Isso não aprova o Pacote 7.1, o
-Gate G7-T nem produção.
+V-01 a V-07 estão aprovados, com as restrições explícitas de XPM/Windows, do defeito conhecido do
+validador externo e da homologação humana ainda pendente. A próxima ação é executar a V-08,
+consolidando o comportamento assistivo OpenClaw nos casos positivos, negativos, ambíguos e de
+abstenção. Isso não aprova o Pacote 7.1, o Gate G7-T nem produção.

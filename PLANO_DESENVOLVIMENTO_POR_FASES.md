@@ -22,7 +22,7 @@ docs/XML_VALIDATION_MASTER_PLAN.md
 
 ```text
 PROJECT_STATUS: PHASE_7_VALIDATION_IN_PROGRESS
-CURRENT_PHASE: FASE 7 — Pacote 7.1; V-07 em correção por domínio
+CURRENT_PHASE: FASE 7 — Pacote 7.1; próxima família V-08
 CURRENT_IMPLEMENTATION_AUTHORIZED: PHASE_7
 DEVELOPMENT_ROADMAP_AUTHORIZED: THROUGH_PHASE_8_PRODUCTION_READINESS
 PRODUCTION_ACTIVATION_AUTHORIZED: NO — REQUIRES XML_EXPERT_FINAL_ACCEPTANCE
@@ -122,7 +122,7 @@ Antes de qualquer implantação futura na VPS:
 | 4 | Validação, fidelidade e pacote | Pacote validado e política de release | Implementada — Gate G4 bloqueado por validadores externos/crossrefs |
 | 5 | Revisão humana e interface mínima | Correção humana auditável | Concluída — Gate G5 aprovado |
 | 6 | IA assistiva e OpenClaw | Assistência semântica controlada | Concluída — Gate G6-T aprovado; produção não autorizada |
-| 7 | Homologação automatizada e piloto simulado | Sistema completo validado antes da revisão humana | Em andamento — V-01 a V-06 qualificados; V-07 em correção |
+| 7 | Homologação automatizada e piloto simulado | Sistema completo validado antes da revisão humana | Em andamento — V-01 a V-07 qualificados; próxima V-08 |
 | 8 | Prontidão, homologação humana e produção | RC operacional, aceite do especialista e rollout | Não iniciada — ativação real bloqueada pelo G8-H |
 | 9 | Expansão controlada | Novos periódicos e casos complexos | Não iniciada |
 
@@ -686,7 +686,7 @@ o especialista sem depender de revisão humana intermediária.
 - [x] V-04 — invariantes do Canonical Article Model.
 - [x] V-05 — construção XML JATS/SPS.
 - [x] V-06 — validadores formais e regras editoriais, com restrições documentadas.
-- [ ] V-07 — comparador e gate qualificados; candidato real ainda bloqueado e em correção.
+- [x] V-07 — fidelidade comparativa aprovada; candidato real com zero bloqueios e qualificações rastreáveis.
 - [ ] V-08 — validação assistiva OpenClaw.
 - [ ] V-09 — segurança, identidade e multiempresa.
 - [ ] V-10 — fluxo ponta a ponta e experiência operacional.
@@ -894,7 +894,7 @@ Cada novo periódico deve possuir corpus, profile, style mapping, métricas, hom
 | R-11 | Falha sem retomada idempotente | Alto | Máquina de estados, idempotency keys e recuperação pelo PostgreSQL | Mitigado na fundação; monitorado |
 | R-12 | Perda de dados ou histórico | Crítico | Imutabilidade, backups e restore testado | Mitigado na fundação; monitorado |
 | R-13 | Vazamento ou contaminação do corpus | Alto | Manifestos sem conteúdo, acesso restrito e holdout separado | Mitigado; monitorado |
-| R-14 | Referências sem `xref` bibliográfico | Alto | Detecção offline, CrossRef Accuracy e resolver determinístico de citações | Mitigado tecnicamente — 81 vínculos/52 alvos; seis divergências com o aprovado aguardam adjudicação |
+| R-14 | Referências sem `xref` bibliográfico | Alto | Detecção offline, CrossRef Accuracy e resolver determinístico de citações | Mitigado tecnicamente — 81 vínculos/52 alvos; seis divergências qualificadas por fonte e pendentes apenas do Gate Humano Final |
 | R-15 | Patch escalar quebrar invariantes de `RichText` | Alto | Patch atômico de `plain` + `inlines` e validação prévia | Mitigado; benchmark v1.3 preparado sem execução de agentes |
 | R-16 | Segredo do OpenClaw compartilhado exposto em comando de inicialização | Alto | Não reutilizar no IDML; rotacionar separadamente em janela do sistema existente | Aberto no sistema legado; isolado do IDML |
 | R-17 | Credencial OpenAI reutilizada entre o OpenClaw existente e o staging IDML | Médio/Alto | Injetar apenas no overlay opt-in, nunca em API/worker; manter kill switch; coordenar rotação e separar a chave se o acoplamento se tornar operacionalmente inadequado | Aceito pelo usuário; mitigado tecnicamente e monitorado |
@@ -1011,3 +1011,4 @@ ADRs iniciais esperados:
 | 2026-09-09 | Primeiro lote corretivo V-07 concluído localmente: DOI extraído do estilo `0.1.doi`, captions separadas de seus labels e figuras ordenadas por número preservando a intercalação; figuras atingiram precisão/recall 1,0 e os bloqueadores caíram de 39 para 37; 272 testes/86,37%; notas, estrutura, tabelas, fórmulas, corpo e cross-references seguem para os próximos lotes | Codex |
 | 2026-09-09 | Segundo lote corretivo V-07 concluído e implantado: o bloco `03.5` passou a gerar correspondência, datas editoriais, financiamento, conflito e notas de editores; o comparador unificou marcações JATS semanticamente equivalentes; notas passaram de 4 omissões para 2 exatas e 2 alterações rastreadas por ORCID ausente na fonte; bloqueadores caíram de 37 para 35; 274 testes/86,32%; backup/restore e deploy `phase7-v07-correspondence-v1` saudáveis, agentes desativados e corpus restrito somente local | Codex |
 | 2026-09-10 | Terceiro lote corretivo V-07 concluído e implantado: estilos inline das tabelas preservados, figuras/tabelas posicionadas pela primeira menção, contribuições e disponibilidade movidas ao `back`, e conteúdo de fórmulas separado do corpo no comparador; estrutura, corpo e tabelas atingiram precisão/recall/F1 1,0; bloqueadores caíram de 35 para 25; 278 testes/86,61%; backup/restore, gate sem rede e deploy `phase7-v07-structure-tables-v1` saudáveis, com agentes desativados e corpus restrito local | Codex |
+| 2026-09-10 | V-07 concluída e implantada: 17 fórmulas qualificadas visualmente, identificador editorial e dois ORCIDs enriquecidos por catálogo, diferenças de metadados/cross-references ligadas a autoridades exatas e gate real aprovado com zero bloqueios; 287 testes/86,68%, Ruff/mypy, backup/restore e imagem `phase7-v07-qualified-v1` saudáveis; flags/provider desligados e corpus/catálogos privados somente locais; próxima família V-08 | Codex |
