@@ -2,15 +2,15 @@
   "approved": false,
   "backup_restore": {
     "artifact_files": 1,
-    "backup_path": "/opt/idml-platform/backups/20260909T204841Z",
+    "backup_path": "/opt/idml-platform/backups/20260910T115239Z",
     "openclaw_state_files": 14,
     "public_tables": 21,
     "status": "passed"
   },
   "authorized_corpus": {
-    "blocking_findings": 35,
+    "blocking_findings": 25,
     "candidate_approved": false,
-    "candidate_xml_sha256": "33c1c7d9436b469d2073be0f153669731859461038e999bb880bfc542a17bcf2",
+    "candidate_xml_sha256": "4059767d2f72e129d648db5a51ba82bfe26b66603319c2ba40c3e26d201454ad",
     "corpus_id": "esa-e20240086",
     "cross_references": {
       "actual": 81,
@@ -99,7 +99,7 @@
         "text_fidelity": 1.0
       },
       {
-        "actual": 14,
+        "actual": 11,
         "altered": 0,
         "comparison_unit": "elements",
         "displacements": 0,
@@ -107,32 +107,32 @@
         "duplications": 0,
         "exact": 11,
         "expected": 11,
-        "f1": 0.88,
-        "inventions": 3,
+        "f1": 1.0,
+        "inventions": 0,
         "normalized": 0,
         "omissions": 0,
-        "passed": false,
-        "precision": 0.785714,
+        "passed": true,
+        "precision": 1.0,
         "recall": 1.0,
         "text_fidelity": 1.0
       },
       {
-        "actual": 5525,
-        "altered": 1,
+        "actual": 5466,
+        "altered": 0,
         "comparison_unit": "tokens",
         "displacements": 0,
         "domain": "body",
-        "duplications": 27,
-        "exact": 5468,
-        "expected": 5472,
-        "f1": 0.994453,
-        "inventions": 30,
-        "normalized": 0,
-        "omissions": 4,
-        "passed": false,
-        "precision": 0.989683,
-        "recall": 0.999269,
-        "text_fidelity": 0.991692
+        "duplications": 0,
+        "exact": 5466,
+        "expected": 5466,
+        "f1": 1.0,
+        "inventions": 0,
+        "normalized": 1,
+        "omissions": 0,
+        "passed": true,
+        "precision": 1.0,
+        "recall": 1.0,
+        "text_fidelity": 0.998958
       },
       {
         "actual": 52,
@@ -172,21 +172,21 @@
       },
       {
         "actual": 3,
-        "altered": 3,
+        "altered": 0,
         "comparison_unit": "elements",
         "displacements": 0,
         "domain": "tables",
         "duplications": 0,
         "exact": 0,
         "expected": 3,
-        "f1": 0.0,
+        "f1": 1.0,
         "inventions": 0,
-        "normalized": 0,
+        "normalized": 3,
         "omissions": 0,
-        "passed": false,
-        "precision": 0.0,
-        "recall": 0.0,
-        "text_fidelity": 0.988764
+        "passed": true,
+        "precision": 1.0,
+        "recall": 1.0,
+        "text_fidelity": 1.0
       },
       {
         "actual": 15,
@@ -262,12 +262,12 @@
       }
     ],
     "finding_counts": {
-      "alteration": 8,
+      "alteration": 4,
       "displacement": 0,
-      "duplication": 1,
-      "invention": 5,
-      "normalization": 60,
-      "omission": 21
+      "duplication": 0,
+      "invention": 1,
+      "normalization": 64,
+      "omission": 20
     },
     "manifest_sha256": "5fba59d536e62f5796714608a565d3831b14292e2b9f7254232b6d5d0041cff7",
     "reference_xml_sha256": "739b4c3247a06d6d5253ad2805fb830d09692cb306cbb5c785ad99707e539de9",
@@ -294,16 +294,16 @@
     "feature_ai_swarm": false,
     "feature_clamav": false,
     "feature_openclaw": false,
-    "image": "idml-foundation:phase7-v07-correspondence-v1",
-    "image_id": "sha256:23c26409962c93c8162a8c5bd443d69c21a8ebe56fe3154167c587ff8e3966ac",
+    "image": "idml-foundation:phase7-v07-structure-tables-v1",
+    "image_id": "sha256:19141d0651f4b60fed2812e4a3e051d094b2bd0a0ef8f1862f8d352f8e694636",
     "services_healthy": true,
     "vps_gate_network": "none",
     "vps_gate_restricted_corpus": false,
     "vps_gate_read_only": true
   },
   "test_suite": {
-    "coverage_percent": 86.32,
-    "passed": 274
+    "coverage_percent": 86.61,
+    "passed": 278
   },
   "synthetic": {
     "detected": {

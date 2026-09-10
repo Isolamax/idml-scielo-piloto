@@ -245,12 +245,16 @@ financiamento, conflito de interesse e notas dos editores. O comparador também 
 equivalentes as representações por `fn`, `funding-group` e seção de conflito, preservando rótulos
 semânticos e eliminando duplicidades. As quatro notas agora estão presentes: conflito e
 financiamento são exatos; as duas notas editoriais permanecem alteradas apenas pelos ORCIDs que não
-existem no texto nem nos hyperlinks do IDML e ficaram marcados para enriquecimento. O baseline caiu
-de 39 para 37 e depois para 35 achados bloqueadores, com omissões reduzidas de 25 para 21.
-Permanecem desvios reais em outros metadados, três seções adicionais, quatro tokens ausentes no
-corpo, tabelas, duas fórmulas inline, transcrição semântica das 17 fórmulas, os dois ORCIDs editoriais
-e cross-references com F1 0,943396. Portanto, o mecanismo V-07 está qualificado, mas o candidato e a
-família V-07 **não estão aprovados**. Relatório:
+existem no texto nem nos hyperlinks do IDML e ficaram marcados para enriquecimento. O terceiro lote
+preservou os estilos inline das células, reposicionou figuras e tabelas após sua primeira menção
+textual e transferiu contribuições de autoria e disponibilidade de dados do corpo para o `back`. O
+comparador deixou de introduzir espaços artificiais em células e passou a avaliar o conteúdo de
+fórmulas exclusivamente em seu domínio próprio. Estrutura, corpo e tabelas atingiram precisão,
+recall e F1 1,0; o corpo contém os mesmos 5.466 tokens sem omissão, invenção, duplicação ou
+deslocamento. O baseline caiu sucessivamente de 39 para 37, 35 e 25 achados bloqueadores.
+Permanecem quatro desvios de metadados, as duas fórmulas inline ausentes, a transcrição semântica das
+17 fórmulas e os dois ORCIDs editoriais. Portanto, o mecanismo V-07 está qualificado, mas o candidato
+e a família V-07 **não estão aprovados**. Relatório:
 `benchmarks/qualification/reports/v07-semantic-fidelity-v1.json`.
 
 A suíte integral aprovou 272 testes com 86,40% de cobertura. Após backup e restore isolado, a imagem
@@ -275,10 +279,20 @@ rede. API, worker, PostgreSQL, Redis e OpenClaw ficaram saudáveis; as três fla
 e o banco permaneceu com zero execuções e zero propostas de agentes. O corpus restrito não foi
 transferido para a VPS.
 
+O terceiro lote corretivo aprovou 278 testes com 86,61% de cobertura e foi implantado como
+`idml-foundation:phase7-v07-structure-tables-v1`
+(`sha256:19141d0651f4b60fed2812e4a3e051d094b2bd0a0ef8f1862f8d352f8e694636`). O backup
+`/opt/idml-platform/backups/20260910T115239Z` passou em checksums e restore isolado com 21 tabelas,
+um artefato e 14 arquivos do OpenClaw. O gate sintético passou sem rede e em modo read-only. API,
+worker, PostgreSQL, Redis e OpenClaw permaneceram saudáveis; as flags de OpenClaw, swarm e ClamAV
+continuaram falsas, com zero execuções e zero propostas de agentes. O corpus restrito permaneceu
+exclusivamente local.
+
 ## Decisão
 
 V-01 a V-05 estão aprovados e a infraestrutura V-06 está qualificada com a restrição explícita do
 XPM/Windows e do defeito conhecido do validador externo. A instrumentação V-07 também está
-qualificada, porém seu baseline real reprova corretamente o candidato. A próxima ação é corrigir os
-desvios V-07 por domínio e reexecutar o mesmo gate até zerar omissões, invenções, duplicações e
-deslocamentos. Isso não aprova o Pacote 7.1, o Gate G7-T nem produção.
+qualificada, porém seu baseline real reprova corretamente o candidato. A próxima ação é corrigir as
+fórmulas na V-07, seguida dos metadados e dos ORCIDs que exigem enriquecimento rastreável, e
+reexecutar o mesmo gate até eliminar todos os achados bloqueadores. Isso não aprova o Pacote 7.1, o
+Gate G7-T nem produção.
