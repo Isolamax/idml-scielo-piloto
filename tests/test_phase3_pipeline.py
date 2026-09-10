@@ -84,6 +84,42 @@ def test_pipeline_structures_labeled_correspondence_without_inference() -> None:
     assert result.validation.valid
 
 
+def test_pipeline_moves_labeled_back_matter_and_preserves_styled_table_cells() -> None:
+    result = DeterministicPipeline().run(
+        synthetic_idml(
+            include_table=True,
+            include_styled_table=True,
+            include_back_matter=True,
+            include_graphic_mention=True,
+        ),
+        logical_name="ESA_2024001_AOP.idml",
+    )
+    article = result.canonical
+    root = etree.fromstring(result.xml)
+
+    assert len(article.body) == 1
+    assert article.body[0].title.value == "Introduction"
+    assert {block.kind for block in article.body[0].blocks} >= {"figure", "table"}
+    assert article.back.contribution_statement is not None
+    assert article.back.contribution_statement.value == (
+        "Ana Silva: Conceptualization and writing."
+    )
+    assert article.back.data_availability is not None
+    assert article.back.data_availability.value == "All data were generated in this study."
+    table = next(block for block in article.body[0].blocks if block.kind == "table")
+    assert table.rows[0][0].plain.value == "kgO2/h"
+    assert [item.kind for item in table.rows[0][0].inlines] == [
+        InlineKind.TEXT,
+        InlineKind.SUBSCRIPT,
+        InlineKind.TEXT,
+    ]
+    assert root.xpath("string(body//table-wrap/table/tbody/tr[1]/td)") == "kgO2/h"
+    assert root.xpath("string(body//table-wrap/table/tbody/tr[1]/td/sub)") == "2"
+    assert root.xpath("count(back/sec[title='Author contributions'])") == 1.0
+    assert root.xpath("count(back/sec[title='Data availability'])") == 1.0
+    assert result.validation.valid
+
+
 def test_mapper_nests_level_two_sections_under_the_preceding_level_one() -> None:
     raw = IdmlParser().parse(
         synthetic_idml(include_subsection=True),

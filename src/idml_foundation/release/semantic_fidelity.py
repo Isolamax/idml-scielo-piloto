@@ -101,6 +101,16 @@ def _values(nodes: list[etree._Element]) -> list[str]:
     return [value for node in nodes if normalize_text(value := _node_text(node))]
 
 
+def _body_paragraph_text(node: etree._Element) -> str:
+    values = cast(
+        list[object],
+        node.xpath(
+            ".//text()[not(ancestor::inline-formula) and not(ancestor::disp-formula)]"
+        ),
+    )
+    return " ".join(value for value in values if isinstance(value, str))
+
+
 def _xpath(root: etree._Element, expression: str) -> list[etree._Element]:
     return cast(list[etree._Element], root.xpath(expression))
 
@@ -137,7 +147,18 @@ def _labeled_text(node: etree._Element) -> str:
 
 def _table_text(node: etree._Element) -> str:
     heading = _labeled_text(node)
-    cells = _values(_xpath(node, ".//tr/*[self::th or self::td]"))
+    cells = [
+        raw
+        for cell in _xpath(node, ".//tr/*[self::th or self::td]")
+        if normalize_text(
+            raw := "".join(
+                value.decode("utf-8", errors="replace")
+                if isinstance(value, bytes)
+                else value
+                for value in cell.itertext()
+            )
+        )
+    ]
     return " ".join((heading, *cells)).strip()
 
 
@@ -248,13 +269,15 @@ def extract_semantic_fields(root: etree._Element) -> dict[str, tuple[_SemanticFi
         "authors": authors,
         "affiliations": affiliations,
         "structure": _values(_xpath(root, "body//sec/title")),
-        "body": _values(
-            _xpath(
+        "body": [
+            raw
+            for node in _xpath(
                 root,
                 "body//p[not(ancestor::caption) and not(ancestor::table-wrap-foot) "
                 "and not(ancestor::fn)]",
             )
-        ),
+            if normalize_text(raw := _body_paragraph_text(node))
+        ],
         "references": _values(_xpath(root, "back/ref-list/ref/mixed-citation")),
         "figures": figures,
         "tables": tables,
@@ -404,11 +427,12 @@ def _compare_text_stream(
     )
     invented = extra - duplicate
     findings: list[SemanticFinding] = []
-    normalization = int(
-        expected_raw != actual_raw and expected_stream.normalized == actual_stream.normalized
-    )
+    expected_sequence = _semantic_tokens(expected_raw)
+    actual_sequence = _semantic_tokens(actual_raw)
+    sequence_equivalent = expected_sequence == actual_sequence
+    normalization = int(expected_raw != actual_raw and sequence_equivalent)
     displacement = int(
-        not missing and not extra and expected_stream.normalized != actual_stream.normalized
+        not missing and not extra and not sequence_equivalent
     )
     alteration = int(bool(missing and extra))
     if normalization:

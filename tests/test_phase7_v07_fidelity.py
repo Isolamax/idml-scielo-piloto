@@ -113,6 +113,50 @@ def test_equivalent_structured_conflict_and_funding_notes_compare_equal() -> Non
     assert notes.exact == 2  # type: ignore[attr-defined]
 
 
+def test_inline_table_markup_does_not_create_semantic_whitespace() -> None:
+    reference = _article("Stable body").replace(
+        b"<td>Alpha</td>",
+        b"<td>kgO<sub>2</sub>/h</td>",
+    )
+    candidate = _article("Stable body").replace(
+        b"<td>Alpha</td>",
+        b"<td>kgO2/h</td>",
+    )
+
+    report = XmlSemanticComparator().compare(reference, candidate)
+
+    tables = _domain(report, "tables")
+    assert tables.passed is True  # type: ignore[attr-defined]
+    assert tables.exact == 1  # type: ignore[attr-defined]
+
+
+def test_formula_content_is_not_double_counted_as_body_text() -> None:
+    reference = _article("Rate measured").replace(
+        b"Rate measured",
+        b"Rate <inline-formula><tex-math>x</tex-math></inline-formula> measured",
+    )
+    candidate = _article("Rate measured")
+
+    report = XmlSemanticComparator().compare(reference, candidate)
+
+    body = _domain(report, "body")
+    formulas = _domain(report, "formulas")
+    assert body.passed is True  # type: ignore[attr-defined]
+    assert formulas.omissions == 1  # type: ignore[attr-defined]
+
+
+def test_inline_markup_punctuation_is_a_body_normalization_not_displacement() -> None:
+    reference = _article("See Silva <italic>et al</italic>., 2024.")
+    candidate = _article("See Silva et al., 2024.")
+
+    report = XmlSemanticComparator().compare(reference, candidate)
+
+    body = _domain(report, "body")
+    assert body.passed is True  # type: ignore[attr-defined]
+    assert body.normalized == 1  # type: ignore[attr-defined]
+    assert body.displacements == 0  # type: ignore[attr-defined]
+
+
 @pytest.mark.parametrize(
     ("reference_paragraphs", "candidate_paragraphs", "expected_kind"),
     [

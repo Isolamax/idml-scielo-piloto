@@ -82,6 +82,14 @@ class _CorrespondenceData:
     review_reasons: tuple[str, ...] = ()
 
 
+@dataclass(frozen=True)
+class _BackStatementData:
+    contribution_statement: SourcedText | None = None
+    data_availability: SourcedText | None = None
+    excluded_paragraph_ids: frozenset[str] = frozenset()
+    review_reasons: tuple[str, ...] = ()
+
+
 def _safe_external_href(value: str) -> str | None:
     if len(value) > 2048 or any(ord(character) < 32 for character in value):
         return None
@@ -340,6 +348,7 @@ class CanonicalMapper:
                 )
 
         references = self._references(paragraphs_by_role, text_for, article_id)
+        back_statements = self._back_statements(paragraphs_by_role, text_for, raw)
         sections, section_review_reasons = self._sections(
             raw,
             paragraphs_by_role,
@@ -348,6 +357,7 @@ class CanonicalMapper:
             style_properties,
             article_id,
             references,
+            excluded_paragraph_ids=back_statements.excluded_paragraph_ids,
         )
         notes = (*self._notes(raw, character_names, article_id), *correspondence.notes)
         assets = tuple(
@@ -369,6 +379,7 @@ class CanonicalMapper:
         if any(item.external for item in raw.assets):
             review_reasons.append("external_assets_require_package_resolution")
         review_reasons.extend(section_review_reasons)
+        review_reasons.extend(back_statements.review_reasons)
         review_reasons.extend(correspondence.review_reasons)
         if correspondence.email is not None:
             corresponding_count = sum(item.corresponding for item in contributors)
@@ -421,6 +432,8 @@ class CanonicalMapper:
             ),
             body=sections,
             back=BackMatter(
+                contribution_statement=back_statements.contribution_statement,
+                data_availability=back_statements.data_availability,
                 conflicts=correspondence.conflicts,
                 notes=notes,
                 references=references,
@@ -428,6 +441,67 @@ class CanonicalMapper:
             assets=assets,
             evidence=evidence,
             review_reasons=tuple(dict.fromkeys(review_reasons)),
+        )
+
+    def _back_statements(
+        self,
+        by_role: defaultdict[str, list[tuple[RawStory, RawParagraph]]],
+        text_for: Callable[[RawStory, RawParagraph], str],
+        raw: RawArticle,
+    ) -> _BackStatementData:
+        items = [
+            (*item, role)
+            for role in ("section-level-1", "section-level-2", "paragraph")
+            for item in by_role[role]
+        ]
+        items.sort(key=lambda item: (raw.reading_order.index(item[0].id), item[1].position))
+        contribution_statement: SourcedText | None = None
+        data_availability: SourcedText | None = None
+        excluded: set[str] = set()
+        review_reasons: list[str] = []
+        labels = {
+            "authors' contributions": "contribution",
+            "data availability statement": "data-availability",
+        }
+        for position, (story, paragraph, role) in enumerate(items):
+            if not role.startswith("section-level"):
+                continue
+            normalized = re.sub(r"\s+", " ", text_for(story, paragraph)).strip().casefold()
+            normalized = normalized.replace("\u2019", "'")
+            statement_type = labels.get(normalized)
+            if statement_type is None:
+                continue
+            if position + 1 >= len(items) or items[position + 1][2] != "paragraph":
+                review_reasons.append(f"{statement_type}_statement_missing_after_heading")
+                continue
+            _, statement_paragraph, _ = items[position + 1]
+            statement_story = items[position + 1][0]
+            value = text_for(statement_story, statement_paragraph)
+            if not value:
+                review_reasons.append(f"{statement_type}_statement_empty")
+                continue
+            sourced = _present(
+                value,
+                statement_paragraph.evidence_ids,
+                f"labeled-back-statement:{statement_type}",
+            )
+            if statement_type == "contribution":
+                if contribution_statement is not None:
+                    review_reasons.append("multiple_contribution_statements")
+                    continue
+                contribution_statement = sourced
+            else:
+                if data_availability is not None:
+                    review_reasons.append("multiple_data_availability_statements")
+                    continue
+                data_availability = sourced
+            excluded.update((paragraph.id, statement_paragraph.id))
+
+        return _BackStatementData(
+            contribution_statement=contribution_statement,
+            data_availability=data_availability,
+            excluded_paragraph_ids=frozenset(excluded),
+            review_reasons=tuple(review_reasons),
         )
 
     def _correspondence(
@@ -786,11 +860,14 @@ class CanonicalMapper:
         style_properties: dict[str, dict[str, str | int | float | bool | None]],
         article_id: str,
         references: tuple[Reference, ...],
+        *,
+        excluded_paragraph_ids: frozenset[str] = frozenset(),
     ) -> tuple[tuple[Section, ...], tuple[str, ...]]:
         body_items = [
             (*item, role)
             for role in ("section-level-1", "section-level-2", "paragraph")
             for item in by_role[role]
+            if item[1].id not in excluded_paragraph_ids
         ]
         body_items.sort(key=lambda item: (raw.reading_order.index(item[0].id), item[1].position))
         sections: list[dict[str, object]] = []
@@ -1021,7 +1098,10 @@ class CanonicalMapper:
                 append_paragraph(segment_run_ids, segment)
 
         raw_tables = {table.id: table for table in raw.tables}
-        table_story = {table_id: story.id for story in raw.stories for table_id in story.table_ids}
+        story_by_table = {
+            table_id: story for story in raw.stories for table_id in story.table_ids
+        }
+        table_story = {table_id: story.id for table_id, story in story_by_table.items()}
         story_page = {
             story.id: min(
                 (frame.page_index for frame in raw.frames if frame.parent_story_id == story.id),
@@ -1056,13 +1136,34 @@ class CanonicalMapper:
                     value = (
                         "".join(run_lookup[item].text for item in cell.text_run_ids) if cell else ""
                     )
-                    cell_rich = RichText(
-                        plain=(
-                            _present(value, cell.evidence_ids, "idml-table-cell")
-                            if value.strip() and cell
-                            else _missing("empty-or-spanned-table-cell")
+                    if value.strip() and cell:
+                        source_story = story_by_table[table_id]
+                        source_paragraph = next(
+                            (
+                                paragraph
+                                for paragraph in source_story.paragraphs
+                                if paragraph.table_cell_id == cell.id
+                            ),
+                            RawParagraph(
+                                id=stable_id(article_id, "table-cell-paragraph", cell.id),
+                                position=0,
+                                text_run_ids=cell.text_run_ids,
+                                table_cell_id=cell.id,
+                                evidence_ids=cell.evidence_ids,
+                            ),
                         )
-                    )
+                        cell_rich = self._rich_text(
+                            source_story,
+                            source_paragraph,
+                            character_names,
+                            article_id,
+                            run_ids=cell.text_run_ids,
+                            hyperlinks_by_run=hyperlinks_by_run,
+                        )
+                    else:
+                        cell_rich = RichText(
+                            plain=_missing("empty-or-spanned-table-cell")
+                        )
                     if value.strip() and cell:
                         cell_resolution = resolve_citations(
                             cell_rich,
@@ -1212,7 +1313,39 @@ class CanonicalMapper:
             next(ordered_figures) if isinstance(block, FigureBlock) else next(ordered_tables)
             for block in graphic_blocks
         ]
-        if graphic_blocks:
+        def place_after_first_mention(
+            block: FigureBlock | TableBlock,
+            candidates: list[dict[str, object]],
+        ) -> bool:
+            label = block.label.value or ""
+            label_match = _NUMBERED_GRAPHIC.match(label)
+            if label_match is None:
+                return False
+            kind, number = label_match.groups()
+            mention = re.compile(rf"\b{re.escape(kind)}\s*0*{int(number)}\b", re.IGNORECASE)
+            for section in candidates:
+                blocks = cast(list[object], section["blocks"])
+                for position, existing in enumerate(blocks):
+                    if not isinstance(existing, Paragraph):
+                        continue
+                    if not mention.search(existing.content.plain.value or ""):
+                        continue
+                    insertion = position + 1
+                    while insertion < len(blocks) and isinstance(
+                        blocks[insertion], (FigureBlock, TableBlock)
+                    ):
+                        insertion += 1
+                    blocks.insert(insertion, block)
+                    return True
+                children = cast(list[dict[str, object]], section["children"])
+                if place_after_first_mention(block, children):
+                    return True
+            return False
+
+        unplaced_graphics = [
+            block for block in graphic_blocks if not place_after_first_mention(block, sections)
+        ]
+        if unplaced_graphics:
             sections.append(
                 {
                     "id": stable_id(article_id, "section", "graphic-elements"),
@@ -1222,7 +1355,7 @@ class CanonicalMapper:
                         "deterministic-container-label",
                     ),
                     "level": 1,
-                    "blocks": graphic_blocks,
+                    "blocks": unplaced_graphics,
                     "children": [],
                     "evidence_ids": (),
                 }

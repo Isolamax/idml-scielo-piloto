@@ -10,6 +10,9 @@ def synthetic_idml(
     include_inline_formula: bool = False,
     include_inline_formula_gap: bool = False,
     include_correspondence: bool = False,
+    include_back_matter: bool = False,
+    include_graphic_mention: bool = False,
+    include_styled_table: bool = False,
 ) -> bytes:
     design = b"""<?xml version="1.0" encoding="UTF-8"?>
 <Document Self="doc" DOMVersion="20.3" StoryList="u1 u2 u3 u4"/>"""
@@ -28,6 +31,7 @@ def synthetic_idml(
   <RootCharacterStyleGroup>
     <CharacterStyle Self="CharacterStyle/none" Name="none"/>
     <CharacterStyle Self="CharacterStyle/italico" Name="italico"/>
+    <CharacterStyle Self="CharacterStyle/subscrito" Name="subscrito"/>
   </RootCharacterStyleGroup>
 </idPkg:Styles>"""
 
@@ -44,11 +48,21 @@ def synthetic_idml(
             f"<Content>{text}</Content></CharacterStyleRange></ParagraphStyleRange>"
         )
 
+    first_table_cell = (
+        '<CharacterStyleRange AppliedCharacterStyle="CharacterStyle/none">'
+        '<Content>kgO</Content></CharacterStyleRange>'
+        '<CharacterStyleRange AppliedCharacterStyle="CharacterStyle/subscrito">'
+        '<Content>2</Content></CharacterStyleRange>'
+        '<CharacterStyleRange AppliedCharacterStyle="CharacterStyle/none">'
+        '<Content>/h</Content></CharacterStyleRange>'
+        if include_styled_table
+        else '<CharacterStyleRange AppliedCharacterStyle="CharacterStyle/none">'
+        '<Content>Alpha</Content></CharacterStyleRange>'
+    )
     table = (
         '<Table Self="table-1" BodyRowCount="1" ColumnCount="2">'
         '<Cell Name="0:0"><ParagraphStyleRange AppliedParagraphStyle="ParagraphStyle/05.0.text">'
-        '<CharacterStyleRange AppliedCharacterStyle="CharacterStyle/none">'
-        "<Content>Alpha</Content></CharacterStyleRange></ParagraphStyleRange></Cell>"
+        f"{first_table_cell}</ParagraphStyleRange></Cell>"
         '<Cell Name="1:0"><ParagraphStyleRange AppliedParagraphStyle="ParagraphStyle/05.0.text">'
         '<CharacterStyleRange AppliedCharacterStyle="CharacterStyle/none">'
         "<Content>Beta</Content></CharacterStyleRange></ParagraphStyleRange></Cell>"
@@ -97,6 +111,19 @@ def synthetic_idml(
         if include_correspondence
         else ""
     )
+    graphic_mention = (
+        paragraph("05.0.text", "See Figure 1 and Table 1 for the measured values.")
+        if include_graphic_mention
+        else ""
+    )
+    back_matter = (
+        paragraph("04.0.section", "AUTHORS\u2019 CONTRIBUTIONS")
+        + paragraph("05.0.text", "Ana Silva: Conceptualization and writing.")
+        + paragraph("04.0.section", "DATA AVAILABILITY STATEMENT")
+        + paragraph("05.0.text", "All data were generated in this study.")
+        if include_back_matter
+        else ""
+    )
     stories = {
         "Stories/Story_u1.xml": story(
             "u1",
@@ -111,6 +138,7 @@ def synthetic_idml(
             paragraph("04.0.section", "Introduction")
             + paragraph("05.0.text", "Plain ")
             + paragraph("05.0.text", "emphasis", "italico")
+            + graphic_mention
             + (
                 paragraph("04.1.subsection", "Nested method details")
                 + paragraph("05.0.text", "Nested content")
@@ -119,7 +147,8 @@ def synthetic_idml(
             )
             + formula
             + inline_formula
-            + inline_formula_gap,
+            + inline_formula_gap
+            + back_matter,
             table,
         ),
         "Stories/Story_u3.xml": story(
@@ -131,7 +160,12 @@ def synthetic_idml(
         ),
         "Stories/Story_u4.xml": story(
             "u4",
-            paragraph("07.0.caption", "Figure 1. Figure caption"),
+            paragraph("07.0.caption", "Figure 1. Figure caption")
+            + (
+                paragraph("07.0.caption", "Table 1. Table caption")
+                if include_styled_table
+                else ""
+            ),
             '<Rectangle Self="rectangle-1"><Image><Link Self="link-1" '
             'LinkResourceURI="file:C:/private/source/Figure%201.jpg" '
             'LinkResourceFormat="$ID/JPEG"/></Image></Rectangle>',
