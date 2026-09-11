@@ -265,6 +265,15 @@ correlacionados pelo mesmo modelo e não autorizam release. Relatório:
 Aceite: zero achado crítico/alto aberto e nenhuma possibilidade conhecida de vazamento entre
 empresas.
 
+Estado em 2026-09-11: V-09 aprovada. Foram 35 testes dedicados de segurança e 305 testes completos
+com 87,02% de cobertura; 40 operações autenticadas e 30 operações multiempresa foram inventariadas
+pelo gate. Não houve vazamento conhecido entre empresas nem achado crítico/alto aberto. Limitação
+Redis de login/recuperação, equalização temporal de senha, auditoria persistente de falhas,
+sanitização de mensagens de log, contratos contra mass assignment e cabeçalhos defensivos foram
+implementados. Backup/restore e gate read-only/sem rede passaram na VPS, e a imagem
+`phase7-v09-security-v1` ficou saudável. Relatório:
+`benchmarks/security/v09-security-validation-v1.json`.
+
 ### V-10 — Fluxo ponta a ponta e experiência operacional
 
 - criar empresa/usuário e executar upload, processamento, revisão, aprovação e download;

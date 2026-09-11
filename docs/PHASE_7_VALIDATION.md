@@ -1,6 +1,6 @@
 # Fase 7 — Homologação automatizada e piloto simulado
 
-Data inicial: 2026-09-04. Estado: **EM EXECUÇÃO — V-01 A V-08 QUALIFICADOS; PRÓXIMA FAMÍLIA V-09**.
+Data inicial: 2026-09-04. Estado: **EM EXECUÇÃO — V-01 A V-09 QUALIFICADOS; PRÓXIMA FAMÍLIA V-10**.
 
 ## Estado das famílias V-01 a V-11
 
@@ -14,7 +14,7 @@ Data inicial: 2026-09-04. Estado: **EM EXECUÇÃO — V-01 A V-08 QUALIFICADOS; 
 | V-06 Validadores formais | PASSOU COM RESTRIÇÃO | 4 contêineres qualificados; XPM SPS 1.10 aguarda worker Windows |
 | V-07 Fidelidade comparativa | PASSOU | candidato real com zero bloqueios e diferenças qualificadas por fonte |
 | V-08 OpenClaw assistivo | PASSOU | seis domínios, evidência viva, matriz adversarial e contratos fail-closed |
-| V-09 Segurança e multiempresa | PENDENTE | — |
+| V-09 Segurança e multiempresa | PASSOU | identidade, RBAC, isolamento, entradas hostis e segredos |
 | V-10 Fluxo ponta a ponta | PENDENTE | — |
 | V-11 Robustez e mutações | PENDENTE | — |
 
@@ -376,9 +376,42 @@ read-only e sem rede, incluindo os dois relatórios privados por hash, e foi apr
 `IDML_FEATURE_OPENCLAW` e `IDML_FEATURE_AI_SWARM` permaneceram falsas, o banco ficou em `0|0` e
 provider, chave e proxy temporários permaneceram ausentes.
 
+## V-09 — Segurança, identidade e multiempresa
+
+A V-09 tomou como base o OWASP ASVS 5.0.0 e o OWASP API Security Top 10 2023. A suíte dedicada
+passou com 35 testes de segurança; a suíte completa passou com 305 testes e cobertura de 87,02%.
+O gate `ops/gate_phase7_v09.py`, executado sem rede, confirmou 40 operações autenticadas, 30
+operações com `X-Organization-ID`, quatro papéis, 11 permissões e 15 contratos de escrita que
+rejeitam campos desconhecidos. O teste cruzado percorreu organizações, recursos, jobs/eventos,
+artefatos, revisões, snapshots, releases, auditoria e registros/propostas de agentes sem encontrar
+vazamento conhecido entre empresas.
+
+Foram corrigidos cinco achados durante a própria família. Login e recuperação agora possuem
+limitação distribuída em Redis, com chaves HMAC que não armazenam e-mail ou IP em claro e falha
+fechada quando o limitador não está disponível. O login executa a mesma verificação Argon2 para
+contas existentes, inativas e inexistentes; sucesso limpa os contadores. Falhas de autenticação são
+persistidas na auditoria antes do rollback HTTP. Contratos de escrita rejeitam mass assignment no
+topo, e a sanitização de logs passou a remover credenciais também quando aparecem na própria
+mensagem ou exceção.
+
+Também foram verificados expiração, logout, recuperação de uso único, invalidação de sessões, MFA,
+replay de código, autenticação recente, não enumeração por IDOR, matriz exata de RBAC, CSRF com
+Bearer sem cookie, CORS default-deny, CSP/escape de XSS, injeção SQL, XXE, ZIP/path/bomb, upload e
+prompt injection em IDML, PDF, XML, metadados e evidências. Cabeçalhos de frame, permissões e
+isolamento de opener foram reforçados.
+
+O backup `/opt/idml-platform/backups/20260911T130919Z` passou em checksum e restore isolado com 21
+tabelas, um artefato e 14 arquivos OpenClaw. A imagem `idml-foundation:phase7-v09-security-v1`
+(`sha256:4c618326fed15652eb9ef5c367b899320fb9c1a1155f637eafe4f461c7c18ad1`) foi implantada; API,
+worker, PostgreSQL, Redis e OpenClaw ficaram saudáveis. O limitador Redis foi exercitado e limpo com
+uma chave sintética; `.env` permaneceu em modo `600`, artefatos em `640`, e flags de agentes,
+provider, proxy e redes transitórias permaneceram desligados/ausentes. O banco continuou com zero
+`agent_runs` e `agent_proposals`. O gate V-09 passou novamente dentro da imagem, read-only e sem
+rede. Relatório público: `benchmarks/security/v09-security-validation-v1.json`.
+
 ## Decisão
 
-V-01 a V-08 estão aprovados, com as restrições explícitas de XPM/Windows, do defeito conhecido do
-validador externo e da homologação humana ainda pendente. A próxima ação é executar a V-09,
-validando segurança, identidade e isolamento multiempresa. Isso não aprova o Pacote 7.1, o Gate G7-T
-nem produção.
+V-01 a V-09 estão aprovados, com as restrições explícitas de XPM/Windows, do defeito conhecido do
+validador externo e da homologação humana ainda pendente. A próxima ação é executar a V-10,
+validando o fluxo ponta a ponta e a experiência operacional. Isso não aprova o Pacote 7.1, o Gate
+G7-T nem produção.

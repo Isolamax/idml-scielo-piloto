@@ -22,7 +22,7 @@ docs/XML_VALIDATION_MASTER_PLAN.md
 
 ```text
 PROJECT_STATUS: PHASE_7_VALIDATION_IN_PROGRESS
-CURRENT_PHASE: FASE 7 — Pacote 7.1; próxima família V-09
+CURRENT_PHASE: FASE 7 — Pacote 7.1; próxima família V-10
 CURRENT_IMPLEMENTATION_AUTHORIZED: PHASE_7
 DEVELOPMENT_ROADMAP_AUTHORIZED: THROUGH_PHASE_8_PRODUCTION_READINESS
 PRODUCTION_ACTIVATION_AUTHORIZED: NO — REQUIRES XML_EXPERT_FINAL_ACCEPTANCE
@@ -122,7 +122,7 @@ Antes de qualquer implantação futura na VPS:
 | 4 | Validação, fidelidade e pacote | Pacote validado e política de release | Implementada — Gate G4 bloqueado por validadores externos/crossrefs |
 | 5 | Revisão humana e interface mínima | Correção humana auditável | Concluída — Gate G5 aprovado |
 | 6 | IA assistiva e OpenClaw | Assistência semântica controlada | Concluída — Gate G6-T aprovado; produção não autorizada |
-| 7 | Homologação automatizada e piloto simulado | Sistema completo validado antes da revisão humana | Em andamento — V-01 a V-08 qualificados; próxima V-09 |
+| 7 | Homologação automatizada e piloto simulado | Sistema completo validado antes da revisão humana | Em andamento — V-01 a V-09 qualificados; próxima V-10 |
 | 8 | Prontidão, homologação humana e produção | RC operacional, aceite do especialista e rollout | Não iniciada — ativação real bloqueada pelo G8-H |
 | 9 | Expansão controlada | Novos periódicos e casos complexos | Não iniciada |
 
@@ -688,7 +688,7 @@ o especialista sem depender de revisão humana intermediária.
 - [x] V-06 — validadores formais e regras editoriais, com restrições documentadas.
 - [x] V-07 — fidelidade comparativa aprovada; candidato real com zero bloqueios e qualificações rastreáveis.
 - [x] V-08 — validação assistiva OpenClaw.
-- [ ] V-09 — segurança, identidade e multiempresa.
+- [x] V-09 — segurança, identidade e multiempresa.
 - [ ] V-10 — fluxo ponta a ponta e experiência operacional.
 - [ ] V-11 — robustez, propriedades e mutações.
 - [ ] Unit tests e metas específicas para módulos críticos.
@@ -1013,3 +1013,4 @@ ADRs iniciais esperados:
 | 2026-09-10 | Terceiro lote corretivo V-07 concluído e implantado: estilos inline das tabelas preservados, figuras/tabelas posicionadas pela primeira menção, contribuições e disponibilidade movidas ao `back`, e conteúdo de fórmulas separado do corpo no comparador; estrutura, corpo e tabelas atingiram precisão/recall/F1 1,0; bloqueadores caíram de 35 para 25; 278 testes/86,61%; backup/restore, gate sem rede e deploy `phase7-v07-structure-tables-v1` saudáveis, com agentes desativados e corpus restrito local | Codex |
 | 2026-09-10 | V-07 concluída e implantada: 17 fórmulas qualificadas visualmente, identificador editorial e dois ORCIDs enriquecidos por catálogo, diferenças de metadados/cross-references ligadas a autoridades exatas e gate real aprovado com zero bloqueios; 287 testes/86,68%, Ruff/mypy, backup/restore e imagem `phase7-v07-qualified-v1` saudáveis; flags/provider desligados e corpus/catálogos privados somente locais; próxima família V-08 | Codex |
 | 2026-09-11 | V-08 concluída e implantada: materialização confiável por evidence intent eliminou cópia incompleta e preservou RichText; janela real final teve 10/10 propostas exatas, nove aceites efetivos e uma rejeição semântica segura; regressão do adjudicador passou; matriz 30/30, 84 papéis e sete mutações de contrato passaram; custo novo 297.872 micro-USD; backup/restore e gate sem rede passaram; imagem `phase7-v08-assistive-v1` saudável, flags/provider desligados e zero persistência; próxima família V-09 | Codex |
+| 2026-09-11 | V-09 concluída e implantada: 35 testes dedicados, 305 testes completos/87,02%, 40 operações autenticadas e 30 multiempresa inventariadas; zero achado crítico/alto aberto e zero vazamento conhecido; limitação Redis, equalização de login, auditoria de falhas, redaction de logs, contratos anti-mass-assignment e cabeçalhos defensivos implementados; backup/restore e gate sem rede passaram; imagem `phase7-v09-security-v1` saudável; próxima família V-10 | Codex |
