@@ -46,6 +46,8 @@ jobs:
         run: python ops/gate_phase7_v08.py
       - name: Run V-09 security, identity, and tenant-isolation gate
         run: python ops/gate_phase7_v09.py
+      - name: Run V-10 end-to-end operational workflow gate
+        run: python ops/gate_phase7_v10.py
       - name: Check repository for obvious secrets
         run: |
           if git grep -nE '(sk-proj-|BEGIN (RSA|OPENSSH) PRIVATE KEY|password=[^$<{])' -- ':!*.md' ':!.env.example' ':!.github/workflows/ci.yml'; then

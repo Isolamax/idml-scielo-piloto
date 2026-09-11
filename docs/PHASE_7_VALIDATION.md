@@ -1,6 +1,6 @@
 # Fase 7 — Homologação automatizada e piloto simulado
 
-Data inicial: 2026-09-04. Estado: **EM EXECUÇÃO — V-01 A V-09 QUALIFICADOS; PRÓXIMA FAMÍLIA V-10**.
+Data inicial: 2026-09-04. Estado: **EM EXECUÇÃO — V-01 A V-10 QUALIFICADOS; PRÓXIMA FAMÍLIA V-11**.
 
 ## Estado das famílias V-01 a V-11
 
@@ -15,7 +15,7 @@ Data inicial: 2026-09-04. Estado: **EM EXECUÇÃO — V-01 A V-09 QUALIFICADOS; 
 | V-07 Fidelidade comparativa | PASSOU | candidato real com zero bloqueios e diferenças qualificadas por fonte |
 | V-08 OpenClaw assistivo | PASSOU | seis domínios, evidência viva, matriz adversarial e contratos fail-closed |
 | V-09 Segurança e multiempresa | PASSOU | identidade, RBAC, isolamento, entradas hostis e segredos |
-| V-10 Fluxo ponta a ponta | PENDENTE | — |
+| V-10 Fluxo ponta a ponta | PASSOU | fluxo operacional, idempotência, recuperação, UI e VPS |
 | V-11 Robustez e mutações | PENDENTE | — |
 
 ## V-01 — Proveniência e integridade do corpus
@@ -409,9 +409,54 @@ provider, proxy e redes transitórias permaneceram desligados/ausentes. O banco 
 `agent_runs` e `agent_proposals`. O gate V-09 passou novamente dentro da imagem, read-only e sem
 rede. Relatório público: `benchmarks/security/v09-security-validation-v1.json`.
 
+## V-10 — Fluxo ponta a ponta e experiência operacional
+
+A V-10 conectou ao worker os jobs duráveis `idml.process` e `scielo.package`. O primeiro lê o
+artefato com conferência de SHA-256, executa o pipeline determinístico, persiste snapshots raw e
+canônico e publica o XML gerado como artefato íntegro. O segundo reconstrói e valida o JATS a partir
+da revisão escolhida, resolve nomes de assets e produz ZIP determinístico com
+`ConversionManifest`. As escritas de cada tentativa usam savepoint: falha de parser ou pacote não
+deixa snapshots, efeitos ou registros de artefato parcialmente confirmados.
+
+O contrato idempotente passou a rejeitar com 409 a reutilização da mesma chave para uma requisição
+diferente. A repetição exata retorna o job já existente sem duplicar job, efeito, artefato,
+snapshot ou auditoria de criação. Foram adicionados cancelamento de job enfileirado, retry manual
+com wake-up Redis e recuperação automática de falha transitória, todos com versão otimista,
+timeline e auditoria. O download de qualquer artefato relê o conteúdo e confere seu hash antes de
+responder.
+
+O ensaio completo criou recurso e usuários com papéis distintos; enviou IDML, PDF e imagem;
+converteu e baixou XML; aplicou revisão com nova versão e revalidação; montou e baixou o pacote;
+comparou o ZIP, manifesto, tamanhos, hashes de cada membro e candidate set; e concluiu duas
+aprovações editoriais independentes com MFA. O mesmo cenário terminou com OpenClaw/swarm
+desligados e zero `agent_runs`/`agent_proposals`. O IDML ESA autorizado também foi processado pelo
+pipeline local sem emitir texto do artigo: válido, fonte
+`8ce185f5dd03f5403a36ca7b60d9d708b95e2b334e731327dd0b568b0cd44d2c` e XML
+`4059767d2f72e129d648db5a51ba82bfe26b66603319c2ba40c3e26d201454ad`.
+
+A interface agora expõe criação de artigo, IDs completos, conversão, pacote, criação de pendência,
+resultado/erro dos jobs, timeline, cancelamento e retry. A sintaxe JavaScript foi conferida com
+Node. A suíte dedicada passou com três testes e a suíte completa com 308 testes e 87,44% de
+cobertura. O gate `ops/gate_phase7_v10.py` passou localmente e na VPS dentro da imagem, read-only e
+sem rede. Relatório público:
+`benchmarks/qualification/reports/v10-operational-workflow-v1.json`.
+
+Antes do deploy, `/opt/idml-platform/backups/20260911T155705Z` passou em checksum e restore isolado
+com 21 tabelas, um artefato e 14 arquivos OpenClaw; o código anterior foi preservado em
+`source-phase7-pre-v10-20260911T155705Z.tar.gz`. A imagem
+`idml-foundation:phase7-v10-operational-v1`
+(`sha256:2df693031dbcce186e1c9deaf86aeaf3a48f79396c83d99155e534be67a47605`) foi implantada. API,
+worker, PostgreSQL, Redis e OpenClaw ficaram saudáveis; migration permaneceu em
+`f7b8c9d0e1f2`; `.env` ficou em modo 600, artefatos em 640, flags de agentes falsas e banco em
+`0|0`. A UI e os novos endpoints responderam no loopback sem erro nos logs.
+
+A V-10 qualifica cancelamento antes da execução. Interrupção cooperativa durante uma conversão já
+iniciada pertence à V-13. Aprovação editorial continua distinta de `READY_FOR_SCIELO`; XPM do
+candidato e homologação humana final permanecem pendentes.
+
 ## Decisão
 
-V-01 a V-09 estão aprovados, com as restrições explícitas de XPM/Windows, do defeito conhecido do
-validador externo e da homologação humana ainda pendente. A próxima ação é executar a V-10,
-validando o fluxo ponta a ponta e a experiência operacional. Isso não aprova o Pacote 7.1, o Gate
-G7-T nem produção.
+V-01 a V-10 estão aprovados, com as restrições explícitas de XPM/Windows, do defeito conhecido do
+validador externo e da homologação humana ainda pendente. A próxima ação é executar a V-11,
+começando por propriedades, fuzz e mutações nos módulos críticos. Isso não aprova o Pacote 7.1, o
+Gate G7-T nem produção.

@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 
 class StrictRequestModel(BaseModel):
@@ -120,10 +122,36 @@ class ResourceRead(BaseModel):
     version: int
 
 
+class IdmlProcessPayload(StrictRequestModel):
+    resource_id: str = Field(min_length=1, max_length=36)
+    idml_artifact_id: str = Field(min_length=1, max_length=36)
+
+
+class ScieloPackagePayload(StrictRequestModel):
+    resource_id: str = Field(min_length=1, max_length=36)
+    canonical_snapshot_id: str = Field(min_length=1, max_length=36)
+    idml_artifact_id: str = Field(min_length=1, max_length=36)
+    pdf_artifact_id: str = Field(min_length=1, max_length=36)
+    asset_artifact_ids: tuple[str, ...] = Field(default=(), max_length=100)
+
+
 class JobCreate(StrictRequestModel):
     kind: str = Field(pattern=r"^[a-z][a-z0-9_.-]{1,79}$")
     idempotency_key: str = Field(min_length=8, max_length=200)
     payload: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def validate_operational_payload(self) -> JobCreate:
+        models: dict[str, type[BaseModel]] = {
+            "idml.process": IdmlProcessPayload,
+            "scielo.package": ScieloPackagePayload,
+        }
+        model = models.get(self.kind)
+        if model is not None:
+            self.payload = model.model_validate(self.payload).model_dump(mode="json")
+        elif self.kind == "foundation.noop" and self.payload:
+            raise ValueError("foundation.noop does not accept payload")
+        return self
 
 
 class JobRead(BaseModel):
@@ -136,6 +164,16 @@ class JobRead(BaseModel):
     idempotency_key: str
     attempt_count: int
     version: int
+    result: dict[str, Any] | None
+    error_code: str | None
+    available_at: datetime
+    started_at: datetime | None
+    finished_at: datetime | None
+    cancelled_at: datetime | None
+
+
+class JobControlRequest(StrictRequestModel):
+    expected_version: int = Field(ge=1)
 
 
 class JobEventRead(BaseModel):

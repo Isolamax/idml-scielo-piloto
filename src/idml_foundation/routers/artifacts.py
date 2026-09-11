@@ -1,5 +1,3 @@
-import hashlib
-from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, File, HTTPException, Response, UploadFile, status
@@ -17,6 +15,7 @@ from idml_foundation.rbac import Permission, TenantContext
 from idml_foundation.schemas import ArtifactRead
 from idml_foundation.services.artifacts import (
     UnsafeContentError,
+    read_artifact_bytes,
     store_idml_artifact,
     store_supporting_artifact,
 )
@@ -138,16 +137,17 @@ def download_artifact(
     )
     if artifact is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="artifact not found")
-    root = settings.artifact_root.resolve()
-    path = (root / artifact.storage_key).resolve()
-    if not path.is_relative_to(root) or not path.is_file():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="artifact not found")
-    content = Path(path).read_bytes()
-    if hashlib.sha256(content).hexdigest() != artifact.sha256:
+    try:
+        content = read_artifact_bytes(artifact, settings)
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="artifact not found"
+        ) from exc
+    except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="artifact integrity failure",
-        )
+        ) from exc
     record_audit(
         db,
         action="artifact.download",

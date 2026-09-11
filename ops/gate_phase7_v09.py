@@ -18,6 +18,7 @@ from idml_foundation.rbac import ROLE_PERMISSIONS, Permission, Role
 from idml_foundation.schemas import (
     InvitationAccept,
     InvitationCreate,
+    JobControlRequest,
     JobCreate,
     LoginRequest,
     MembershipUpdate,
@@ -64,6 +65,7 @@ STRICT_REQUESTS = (
     InvitationAccept,
     MembershipUpdate,
     ResourceCreate,
+    JobControlRequest,
     JobCreate,
     ReviewItemCreate,
     ReviewClaim,

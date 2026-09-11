@@ -30,11 +30,18 @@ def _store_bytes(
     data: bytes,
     media_type: str,
     settings: Settings,
-    scanner: ContentScanner,
+    scanner: ContentScanner | None,
+    scanner_status: str | None = None,
 ) -> Artifact:
-    scan = scanner.scan(data)
-    if not scan.clean:
-        raise UnsafeContentError("content scanner rejected upload")
+    if scanner is not None:
+        scan = scanner.scan(data)
+        if not scan.clean:
+            raise UnsafeContentError("content scanner rejected upload")
+        resolved_scanner_status = scan.status
+    elif scanner_status is not None:
+        resolved_scanner_status = scanner_status
+    else:
+        raise ValueError("scanner status is required for generated artifacts")
     digest = hashlib.sha256(data).hexdigest()
     existing = db.scalar(
         select(Artifact).where(
@@ -72,7 +79,7 @@ def _store_bytes(
         media_type=media_type,
         original_name=safe_name or "artifact",
         storage_key=storage_key,
-        scanner_status=scan.status,
+        scanner_status=resolved_scanner_status,
     )
     db.add(artifact)
     db.flush()
@@ -125,3 +132,39 @@ def store_idml_artifact(
         scanner=scanner,
     )
     return artifact, inspection
+
+
+def store_generated_artifact(
+    db: Session,
+    *,
+    organization_id: str,
+    original_name: str,
+    data: bytes,
+    media_type: str,
+    settings: Settings,
+) -> Artifact:
+    if media_type not in {"application/xml", "application/zip"}:
+        raise ValueError("unsupported generated artifact format")
+    if not data or len(data) > settings.upload_max_bytes:
+        raise ValueError("generated artifact size is invalid")
+    return _store_bytes(
+        db,
+        organization_id=organization_id,
+        original_name=original_name,
+        data=data,
+        media_type=media_type,
+        settings=settings,
+        scanner=None,
+        scanner_status="generated",
+    )
+
+
+def read_artifact_bytes(artifact: Artifact, settings: Settings) -> bytes:
+    root = settings.artifact_root.resolve()
+    path = (root / artifact.storage_key).resolve()
+    if not path.is_relative_to(root) or not path.is_file():
+        raise FileNotFoundError("artifact content not found")
+    content = path.read_bytes()
+    if hashlib.sha256(content).hexdigest() != artifact.sha256:
+        raise ValueError("artifact integrity failure")
+    return content

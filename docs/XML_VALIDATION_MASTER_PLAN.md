@@ -1,6 +1,6 @@
 # Plano mestre de validação XML e homologação final
 
-Data: 2026-09-01. Estado: **EM EXECUÇÃO — V-01 A V-05 CONCLUÍDOS**.
+Data: 2026-09-01. Estado: **EM EXECUÇÃO — V-01 A V-10 QUALIFICADOS; PRÓXIMA V-11**.
 
 ## 1. Objetivo
 
@@ -284,6 +284,12 @@ implementados. Backup/restore e gate read-only/sem rede passaram na VPS, e a ima
 - comprovar operação degradada com OpenClaw desligado.
 
 Aceite: todos os cenários críticos concluídos de forma reproduzível e auditável.
+
+Estado em 2026-09-11: **PASSOU**. Os jobs operacionais `idml.process` e `scielo.package`, artefatos
+gerados íntegros, idempotência estrita, cancelamento/retry, revisão, dupla aprovação, manifesto e
+interface foram exercitados de ponta a ponta. Foram 308 testes, cobertura de 87,44% e gate local/VPS
+sem rede. OpenClaw permaneceu desligado e sem persistência. Relatório:
+`benchmarks/qualification/reports/v10-operational-workflow-v1.json`.
 
 ### V-11 — Robustez, propriedades e mutações
 
