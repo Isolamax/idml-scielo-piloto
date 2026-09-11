@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from idml_foundation.database import get_db
 from idml_foundation.ingest.scanner import ContentScanner, build_scanner
 from idml_foundation.models import Membership, Organization, SessionToken, User
+from idml_foundation.rate_limit import AuthRateLimiter, get_auth_rate_limiter
 from idml_foundation.rbac import Permission, Role, TenantContext
 from idml_foundation.security import authenticate_session_record
 from idml_foundation.settings import Settings, get_settings
@@ -129,3 +130,10 @@ def get_content_scanner(settings: Configuration) -> ContentScanner:
 
 
 Scanner = Annotated[ContentScanner, Depends(get_content_scanner)]
+
+
+def get_rate_limiter(settings: Configuration) -> AuthRateLimiter:
+    return get_auth_rate_limiter(settings)
+
+
+RateLimiter = Annotated[AuthRateLimiter, Depends(get_rate_limiter)]

@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     zip_max_depth: int = Field(default=16, ge=2, le=64)
     zip_max_path_bytes: int = Field(default=512, ge=32, le=4096)
     session_ttl_seconds: int = Field(default=8 * 60 * 60, ge=300, le=7 * 24 * 60 * 60)
+    auth_login_max_failures: int = Field(default=5, ge=2, le=100)
+    auth_login_window_seconds: int = Field(default=15 * 60, ge=60, le=24 * 60 * 60)
+    auth_recovery_max_requests: int = Field(default=3, ge=1, le=100)
+    auth_recovery_window_seconds: int = Field(default=60 * 60, ge=60, le=24 * 60 * 60)
     feature_openclaw: bool = False
     feature_ai_swarm: bool = False
     openclaw_gateway_url: str = "http://openclaw:47716"

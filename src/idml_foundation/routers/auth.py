@@ -10,6 +10,7 @@ from idml_foundation.dependencies import (
     CorrelationId,
     CurrentUser,
     Database,
+    RateLimiter,
     oauth2_scheme,
 )
 from idml_foundation.mfa import (
@@ -23,6 +24,7 @@ from idml_foundation.mfa import (
     verify_totp,
 )
 from idml_foundation.models import OneTimeToken, SessionToken, User, utcnow
+from idml_foundation.rate_limit import RateLimitResult, RateLimitUnavailable
 from idml_foundation.schemas import (
     CurrentUserRead,
     LoginRequest,
@@ -48,6 +50,75 @@ from idml_foundation.security import (
 from idml_foundation.services.audit import record_audit
 
 router = APIRouter(prefix="/v1/auth", tags=["authentication"])
+_DUMMY_PASSWORD_HASH = hash_password("rate-limit timing equalization password")
+
+
+def _rate_identities(request: Request, email: str) -> tuple[str, str]:
+    client = request.client.host if request.client else "unknown"
+    return f"account:{normalize_email(email)}", f"client:{client}"
+
+
+def _enforce_rate_result(result: RateLimitResult) -> None:
+    if not result.allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="too many requests",
+            headers={"Retry-After": str(result.retry_after_seconds)},
+        )
+
+
+def _check_rate_limit(
+    limiter: RateLimiter,
+    *,
+    scope: str,
+    identities: tuple[str, ...],
+    limit: int,
+) -> None:
+    try:
+        _enforce_rate_result(limiter.check(scope, identities, limit))
+    except RateLimitUnavailable as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="authentication temporarily unavailable",
+        ) from exc
+
+
+def _hit_rate_limit(
+    limiter: RateLimiter,
+    *,
+    scope: str,
+    identities: tuple[str, ...],
+    limit: int,
+    window_seconds: int,
+) -> None:
+    try:
+        limiter.hit(scope, identities, limit, window_seconds)
+    except RateLimitUnavailable as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="authentication temporarily unavailable",
+        ) from exc
+
+
+def _record_login_denied(
+    db: Database,
+    *,
+    correlation_id: str,
+    reason: str,
+    actor_user_id: str | None = None,
+) -> None:
+    record_audit(
+        db,
+        action="auth.login",
+        resource_type="session",
+        correlation_id=correlation_id,
+        outcome="denied",
+        actor_user_id=actor_user_id,
+        details={"reason": reason},
+    )
+    # The request intentionally raises after this point. Persist the security event
+    # independently of the dependency's rollback-on-error behavior.
+    db.commit()
 
 
 @router.post("/login", response_model=SessionResponse)
@@ -56,24 +127,36 @@ def login(
     request: Request,
     db: Database,
     settings: Configuration,
+    limiter: RateLimiter,
     correlation_id: CorrelationId,
 ) -> SessionResponse:
+    identities = _rate_identities(request, str(payload.email))
+    _check_rate_limit(
+        limiter,
+        scope="login",
+        identities=identities,
+        limit=settings.auth_login_max_failures,
+    )
     user = db.scalar(
         select(User).where(User.email == normalize_email(str(payload.email))).with_for_update()
     )
-    valid = (
-        user is not None
-        and user.is_active
-        and verify_password(payload.password, user.password_hash)
+    password_hash = (
+        user.password_hash if user is not None and user.is_active else _DUMMY_PASSWORD_HASH
     )
+    password_valid = verify_password(payload.password, password_hash)
+    valid = user is not None and user.is_active and password_valid
     if not valid or user is None:
-        record_audit(
+        _hit_rate_limit(
+            limiter,
+            scope="login",
+            identities=identities,
+            limit=settings.auth_login_max_failures,
+            window_seconds=settings.auth_login_window_seconds,
+        )
+        _record_login_denied(
             db,
-            action="auth.login",
-            resource_type="session",
             correlation_id=correlation_id,
-            outcome="denied",
-            details={"reason": "invalid_credentials"},
+            reason="invalid_credentials",
         )
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid credentials")
 
@@ -91,6 +174,19 @@ def login(
                 last_counter=user.mfa_last_counter,
             )
             if counter is None:
+                _hit_rate_limit(
+                    limiter,
+                    scope="login",
+                    identities=identities,
+                    limit=settings.auth_login_max_failures,
+                    window_seconds=settings.auth_login_window_seconds,
+                )
+                _record_login_denied(
+                    db,
+                    correlation_id=correlation_id,
+                    reason="invalid_mfa",
+                    actor_user_id=user.id,
+                )
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid credentials"
                 )
@@ -101,13 +197,47 @@ def login(
                 payload.recovery_code, user.mfa_recovery_codes, settings
             )
             if not accepted:
+                _hit_rate_limit(
+                    limiter,
+                    scope="login",
+                    identities=identities,
+                    limit=settings.auth_login_max_failures,
+                    window_seconds=settings.auth_login_window_seconds,
+                )
+                _record_login_denied(
+                    db,
+                    correlation_id=correlation_id,
+                    reason="invalid_mfa",
+                    actor_user_id=user.id,
+                )
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid credentials"
                 )
             user.mfa_recovery_codes = remaining
             mfa_verified = True
         else:
+            _hit_rate_limit(
+                limiter,
+                scope="login",
+                identities=identities,
+                limit=settings.auth_login_max_failures,
+                window_seconds=settings.auth_login_window_seconds,
+            )
+            _record_login_denied(
+                db,
+                correlation_id=correlation_id,
+                reason="mfa_required",
+                actor_user_id=user.id,
+            )
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="MFA required")
+
+    try:
+        limiter.reset("login", identities)
+    except RateLimitUnavailable as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="authentication temporarily unavailable",
+        ) from exc
 
     issued = issue_session(
         db,
@@ -269,10 +399,26 @@ def confirm_mfa(
 @router.post("/recovery/request", response_model=PasswordRecoveryIssued)
 def request_recovery(
     payload: PasswordRecoveryRequest,
+    request: Request,
     db: Database,
     settings: Configuration,
+    limiter: RateLimiter,
     correlation_id: CorrelationId,
 ) -> PasswordRecoveryIssued:
+    identities = _rate_identities(request, str(payload.email))
+    _check_rate_limit(
+        limiter,
+        scope="recovery",
+        identities=identities,
+        limit=settings.auth_recovery_max_requests,
+    )
+    _hit_rate_limit(
+        limiter,
+        scope="recovery",
+        identities=identities,
+        limit=settings.auth_recovery_max_requests,
+        window_seconds=settings.auth_recovery_window_seconds,
+    )
     user = db.scalar(select(User).where(User.email == normalize_email(str(payload.email))))
     development_token: str | None = None
     if user is not None and user.is_active:

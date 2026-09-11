@@ -4,7 +4,11 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
-class LoginRequest(BaseModel):
+class StrictRequestModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class LoginRequest(StrictRequestModel):
     email: EmailStr
     password: str = Field(min_length=14, max_length=1024)
     mfa_code: str | None = Field(default=None, pattern=r"^\d{6}$")
@@ -26,7 +30,7 @@ class CurrentUserRead(BaseModel):
     mfa_enabled: bool
 
 
-class MfaSetupRequest(BaseModel):
+class MfaSetupRequest(StrictRequestModel):
     password: str = Field(min_length=14, max_length=1024)
 
 
@@ -35,7 +39,7 @@ class MfaSetupResponse(BaseModel):
     provisioning_uri: str
 
 
-class MfaConfirmRequest(BaseModel):
+class MfaConfirmRequest(StrictRequestModel):
     code: str = Field(pattern=r"^\d{6}$")
 
 
@@ -43,7 +47,7 @@ class MfaConfirmResponse(BaseModel):
     recovery_codes: tuple[str, ...]
 
 
-class PasswordRecoveryRequest(BaseModel):
+class PasswordRecoveryRequest(StrictRequestModel):
     email: EmailStr
 
 
@@ -52,7 +56,7 @@ class PasswordRecoveryIssued(BaseModel):
     development_token: str | None = None
 
 
-class PasswordRecoveryComplete(BaseModel):
+class PasswordRecoveryComplete(StrictRequestModel):
     token: str = Field(min_length=32, max_length=200)
     new_password: str = Field(min_length=14, max_length=1024)
 
@@ -83,7 +87,7 @@ class MembershipRead(BaseModel):
     is_active: bool
 
 
-class InvitationCreate(BaseModel):
+class InvitationCreate(StrictRequestModel):
     email: EmailStr
     role: str = Field(pattern=r"^(org_admin|operator|reviewer|release_manager)$")
 
@@ -93,17 +97,17 @@ class InvitationIssued(BaseModel):
     development_token: str | None = None
 
 
-class InvitationAccept(BaseModel):
+class InvitationAccept(StrictRequestModel):
     token: str = Field(min_length=32, max_length=200)
     password: str = Field(min_length=14, max_length=1024)
 
 
-class MembershipUpdate(BaseModel):
+class MembershipUpdate(StrictRequestModel):
     role: str = Field(pattern=r"^(org_admin|operator|reviewer|release_manager)$")
     is_active: bool = True
 
 
-class ResourceCreate(BaseModel):
+class ResourceCreate(StrictRequestModel):
     title: str = Field(min_length=1, max_length=300)
 
 
@@ -116,7 +120,7 @@ class ResourceRead(BaseModel):
     version: int
 
 
-class JobCreate(BaseModel):
+class JobCreate(StrictRequestModel):
     kind: str = Field(pattern=r"^[a-z][a-z0-9_.-]{1,79}$")
     idempotency_key: str = Field(min_length=8, max_length=200)
     payload: dict[str, Any] = Field(default_factory=dict)
@@ -180,7 +184,7 @@ class HealthResponse(BaseModel):
     checks: dict[str, str] = Field(default_factory=dict)
 
 
-class ReviewItemCreate(BaseModel):
+class ReviewItemCreate(StrictRequestModel):
     resource_id: str
     base_snapshot_id: str
     job_id: str | None = None
@@ -218,7 +222,7 @@ class ReviewItemRead(BaseModel):
     resolved_at: datetime | None
 
 
-class ReviewClaim(BaseModel):
+class ReviewClaim(StrictRequestModel):
     expected_version: int = Field(ge=1)
 
 
@@ -228,7 +232,7 @@ class JsonPatchOperation(BaseModel):
     value: Any
 
 
-class ReviewDecisionCreate(BaseModel):
+class ReviewDecisionCreate(StrictRequestModel):
     expected_version: int = Field(ge=1)
     action: Literal["apply_patch", "reject"]
     patch: tuple[JsonPatchOperation, ...] = Field(default=(), max_length=10)
@@ -288,7 +292,7 @@ class ReviewBuildRead(BaseModel):
     created_at: datetime
 
 
-class ReleaseRequestCreate(BaseModel):
+class ReleaseRequestCreate(StrictRequestModel):
     resource_id: str
     snapshot_id: str
     package_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
@@ -310,7 +314,7 @@ class ReleaseRequestRead(BaseModel):
     created_at: datetime
 
 
-class ReleaseApprovalCreate(BaseModel):
+class ReleaseApprovalCreate(StrictRequestModel):
     expected_version: int = Field(ge=1)
     justification: str = Field(min_length=20, max_length=2000)
     evidence_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
