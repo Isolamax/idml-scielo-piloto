@@ -1,6 +1,6 @@
 # Plano mestre de validação XML e homologação final
 
-Data: 2026-09-01. Estado: **EM EXECUÇÃO — V-01 A V-10 QUALIFICADOS; PRÓXIMA V-11**.
+Data: 2026-09-01. Estado: **EM EXECUÇÃO — V-01 A V-11 QUALIFICADOS; PRÓXIMA V-12**.
 
 ## 1. Objetivo
 
@@ -300,6 +300,14 @@ sem rede. OpenClaw permaneceu desligado e sem persistência. Relatório:
 - regressão automática de cada defeito encontrado por agentes ou especialista.
 
 Aceite: nenhuma falha não controlada e metas de mutação definidas por módulo antes da RC.
+
+Estado em 2026-09-11: **PASSOU**. Foram rejeitadas de modo controlado 121 entradas binárias
+arbitrárias, 128 mutações de ZIP e cinco formas hostis de XML. Propriedades de Unicode, conteúdo
+misto, ordem, renomeação de IDs, espaços XML, manifesto e hashes passaram. A campanha matou 13/13
+mutações comportamentais (100%) e revelou uma propagação não normalizada de `zlib.error`, agora
+corrigida e coberta por regressão. A suíte integral terminou com 317 testes e 87,50% de cobertura;
+o gate passou localmente e na imagem implantada, read-only e sem rede. Relatório:
+`benchmarks/qualification/reports/v11-robustness-mutation-v1.json`.
 
 ### V-12 — Desempenho, capacidade e custo
 

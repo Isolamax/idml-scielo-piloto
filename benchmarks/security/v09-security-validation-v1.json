@@ -102,7 +102,7 @@
     "src/idml_foundation/main.py": "17d8e70c491662cf46bc62972080bcdea90e4ed2803d5d6aed20c184596adc9b",
     "src/idml_foundation/schemas.py": "22a09c7ed02b1751de7512a2edc5cf1b05bc81457c9a373e6ab97d2ce668c5f8",
     "src/idml_foundation/rbac.py": "71a65b64bbf9ecf020610fedb74bee831926584e629e4a510fb6198da20da71c",
-    "src/idml_foundation/ingest/safe_zip.py": "34002ce6626e67b80711f62de64e12ead5750564e875e6d6b7e2bdbbefa2d6ef",
+    "src/idml_foundation/ingest/safe_zip.py": "d282d99de23f07099cba187da969ce8879393749dce2de997827f20d6e21e23a",
     "src/idml_foundation/ingest/xml_security.py": "62f62252e0daf6538c3a2976f662c867b3b855f9abd61a9e342bcf10906a4919",
     "src/idml_foundation/ai/security.py": "93714a720c29dfffc7539baff04483fddaa6ca23ce8bdc40e2702c83837e7190",
     "tests/test_phase7_v09_security.py": "aee23bcdd6d05843374db8a712a4f33e51025ea9227315e98327ea028caa6bb5",

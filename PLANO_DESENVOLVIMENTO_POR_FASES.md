@@ -22,7 +22,7 @@ docs/XML_VALIDATION_MASTER_PLAN.md
 
 ```text
 PROJECT_STATUS: PHASE_7_VALIDATION_IN_PROGRESS
-CURRENT_PHASE: FASE 7 — Pacote 7.1; próxima família V-10
+CURRENT_PHASE: FASE 7 — V-01 a V-11 qualificados; próxima família V-12
 CURRENT_IMPLEMENTATION_AUTHORIZED: PHASE_7
 DEVELOPMENT_ROADMAP_AUTHORIZED: THROUGH_PHASE_8_PRODUCTION_READINESS
 PRODUCTION_ACTIVATION_AUTHORIZED: NO — REQUIRES XML_EXPERT_FINAL_ACCEPTANCE
@@ -122,7 +122,7 @@ Antes de qualquer implantação futura na VPS:
 | 4 | Validação, fidelidade e pacote | Pacote validado e política de release | Implementada — Gate G4 bloqueado por validadores externos/crossrefs |
 | 5 | Revisão humana e interface mínima | Correção humana auditável | Concluída — Gate G5 aprovado |
 | 6 | IA assistiva e OpenClaw | Assistência semântica controlada | Concluída — Gate G6-T aprovado; produção não autorizada |
-| 7 | Homologação automatizada e piloto simulado | Sistema completo validado antes da revisão humana | Em andamento — V-01 a V-09 qualificados; próxima V-10 |
+| 7 | Homologação automatizada e piloto simulado | Sistema completo validado antes da revisão humana | Em andamento — V-01 a V-11 qualificados; próxima V-12 |
 | 8 | Prontidão, homologação humana e produção | RC operacional, aceite do especialista e rollout | Não iniciada — ativação real bloqueada pelo G8-H |
 | 9 | Expansão controlada | Novos periódicos e casos complexos | Não iniciada |
 
@@ -679,7 +679,7 @@ o especialista sem depender de revisão humana intermediária.
 
 ## Pacote 7.1 — Testes completos
 
-- [ ] Executar integralmente V-01 a V-11 do plano mestre.
+- [x] Executar integralmente V-01 a V-11 do plano mestre.
 - [x] V-01 — proveniência, integridade, segregação e reprodução do catálogo do corpus.
 - [x] V-02 — segurança da ingestão IDML.
 - [x] V-03 — leitura e fidelidade do IDML.
@@ -689,14 +689,14 @@ o especialista sem depender de revisão humana intermediária.
 - [x] V-07 — fidelidade comparativa aprovada; candidato real com zero bloqueios e qualificações rastreáveis.
 - [x] V-08 — validação assistiva OpenClaw.
 - [x] V-09 — segurança, identidade e multiempresa.
-- [ ] V-10 — fluxo ponta a ponta e experiência operacional.
-- [ ] V-11 — robustez, propriedades e mutações.
-- [ ] Unit tests e metas específicas para módulos críticos.
-- [ ] Golden tests sem exigir igualdade byte a byte quando inadequada.
-- [ ] Property, metamorphic, fuzz e mutation tests.
-- [ ] Integration e end-to-end tests.
-- [ ] Contract tests de validadores e OpenClaw.
-- [ ] Testes de segurança, autorização e isolamento multiempresa.
+- [x] V-10 — fluxo ponta a ponta e experiência operacional.
+- [x] V-11 — robustez, propriedades e mutações.
+- [x] Unit tests e metas específicas para módulos críticos.
+- [x] Golden tests sem exigir igualdade byte a byte quando inadequada.
+- [x] Property, metamorphic, fuzz e mutation tests.
+- [x] Integration e end-to-end tests.
+- [x] Contract tests de validadores e OpenClaw.
+- [x] Testes de segurança, autorização e isolamento multiempresa.
 - [ ] Fault injection, restore e disaster recovery.
 
 ## Pacote 7.2 — Homologação do corpus
@@ -1015,3 +1015,4 @@ ADRs iniciais esperados:
 | 2026-09-11 | V-08 concluída e implantada: materialização confiável por evidence intent eliminou cópia incompleta e preservou RichText; janela real final teve 10/10 propostas exatas, nove aceites efetivos e uma rejeição semântica segura; regressão do adjudicador passou; matriz 30/30, 84 papéis e sete mutações de contrato passaram; custo novo 297.872 micro-USD; backup/restore e gate sem rede passaram; imagem `phase7-v08-assistive-v1` saudável, flags/provider desligados e zero persistência; próxima família V-09 | Codex |
 | 2026-09-11 | V-09 concluída e implantada: 35 testes dedicados, 305 testes completos/87,02%, 40 operações autenticadas e 30 multiempresa inventariadas; zero achado crítico/alto aberto e zero vazamento conhecido; limitação Redis, equalização de login, auditoria de falhas, redaction de logs, contratos anti-mass-assignment e cabeçalhos defensivos implementados; backup/restore e gate sem rede passaram; imagem `phase7-v09-security-v1` saudável; próxima família V-10 | Codex |
 | 2026-09-11 | V-10 concluída e implantada: jobs reais de conversão IDML e pacote SciELO, snapshots/artefatos atômicos, idempotência estrita, cancelamento/retry/retomada, revisão, manifesto, hashes, dupla aprovação e UI operacional passaram de ponta a ponta; 308 testes/87,44%, gate local/VPS sem rede, backup/restore e imagem `phase7-v10-operational-v1` saudáveis; OpenClaw desligado e banco de agentes em zero; próxima família V-11 | Codex |
+| 2026-09-11 | V-11 concluída e implantada: 121 entradas binárias arbitrárias, 128 mutações de ZIP, cinco XMLs hostis e propriedades de Unicode, conteúdo misto, ordem e empacotamento passaram; 13/13 mutações comportamentais foram detectadas; uma propagação de `zlib.error` foi encontrada, corrigida e coberta por regressão; 317 testes/87,50%, Ruff/mypy, gate local/VPS read-only sem rede, backup/restore e imagem `phase7-v11-robustness-v1` saudáveis; próxima família V-12 | Codex |

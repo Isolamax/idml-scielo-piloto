@@ -1,6 +1,6 @@
 # Fase 7 — Homologação automatizada e piloto simulado
 
-Data inicial: 2026-09-04. Estado: **EM EXECUÇÃO — V-01 A V-10 QUALIFICADOS; PRÓXIMA FAMÍLIA V-11**.
+Data inicial: 2026-09-04. Estado: **EM EXECUÇÃO — V-01 A V-11 QUALIFICADOS; PRÓXIMA FAMÍLIA V-12**.
 
 ## Estado das famílias V-01 a V-11
 
@@ -16,7 +16,7 @@ Data inicial: 2026-09-04. Estado: **EM EXECUÇÃO — V-01 A V-10 QUALIFICADOS; 
 | V-08 OpenClaw assistivo | PASSOU | seis domínios, evidência viva, matriz adversarial e contratos fail-closed |
 | V-09 Segurança e multiempresa | PASSOU | identidade, RBAC, isolamento, entradas hostis e segredos |
 | V-10 Fluxo ponta a ponta | PASSOU | fluxo operacional, idempotência, recuperação, UI e VPS |
-| V-11 Robustez e mutações | PENDENTE | — |
+| V-11 Robustez e mutações | PASSOU | fuzz determinístico, propriedades, metamorfismos, mutações e VPS |
 
 ## V-01 — Proveniência e integridade do corpus
 
@@ -454,9 +454,43 @@ A V-10 qualifica cancelamento antes da execução. Interrupção cooperativa dur
 iniciada pertence à V-13. Aprovação editorial continua distinta de `READY_FOR_SCIELO`; XPM do
 candidato e homologação humana final permanecem pendentes.
 
+## V-11 — Robustez, propriedades e mutações
+
+A V-11 submeteu as fronteiras críticas a 121 entradas binárias arbitrárias, 128 mutações
+determinísticas de um bit em ZIPs e cinco formas hostis de XML. Todas as entradas inválidas foram
+rejeitadas de maneira controlada. Esse trabalho revelou uma falha real: um ZIP corrompido podia
+fazer `ZipFile.testzip()` propagar `zlib.error` fora do contrato de ingestão. A fronteira
+`safe_zip` agora normaliza também essa exceção e o caso permanece coberto por regressão.
+
+As propriedades de conservação foram exercitadas com Unicode, conteúdo misto, fórmulas, tabelas e
+estilos inline. Reordenação e rotação dos membros do IDML, variação de espaços em XML e renomeação
+dos IDs de origem preservaram a semântica esperada. O empacotamento permaneceu invariável à ordem
+de entrada e qualquer alteração de membro mudou os hashes vinculados ao manifesto.
+
+A matriz de mutações comportamentais matou 13 de 13 mutantes nos módulos críticos, resultado de
+100%, acima das metas iniciais de 85% por módulo e 90% no agregado. Essa métrica mede a força dos
+cenários contra comportamentos defeituosos deliberados; não substitui uma futura campanha de
+mutação sintática abrangente em todo o código. A suíte dedicada contém nove testes e a suíte
+integral passou com 317 testes e 87,50% de cobertura. Ruff, formatação e mypy strict também
+passaram. Relatório público:
+`benchmarks/qualification/reports/v11-robustness-mutation-v1.json`.
+
+Antes do deploy, `/opt/idml-platform/backups/20260911T184435Z` passou em checksum e restore isolado
+com 21 tabelas, um artefato e 14 arquivos OpenClaw. O código anterior foi preservado em
+`source-phase7-pre-v11-20260911T161500Z.tar.gz`. A imagem
+`idml-foundation:phase7-v11-robustness-v1`
+(`sha256:af815334a42d4e3197cd85aa128d5cbae18ece9ec4dc23ba356e329de4eb5bcf`) foi implantada. O gate
+`ops/gate_phase7_v11.py` passou dentro da imagem em filesystem read-only e sem rede; API,
+PostgreSQL, Redis e OpenClaw responderam saudáveis, a migration permaneceu em `f7b8c9d0e1f2`, as
+flags assistivas ficaram falsas e o banco permaneceu com zero `agent_runs` e `agent_proposals`.
+
+A V-11 não autoriza RC nem produção. Os limites reais de desempenho, capacidade e custo da VPS
+serão medidos na V-12; interrupção cooperativa, recuperação e continuidade pertencem à V-13; XPM
+e a homologação humana final continuam pendentes.
+
 ## Decisão
 
-V-01 a V-10 estão aprovados, com as restrições explícitas de XPM/Windows, do defeito conhecido do
-validador externo e da homologação humana ainda pendente. A próxima ação é executar a V-11,
-começando por propriedades, fuzz e mutações nos módulos críticos. Isso não aprova o Pacote 7.1, o
+V-01 a V-11 estão aprovados, com as restrições explícitas de XPM/Windows, do defeito conhecido do
+validador externo e da homologação humana ainda pendente. A próxima ação é executar a V-12,
+medindo desempenho, capacidade e custo na VPS atual. Isso não aprova o Pacote 7.1, o
 Gate G7-T nem produção.

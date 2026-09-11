@@ -1,5 +1,6 @@
 import stat
 import unicodedata
+import zlib
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import PurePosixPath
@@ -145,7 +146,7 @@ def inspect_idml(data: bytes, settings: Settings) -> ArchiveInspection:
             raise UnsafeArchiveError("invalid_idml", "required IDML entries are missing")
         try:
             bad_entry = archive.testzip()
-        except (BadZipFile, EOFError, RuntimeError) as exc:
+        except (BadZipFile, EOFError, RuntimeError, zlib.error) as exc:
             raise UnsafeArchiveError("corrupt_entry", "archive contains a corrupt entry") from exc
         if bad_entry is not None:
             raise UnsafeArchiveError("corrupt_entry", "archive contains a corrupt entry")
