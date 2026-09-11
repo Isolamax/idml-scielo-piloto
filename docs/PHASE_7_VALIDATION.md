@@ -1,6 +1,6 @@
 # Fase 7 — Homologação automatizada e piloto simulado
 
-Data inicial: 2026-09-04. Estado: **EM EXECUÇÃO — V-01 A V-07 QUALIFICADOS; PRÓXIMA FAMÍLIA V-08**.
+Data inicial: 2026-09-04. Estado: **EM EXECUÇÃO — V-01 A V-08 QUALIFICADOS; PRÓXIMA FAMÍLIA V-09**.
 
 ## Estado das famílias V-01 a V-11
 
@@ -13,7 +13,7 @@ Data inicial: 2026-09-04. Estado: **EM EXECUÇÃO — V-01 A V-07 QUALIFICADOS; 
 | V-05 Construção XML JATS/SPS | PASSOU | builder determinístico, DTD, SPS e referências |
 | V-06 Validadores formais | PASSOU COM RESTRIÇÃO | 4 contêineres qualificados; XPM SPS 1.10 aguarda worker Windows |
 | V-07 Fidelidade comparativa | PASSOU | candidato real com zero bloqueios e diferenças qualificadas por fonte |
-| V-08 OpenClaw assistivo | PENDENTE | evidências da Fase 6 serão reexecutadas no gate consolidado |
+| V-08 OpenClaw assistivo | PASSOU | seis domínios, evidência viva, matriz adversarial e contratos fail-closed |
 | V-09 Segurança e multiempresa | PENDENTE | — |
 | V-10 Fluxo ponta a ponta | PENDENTE | — |
 | V-11 Robustez e mutações | PENDENTE | — |
@@ -325,9 +325,60 @@ PostgreSQL, Redis e OpenClaw saudáveis. O gate sintético passou em container r
 flags de OpenClaw, swarm e ClamAV permaneceram falsas e o banco ficou em `0|0`. Provider, chave e
 proxy permaneceram ausentes. Catálogos e corpus privados não foram enviados à VPS.
 
+## V-08 — Validação assistiva OpenClaw
+
+O gate `ops/gate_phase7_v08.py` consolida a matriz adversarial dos seis domínios, sete mutações
+explícitas de contrato, controles de custo/timeout/retry e as evidências content-addressed das
+execuções reais. O gate reexecuta localmente 30 casos adversariais e 84 papéis simulados, cobrindo
+positivo, invenção, ambiguidade, abstenção, falso consenso e prompt injection sem provider ou rede.
+Hash incorreto, path proibido, campo extra, patch parcial de `RichText`, DOI/autor inventados e
+expansão sem suporte são rejeitados antes dos críticos.
+
+A janela real `phase7-v08-positive-v1` diagnosticou cópia incompleta da evidência e inconsistência
+atômica em sete de dez casos. O contrato passou então a usar `agent-proposal-intent-1.0` para toda
+evidência textual segmentada que possa ser materializada com segurança: o agente escolhe somente
+domínio, paths e evidence ID, e o backend autenticado materializa o texto integral e preserva os
+metadados de um inline textual. A matriz adversarial mantém intencionalmente o caminho literal para
+continuar exercitando os guardrails contra invenção.
+
+Na janela corretiva `phase7-v08-positive-v2`, as dez propostas foram exatas, melhoraram o baseline,
+passaram os oito checks determinísticos e foram materializadas por evidência. Foram 40 papéis, zero
+tools/Skills/retries e custo de 276.045 micro-USD. Oito casos foram aceitos apenas para revisão
+humana; um caso de afiliação foi corretamente rejeitado pelo crítico XML por duplicação presente no
+proxy histórico; e um caso de figura falhou fechado porque o adjudicador declarou `insufficient`
+apesar de dois críticos `pass`.
+
+O prompt `adjudicator-1.1.md` tornou a classificação de agreement mecânica e independente da decisão
+final. A regressão isolada `phase7-v08-adjudicator-v1` repetiu o caso afetado: candidato exato, dois
+críticos `pass`, `unanimous_accept`, aceite somente para revisão humana e custo de 21.827 micro-USD.
+Assim, o conjunto efetivo tem nove aceites assistivos e uma rejeição semântica segura, com zero
+violação de contrato aberta. O custo novo total da V-08 foi 297.872 micro-USD.
+
+Estrutura permanece ligada à execução real content-addressed de dois domínios; matemática usa o
+catálogo completo de 17 fórmulas, 34 pareceres críticos, 16 aceites e uma abstenção controlada. Os
+papéis usam o mesmo modelo, logo não constituem independência entre modelos e jamais autorizam
+release. O relatório público é
+`benchmarks/agents/reports/v08-assistive-validation-v1.json`; os relatórios brutos e sanitizados da
+janela permanecem privados na VPS.
+
+Os backups `/opt/idml-platform/backups/20260911T113832Z` e
+`/opt/idml-platform/backups/20260911T114816Z` passaram em checksum e restore isolado antes das
+janelas. Ao final, chave, proxy e redes transitórias estavam ausentes, as flags continuavam falsas e
+o banco permaneceu com zero `agent_runs` e zero `agent_proposals`.
+
+A implantação qualificada foi concluída na VPS com a imagem
+`idml-foundation:phase7-v08-assistive-v1`
+(`sha256:3d36b16cb9d0ef9ca2af78071bed33e4d533c30737ed7cf785bf7980eda72db3`). Antes do deploy, o
+backup `/opt/idml-platform/backups/20260911T115935Z` passou em checksum e restore isolado com 21
+tabelas, um artefato e 14 arquivos OpenClaw. A migração foi reaplicada sem alterações pendentes; API,
+worker, PostgreSQL, Redis e OpenClaw ficaram saudáveis. O gate V-08 foi repetido dentro da imagem,
+read-only e sem rede, incluindo os dois relatórios privados por hash, e foi aprovado. As flags
+`IDML_FEATURE_OPENCLAW` e `IDML_FEATURE_AI_SWARM` permaneceram falsas, o banco ficou em `0|0` e
+provider, chave e proxy temporários permaneceram ausentes.
+
 ## Decisão
 
-V-01 a V-07 estão aprovados, com as restrições explícitas de XPM/Windows, do defeito conhecido do
-validador externo e da homologação humana ainda pendente. A próxima ação é executar a V-08,
-consolidando o comportamento assistivo OpenClaw nos casos positivos, negativos, ambíguos e de
-abstenção. Isso não aprova o Pacote 7.1, o Gate G7-T nem produção.
+V-01 a V-08 estão aprovados, com as restrições explícitas de XPM/Windows, do defeito conhecido do
+validador externo e da homologação humana ainda pendente. A próxima ação é executar a V-09,
+validando segurança, identidade e isolamento multiempresa. Isso não aprova o Pacote 7.1, o Gate G7-T
+nem produção.

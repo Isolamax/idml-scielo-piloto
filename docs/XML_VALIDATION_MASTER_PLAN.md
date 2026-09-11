@@ -241,6 +241,17 @@ cenários por domínio sem provider. Em 2026-09-01, os 30 casos e 84 papéis sim
 oráculos, incluindo invenção com metadados de evidência válidos, ambiguidade, falso consenso e prompt injection. Estrutura e
 matemática são sintéticas e continuam exigindo evidência real autorizada antes da RC.
 
+Estado em 2026-09-11: V-08 aprovada. A matriz adversarial foi reexecutada com 30/30 casos, 84 papéis,
+zero provider e custo zero; sete mutações adicionais de contrato falharam fechado. A janela real
+materializou por backend autenticado 10/10 propostas textuais exatas e melhores que o baseline;
+nove ficaram aceitas somente para revisão humana e uma foi corretamente rejeitada por defeito
+semântico no proxy XML histórico. Uma inconsistência de agreement foi corrigida no prompt e
+requalificada isoladamente. As duas janelas finais custaram 297.872 micro-USD, não expuseram
+tools/Skills e terminaram com provider/flags desligados e zero persistência. Estrutura e as 17
+fórmulas completam os seis domínios por evidências content-addressed anteriores. Os papéis continuam
+correlacionados pelo mesmo modelo e não autorizam release. Relatório:
+`benchmarks/agents/reports/v08-assistive-validation-v1.json`.
+
 ### V-09 — Segurança, identidade e multiempresa
 
 - login, logout, expiração, recuperação, MFA e reautenticação;

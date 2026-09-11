@@ -374,3 +374,26 @@ content-addressed e ligado aos hashes do IDML, PDF, recorte, proposta e dataset.
 sanitizado é `benchmarks/agents/reports/formula-transcription-qualification-v1.json`. Revisão humana
 final permanece obrigatória; as flags e o provider terminaram desligados, sem proxy, chave, runs ou
 propostas persistidas.
+
+## Janela V18 e regressão V19 — consolidação da V-08
+
+A V18 reexecuta os dez casos textuais ESA com duas tentativas no máximo, thinking médio, orçamento
+conservador de 3.000.000 micro-USD e materialização confiável de toda evidência textual segmentada.
+O agente retorna somente o intent com domínio, paths e evidence ID; o backend valida os hashes e
+materializa o valor integral. A V19 seleciona somente `esa-figures_tables-001` para a regressão do
+agreement mecânico introduzido por `adjudicator-1.1.md`.
+
+```sh
+./ops/openclaw-multi-agent-lab.sh prepare phase7-v08-positive-v2 v18
+IDML_CONFIRM_AGENT_EXECUTION=RUN_IDML_OPENCLAW_MULTI_AGENT_LAB_V18 \
+  ./ops/openclaw-multi-agent-lab.sh execute phase7-v08-positive-v2 v18
+
+./ops/openclaw-multi-agent-lab.sh prepare phase7-v08-adjudicator-v1 v19
+IDML_CONFIRM_AGENT_EXECUTION=RUN_IDML_OPENCLAW_MULTI_AGENT_LAB_V19 \
+  ./ops/openclaw-multi-agent-lab.sh execute phase7-v08-adjudicator-v1 v19
+```
+
+A evidência final content-safe está consolidada em
+`benchmarks/agents/reports/v08-assistive-validation-v1.json`. O gate público roda sem rede; na VPS,
+os dois relatórios sanitizados privados devem ser fornecidos com `--require-live-evidence` ao
+`ops/gate_phase7_v08.py`.
