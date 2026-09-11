@@ -384,9 +384,7 @@ class CanonicalMapper:
         if correspondence.email is not None:
             corresponding_count = sum(item.corresponding for item in contributors)
             if corresponding_count != 1:
-                review_reasons.append(
-                    "correspondence_email_requires_single_marked_contributor"
-                )
+                review_reasons.append("correspondence_email_requires_single_marked_contributor")
 
         return CanonicalArticle(
             article_id=article_id,
@@ -603,9 +601,7 @@ class CanonicalMapper:
                 if editor_type is not None:
                     value = line.split(":", 1)[1].strip()
                     if not value:
-                        review_reasons.append(
-                            f"empty_{editor_type.casefold().replace(' ', '_')}"
-                        )
+                        review_reasons.append(f"empty_{editor_type.casefold().replace(' ', '_')}")
                         continue
                     content = f"{editor_type}: {value}"
                     notes.append(
@@ -1098,9 +1094,7 @@ class CanonicalMapper:
                 append_paragraph(segment_run_ids, segment)
 
         raw_tables = {table.id: table for table in raw.tables}
-        story_by_table = {
-            table_id: story for story in raw.stories for table_id in story.table_ids
-        }
+        story_by_table = {table_id: story for story in raw.stories for table_id in story.table_ids}
         table_story = {table_id: story.id for table_id, story in story_by_table.items()}
         story_page = {
             story.id: min(
@@ -1161,9 +1155,7 @@ class CanonicalMapper:
                             hyperlinks_by_run=hyperlinks_by_run,
                         )
                     else:
-                        cell_rich = RichText(
-                            plain=_missing("empty-or-spanned-table-cell")
-                        )
+                        cell_rich = RichText(plain=_missing("empty-or-spanned-table-cell"))
                     if value.strip() and cell:
                         cell_resolution = resolve_citations(
                             cell_rich,
@@ -1313,6 +1305,7 @@ class CanonicalMapper:
             next(ordered_figures) if isinstance(block, FigureBlock) else next(ordered_tables)
             for block in graphic_blocks
         ]
+
         def place_after_first_mention(
             block: FigureBlock | TableBlock,
             candidates: list[dict[str, object]],

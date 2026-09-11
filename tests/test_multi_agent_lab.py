@@ -944,6 +944,75 @@ def test_segmented_reference_intent_is_materialized_before_all_critics(
         }
 
 
+def test_single_segment_non_atomic_intent_is_materialized_from_evidence(
+    tmp_path: Path,
+) -> None:
+    plan_path, _, dataset = _files(tmp_path)
+    metadata_case = dataset["cases"][0]
+    metadata_case["evidence"] = segment_evidence(
+        evidence_id="gold-metadata-001",
+        source_kind="canonical",
+        locator="approved_xml:metadata:1",
+        text=metadata_case["expected_value"],
+    )
+    client = _FixtureLabClient()
+
+    result = asyncio.run(
+        execute_multi_agent_lab(
+            load_lab_plan(plan_path),
+            dataset,
+            client=client,
+            run_id="single-segment-materialized-001",
+        )
+    )
+
+    metadata = result["cases"][0]
+    assert metadata["final_decision"] == "accepted_for_human_review"
+    assert metadata["quality"]["exact"] is True
+    assert metadata["roles"][0]["output_materialized_from_evidence"] is True
+    assert metadata["roles"][0]["output"]["patch"][0]["value"] == metadata_case["expected_value"]
+
+
+def test_single_text_inline_metadata_is_preserved_during_materialization(
+    tmp_path: Path,
+) -> None:
+    plan_path, _, dataset = _files(tmp_path)
+    reference_case = dataset["cases"][1]
+    reference_case["evidence"] = segment_evidence(
+        evidence_id="gold-references-001",
+        source_kind="canonical",
+        locator="approved_xml:references:1",
+        text=reference_case["expected_value"],
+    )
+    original_inline = {
+        "id": "inline-preserved-001",
+        "kind": "text",
+        "text": reference_case["current_value"],
+        "target_id": None,
+        "href": None,
+        "name": None,
+        "attributes": {"style": "fixture"},
+        "evidence_ids": ["source-inline-001"],
+    }
+    reference_case["atomic_rich_text"]["current_inlines"] = [original_inline]
+
+    result = asyncio.run(
+        execute_multi_agent_lab(
+            load_lab_plan(plan_path),
+            dataset,
+            client=_FixtureLabClient(),
+            run_id="single-inline-materialized-001",
+        )
+    )
+
+    reference = result["cases"][1]
+    assert reference["final_decision"] == "accepted_for_human_review"
+    inline_operation = reference["roles"][0]["output"]["patch"][1]
+    materialized_inline = inline_operation["value"][0]
+    assert materialized_inline["text"] == reference_case["expected_value"]
+    assert materialized_inline | {"text": original_inline["text"]} == original_inline
+
+
 def test_materialization_rejects_inexact_evidence_reference() -> None:
     case = _case("references", atomic=True)
     case["evidence"] = segment_evidence(

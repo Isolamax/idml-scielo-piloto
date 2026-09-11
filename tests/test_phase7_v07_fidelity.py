@@ -97,13 +97,17 @@ def test_equivalent_structured_conflict_and_funding_notes_compare_equal() -> Non
         b"<fn><p>Funding: Foundation Alpha.</p></fn>"
         b"</fn-group>",
     )
-    candidate = _article("Stable body").replace(
-        b"</article-meta>",
-        b"<funding-group><funding-statement>Foundation Alpha.</funding-statement>"
-        b"</funding-group></article-meta>",
-    ).replace(
-        original_note,
-        b"<sec><title>Conflicts of interest</title><p>None declared.</p></sec>",
+    candidate = (
+        _article("Stable body")
+        .replace(
+            b"</article-meta>",
+            b"<funding-group><funding-statement>Foundation Alpha.</funding-statement>"
+            b"</funding-group></article-meta>",
+        )
+        .replace(
+            original_note,
+            b"<sec><title>Conflicts of interest</title><p>None declared.</p></sec>",
+        )
     )
 
     report = XmlSemanticComparator().compare(reference, candidate)

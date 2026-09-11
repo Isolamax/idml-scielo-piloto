@@ -114,8 +114,20 @@ case "$lab_version" in
     manifest_name=multi-agent-manifest-v17.json
     expected_confirmation=RUN_IDML_OPENCLAW_MULTI_AGENT_LAB_V17
     ;;
+  v18)
+    plan_name=openclaw-multi-agent-lab-v18.json
+    dataset_name=dataset-full-v1.4.json
+    manifest_name=multi-agent-manifest-v18.json
+    expected_confirmation=RUN_IDML_OPENCLAW_MULTI_AGENT_LAB_V18
+    ;;
+  v19)
+    plan_name=openclaw-multi-agent-lab-v19.json
+    dataset_name=dataset-full-v1.4.json
+    manifest_name=multi-agent-manifest-v19.json
+    expected_confirmation=RUN_IDML_OPENCLAW_MULTI_AGENT_LAB_V19
+    ;;
   *)
-    echo "lab-version must be between v1 and v17" >&2
+    echo "lab-version must be between v1 and v19" >&2
     exit 2
     ;;
 esac
@@ -128,7 +140,7 @@ report="$output_dir/multi-agent-report-$run_id.json"
 case "$mode" in
   prepare|execute) ;;
   *)
-    echo "usage: $0 [prepare|execute] [run-id] [v1..v17]" >&2
+    echo "usage: $0 [prepare|execute] [run-id] [v1..v19]" >&2
     exit 2
     ;;
 esac

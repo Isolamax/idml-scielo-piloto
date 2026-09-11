@@ -50,14 +50,14 @@ def synthetic_idml(
 
     first_table_cell = (
         '<CharacterStyleRange AppliedCharacterStyle="CharacterStyle/none">'
-        '<Content>kgO</Content></CharacterStyleRange>'
+        "<Content>kgO</Content></CharacterStyleRange>"
         '<CharacterStyleRange AppliedCharacterStyle="CharacterStyle/subscrito">'
-        '<Content>2</Content></CharacterStyleRange>'
+        "<Content>2</Content></CharacterStyleRange>"
         '<CharacterStyleRange AppliedCharacterStyle="CharacterStyle/none">'
-        '<Content>/h</Content></CharacterStyleRange>'
+        "<Content>/h</Content></CharacterStyleRange>"
         if include_styled_table
         else '<CharacterStyleRange AppliedCharacterStyle="CharacterStyle/none">'
-        '<Content>Alpha</Content></CharacterStyleRange>'
+        "<Content>Alpha</Content></CharacterStyleRange>"
     )
     table = (
         '<Table Self="table-1" BodyRowCount="1" ColumnCount="2">'
@@ -128,9 +128,7 @@ def synthetic_idml(
         "Stories/Story_u1.xml": story(
             "u1",
             paragraph("01.0.title", "Deterministic conversion")
-            + paragraph(
-                "02.0.author", "Ana Silva*" if include_correspondence else "Ana Silva"
-            )
+            + paragraph("02.0.author", "Ana Silva*" if include_correspondence else "Ana Silva")
             + correspondence,
         ),
         "Stories/Story_u2.xml": story(
@@ -161,11 +159,7 @@ def synthetic_idml(
         "Stories/Story_u4.xml": story(
             "u4",
             paragraph("07.0.caption", "Figure 1. Figure caption")
-            + (
-                paragraph("07.0.caption", "Table 1. Table caption")
-                if include_styled_table
-                else ""
-            ),
+            + (paragraph("07.0.caption", "Table 1. Table caption") if include_styled_table else ""),
             '<Rectangle Self="rectangle-1"><Image><Link Self="link-1" '
             'LinkResourceURI="file:C:/private/source/Figure%201.jpg" '
             'LinkResourceFormat="$ID/JPEG"/></Image></Rectangle>',

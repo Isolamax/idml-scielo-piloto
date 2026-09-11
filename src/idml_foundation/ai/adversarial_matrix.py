@@ -166,6 +166,7 @@ def _build_dataset(
                 text=evidence_value,
             ),
             "grounding_policy": "normalized_exact",
+            "trusted_evidence_materialization": False,
             "alternatives": [fixture.expected_value, fixture.current_value],
             "injected_text": injection,
         }

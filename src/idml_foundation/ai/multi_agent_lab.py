@@ -103,7 +103,7 @@ _CRITIC_PROMPTS: dict[CriticRole, str] = {
     "xml_critic": "xml_critic-1.2.md",
     "editorial_critic": "editorial_critic-1.1.md",
 }
-_ADJUDICATOR_PROMPT = "adjudicator-1.0.md"
+_ADJUDICATOR_PROMPT = "adjudicator-1.1.md"
 _SEMANTIC_REPAIR_PROMPT = "semantic_repair-1.0.md"
 _CONTRACT_RUNTIME_ERRORS = {
     "OpenClaw gateway response did not complete": "AGENT_RESPONSE_INCOMPLETE",
@@ -433,13 +433,22 @@ def _atomic_output_contract(case: dict[str, Any]) -> dict[str, Any]:
 
 
 def _uses_trusted_evidence_materialization(case: dict[str, Any]) -> bool:
+    if case.get("trusted_evidence_materialization") is False:
+        return False
     atomic = case.get("atomic_rich_text")
     segments = case["evidence"].get("segments")
-    return (
-        isinstance(segments, list)
-        and len(segments) > 1
-        and isinstance(atomic, dict)
-        and not atomic.get("current_inlines")
+    if is_visual_evidence(case["evidence"]) or not isinstance(segments, list) or not segments:
+        return False
+    if atomic is None:
+        return True
+    if not isinstance(atomic, dict):
+        return False
+    current_inlines = atomic.get("current_inlines")
+    return not current_inlines or (
+        isinstance(current_inlines, list)
+        and len(current_inlines) == 1
+        and isinstance(current_inlines[0], dict)
+        and current_inlines[0].get("kind") == "text"
     )
 
 
@@ -485,16 +494,23 @@ def _materialize_proposal_intent(
     if any(operation.value_source.evidence_id != evidence_id for operation in intent.patch):
         raise ValueError("PROPOSAL_INTENT_VALUE_SOURCE_MISMATCH")
     evidence_text = reassemble_evidence(case["evidence"])
-    atomic = case["atomic_rich_text"]
-    inline_path = atomic["required_patch_paths"][1]
-    inline_template = _atomic_output_contract(case)["output_inlines_template"]
-    if len(inline_template) != 1 or inline_template[0].get("kind") != "text":
-        raise ValueError("PROPOSAL_INTENT_INLINE_MATERIALIZATION_UNSAFE")
-    inline_template[0]["text"] = evidence_text
+    atomic = case.get("atomic_rich_text")
+    inline_path: str | None = None
+    inline_template: list[dict[str, Any]] | None = None
+    if isinstance(atomic, dict):
+        inline_path = atomic["required_patch_paths"][1]
+        inline_template = _atomic_output_contract(case)["output_inlines_template"]
+        if len(inline_template) != 1 or inline_template[0].get("kind") != "text":
+            raise ValueError("PROPOSAL_INTENT_INLINE_MATERIALIZATION_UNSAFE")
+        inline_template[0]["text"] = evidence_text
 
     patch: list[dict[str, Any]] = []
     for operation in intent.patch:
-        value: Any = inline_template if operation.path == inline_path else evidence_text
+        value: Any = (
+            inline_template
+            if inline_path is not None and operation.path == inline_path
+            else evidence_text
+        )
         patch.append(
             {
                 "op": operation.op,

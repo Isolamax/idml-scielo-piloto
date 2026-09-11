@@ -104,9 +104,7 @@ def _values(nodes: list[etree._Element]) -> list[str]:
 def _body_paragraph_text(node: etree._Element) -> str:
     values = cast(
         list[object],
-        node.xpath(
-            ".//text()[not(ancestor::inline-formula) and not(ancestor::disp-formula)]"
-        ),
+        node.xpath(".//text()[not(ancestor::inline-formula) and not(ancestor::disp-formula)]"),
     )
     return " ".join(value for value in values if isinstance(value, str))
 
@@ -152,9 +150,7 @@ def _table_text(node: etree._Element) -> str:
         for cell in _xpath(node, ".//tr/*[self::th or self::td]")
         if normalize_text(
             raw := "".join(
-                value.decode("utf-8", errors="replace")
-                if isinstance(value, bytes)
-                else value
+                value.decode("utf-8", errors="replace") if isinstance(value, bytes) else value
                 for value in cell.itertext()
             )
         )
@@ -431,9 +427,7 @@ def _compare_text_stream(
     actual_sequence = _semantic_tokens(actual_raw)
     sequence_equivalent = expected_sequence == actual_sequence
     normalization = int(expected_raw != actual_raw and sequence_equivalent)
-    displacement = int(
-        not missing and not extra and not sequence_equivalent
-    )
+    displacement = int(not missing and not extra and not sequence_equivalent)
     alteration = int(bool(missing and extra))
     if normalization:
         findings.append(
