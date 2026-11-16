@@ -77,8 +77,22 @@ def test_pipeline_structures_labeled_correspondence_without_inference() -> None:
     )
     assert root.xpath("count(front/article-meta/history/date)") == 2.0
     assert root.xpath("count(front/article-meta/funding-group/funding-statement)") == 1.0
-    assert root.xpath("count(back/sec[title='Conflicts of interest'])") == 1.0
-    assert root.xpath("count(back/fn-group/fn)") == 2.0
+    assert root.xpath("count(front/article-meta/author-notes/fn[@fn-type='coi-statement'])") == 1.0
+    assert (
+        root.xpath(
+            "count(front/article-meta/author-notes/fn[@fn-type='edited-by']"
+            "[label='Associate editor:'])"
+        )
+        == 1.0
+    )
+    assert (
+        root.xpath(
+            "count(front/article-meta/author-notes/fn[@fn-type='edited-by']"
+            "[label='Scientific editor:'])"
+        )
+        == 1.0
+    )
+    assert root.xpath("count(back/fn-group/fn[@fn-type='financial-disclosure'])") == 1.0
     assert "associate_editor_orcid_requires_enrichment" in article.review_reasons
     assert "scientific_editor_orcid_requires_enrichment" in article.review_reasons
     assert result.validation.valid
@@ -98,7 +112,7 @@ def test_pipeline_moves_labeled_back_matter_and_preserves_styled_table_cells() -
     root = etree.fromstring(result.xml)
 
     assert len(article.body) == 1
-    assert article.body[0].title.value == "Introduction"
+    assert article.body[0].title.value == "INTRODUCTION"
     assert {block.kind for block in article.body[0].blocks} >= {"figure", "table"}
     assert article.back.contribution_statement is not None
     assert article.back.contribution_statement.value == (
@@ -116,7 +130,7 @@ def test_pipeline_moves_labeled_back_matter_and_preserves_styled_table_cells() -
     assert root.xpath("string(body//table-wrap/table/tbody/tr[1]/td)") == "kgO2/h"
     assert root.xpath("string(body//table-wrap/table/tbody/tr[1]/td/sub)") == "2"
     assert root.xpath("count(back/sec[title='Author contributions'])") == 1.0
-    assert root.xpath("count(back/sec[title='Data availability'])") == 1.0
+    assert root.xpath("count(back/sec[title='DATA AVAILABILITY STATEMENT'])") == 1.0
     assert result.validation.valid
 
 
@@ -127,9 +141,9 @@ def test_mapper_nests_level_two_sections_under_the_preceding_level_one() -> None
     )
     article = CanonicalMapper(load_profile()).map(raw)
 
-    assert len(article.body) == 2
+    assert len(article.body) == 1
     introduction = article.body[0]
-    assert introduction.title.value == "Introduction"
+    assert introduction.title.value == "INTRODUCTION"
     assert len(introduction.children) == 1
     assert introduction.children[0].level == 2
     assert introduction.children[0].title.value == "Nested method details"

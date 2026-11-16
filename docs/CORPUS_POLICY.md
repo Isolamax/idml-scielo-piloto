@@ -10,6 +10,35 @@ arquivos apenas para tamanho e hash, sem imprimir conteúdo.
 
 ## Conjuntos
 
+### Ampliação autorizada em 2026-10-01 — armazenamento privado VH1
+
+O proprietário autorizou explicitamente catálogos, registros e outros dados
+necessários ao desenvolvimento na VPS. Registro imutável da decisão e limites:
+`authorizations/VH1_VPS_DATA_20261001.md`. Substitui a restrição anterior a
+catálogos somente nesse escopo; gold/holdout continuam excluídos.
+
+Primeira cópia: seis catálogos dos dois ESA, dois snapshots Crossref com datas
+originais, XMLs/ZIPs candidatos e decisão, conferidos por hash. Armazenamento:
+`/opt/idml-platform/private/source-vault/<hash-do-manifesto>`, root:root, diretórios
+0700 e arquivos 0600. Não é o diretório público da aplicação, nem bundle ativado.
+Conteúdo não entra em Git, imagem, CI ou logs. Permissões/retencão de backups e
+snapshots devem acompanhar a classificação privada. Revisão de retenção ao fechar VH1.
+
+Manifesto público minimizado: `vh1-vps-source-staging-v1.json`. Transferência não
+renova validade de coleta nem cria aprovação editorial. O consumo pelo worker
+continua condicionado aos contratos de autorização e ao provisionamento VH-04/14.
+
+### Exceção autorizada em 2026-09-29 — qualificação H1 na VPS
+
+O responsável autorizou nesta conversa os envios e testes necessários na própria
+VPS para prosseguir com a aplicação. Para este ensaio, limitar o envio aos pacotes
+candidatos/XMLs derivados de ESA e20240086/e20240135 e seus PDF/imagens necessários.
+Não enviar gold XML, IDML, catálogos nem holdout. Usar área temporária privada,
+validadores isolados sem rede, relatórios minimizados e limpeza ao final.
+Não incluir corpus em Git, imagens, CI ou logs. Preferir tmpfs para não entrar nas
+rotinas de backup de diretórios da aplicação; isso não garante ausência de snapshots
+de memória ou swap do provedor. A autorização não é redistribuição nem publicação.
+
 | Corpus | Papel | Fontes | Observação |
 |---|---|---:|---|
 | ESA e20240086 | development/gold | 11 | IDML, XML/PDF aprovados, pacote, 5 figuras, XPM e planilha |

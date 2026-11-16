@@ -22,8 +22,8 @@ def test_repository_catalog_is_unique_classified_and_reproducible() -> None:
     first = audit_catalog(manifests)
     second = audit_catalog(reversed(manifests))
     assert first.valid is True
-    assert first.manifests == 6
-    assert first.artifacts == 21
+    assert first.manifests == 7
+    assert first.artifacts == 33
     assert first.holdouts == 1
     assert first.catalog_sha256 == second.catalog_sha256
 

@@ -829,6 +829,17 @@
         "publication_date": {
           "$ref": "#/$defs/SourcedText"
         },
+        "subject_category": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourcedText"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "titles": {
           "items": {
             "$ref": "#/$defs/LocalizedText"
@@ -1299,6 +1310,17 @@
           "title": "Authors",
           "type": "array"
         },
+        "elocation_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourcedText"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "evidence_ids": {
           "default": [],
           "items": {
@@ -1306,6 +1328,17 @@
           },
           "title": "Evidence Ids",
           "type": "array"
+        },
+        "first_page": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourcedText"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "id": {
           "title": "Id",
@@ -1318,6 +1351,28 @@
           },
           "title": "Identifiers",
           "type": "array"
+        },
+        "issue": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourcedText"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "last_page": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourcedText"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "mixed_citation": {
           "$ref": "#/$defs/RichText"
@@ -1334,6 +1389,17 @@
           "default": null
         },
         "title": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourcedText"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "volume": {
           "anyOf": [
             {
               "$ref": "#/$defs/SourcedText"
@@ -1454,6 +1520,18 @@
           "minimum": 1,
           "title": "Level",
           "type": "integer"
+        },
+        "section_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Section Type"
         },
         "title": {
           "$ref": "#/$defs/SourcedText"

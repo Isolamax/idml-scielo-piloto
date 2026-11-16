@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Literal, cast
 from urllib.parse import urlparse
 
+from idml_foundation.asset_identity import figure_asset_number, inline_equation_asset_number
 from idml_foundation.domain.canonical import (
     Affiliation,
     ArticleHistoryDate,
@@ -56,20 +57,59 @@ from idml_foundation.domain.raw import (
     RawStory,
 )
 from idml_foundation.pipeline.citation_resolver import resolve_citations
+from idml_foundation.pipeline.funding_parser import parse_funding
 from idml_foundation.pipeline.idml_parser import style_prefix
+from idml_foundation.pipeline.metadata_normalization import split_explicit_brazil_state
 from idml_foundation.pipeline.profile import JournalProfile
+from idml_foundation.pipeline.reference_metadata import reference_metadata
+from idml_foundation.pipeline.reference_parser import reference_without_volume
 
 _ARTICLE_NUMBER = re.compile(r"(?:^|_)(20\d{2})(\d{1,4})(?:_|$)")
 _AUTHOR_MARKERS = re.compile(r"[\d*]+")
 _NUMBERED_GRAPHIC = re.compile(r"^\s*(figure|table)\s*([1-9]\d*)\b", re.IGNORECASE)
 _CAPTION_SEPARATOR = re.compile(r"^[\s.\-\u2013\u2014:]*")
 _MISSING_INLINE_FORMULA = re.compile(r"(?m)^[ \t]*(?=:[ \t]+\S)")
+_NATIVE_DISPLAY_FORMULA = re.compile(
+    r"(?m)^(?P<source>[^\n]*(?:=|\u2211|\u220f|\u2264|\u2265|\u2248|\u2260)[^\n]*?)"
+    r"[ \t]*(?P<label>\([1-9]\d*\))[ \t]*$"
+)
+_PSEUDOCODE_LINE = re.compile(r"(?m)^\d+:\s*[^\n]+$")
+_LIST_MARKER = re.compile(r"^\s*(?:\d+[.)]|[\u2022\u25aa\u25e6*-])\s*")
+_LIST_LINE_MARKER = re.compile(r"(?m)^[ \t]*(?:\d+[.)]|[\u2022\u25aa\u25e6*-])[ \t]*")
+_NATIVE_INLINE_ASSIGNMENT = re.compile(
+    r"(?m)^(?P<source>[^\s:,\n]{1,12}\s*=\s*[^;\n]{1,100},\s*"
+    r"[^\s:,\n]{1,12}\s*=\s*\[[^\n]+\])[ \t]*$"
+)
 _EMAIL = re.compile(r"[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}", re.IGNORECASE)
+_ORCID_URL = re.compile(r"https://orcid\.org/\d{4}-\d{4}-\d{4}-\d{3}[\dX]")
 _HISTORY = re.compile(
     r"^Received\s+on:\s*(\d{2}/\d{2}/\d{4})\s*[\-\u2013\u2014]\s*"
     r"Accepted\s+on:\s*(\d{2}/\d{2}/\d{4})$",
     re.IGNORECASE,
 )
+_SECTION_ROLE = re.compile(r"^section-level-([1-9]\d*)$")
+_REFERENCE_DOI = re.compile(r"\b10\.\d{4,9}/[-._;()/:A-Z0-9]+", re.IGNORECASE)
+_REFERENCE_YEAR = re.compile(r"(?<!\d)((?:19|20)\d{2})(?!\d)")
+_REFERENCE_PUBLICATION_YEAR = re.compile(
+    r",\s*((?:19|20)\d{2})\.(?=\s*(?:https?://|Available at:|$))",
+    re.IGNORECASE,
+)
+_AFFILIATION = re.compile(
+    r"^(?P<institution>[^,]+),\s*(?P<department>.+?)\s*[\ufffd\u2013\u2014]\s*"
+    r"(?P<city>[^,]+),\s*(?P<country>[^.]+)\.?$"
+)
+
+_STANDARD_SECTION_TYPES = {
+    "introduction": "intro",
+    "materials and methods": "materials|methods",
+    "methods": "materials|methods",
+    "results": "results",
+    "result discussion": "results|discussion",
+    "results and discussion": "results|discussion",
+    "discussion": "discussion",
+    "conclusion": "conclusions",
+    "conclusions": "conclusions",
+}
 
 
 @dataclass(frozen=True)
@@ -88,6 +128,14 @@ class _BackStatementData:
     data_availability: SourcedText | None = None
     excluded_paragraph_ids: frozenset[str] = frozenset()
     review_reasons: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class _NativeDisplayFormula:
+    start: int
+    end: int
+    source: str
+    label: str
 
 
 def _safe_external_href(value: str) -> str | None:
@@ -113,6 +161,148 @@ def _present(value: str, evidence_ids: tuple[str, ...], transformation: str) -> 
 
 def _missing(transformation: str) -> SourcedText:
     return SourcedText(state=FieldState.MISSING, transformation=transformation, confidence=1.0)
+
+
+def _section_title(value: str, level: int) -> str:
+    normalized = " ".join(value.split())
+    return normalized.upper() if level == 1 else normalized
+
+
+def _section_type(value: str, level: int) -> str | None:
+    if level != 1:
+        return None
+    normalized = " ".join(value.split()).casefold()
+    return _STANDARD_SECTION_TYPES.get(normalized)
+
+
+def _language_from_label(value: str, fallback: str) -> str:
+    normalized = " ".join(value.split()).strip(":. ").casefold()
+    if normalized in {"abstract", "keywords"}:
+        return "en"
+    if normalized in {"resumo", "palavras-chave", "palavras chave"}:
+        return "pt"
+    return fallback
+
+
+def _credit_roles(statement: SourcedText | None) -> dict[str, tuple[str, ...]]:
+    if statement is None or not statement.value:
+        return {}
+    roles: dict[str, tuple[str, ...]] = {}
+    for item in re.split(r"\.\s+(?=[A-Z][^:]{1,100},\s*[^:]+:)|\.$", statement.value.strip()):
+        if ":" not in item:
+            continue
+        source_name, source_roles = item.split(":", 1)
+        key = " ".join(source_name.replace(",", " ").split()).casefold()
+        normalized_roles = []
+        for role in source_roles.split(","):
+            value = " ".join(role.split()).strip(". ").replace("\ufffd", "\u2013")
+            if value:
+                normalized_roles.append(value)
+        if key and normalized_roles:
+            roles[key] = tuple(normalized_roles)
+    return roles
+
+
+def _reference_parts(value: str) -> tuple[tuple[str, ...], str | None, str | None]:
+    journal = re.match(r"^(?P<prefix>.+)\.\s+(?P<source>.+?),\s+v\.\s*", value)
+    if journal is not None:
+        prefix = journal.group("prefix")
+        source = journal.group("source").strip()
+    else:
+        return reference_without_volume(value)
+    last_semicolon = prefix.rfind(";")
+    boundary = prefix.find(". ", last_semicolon + 1)
+    if boundary < 0:
+        return (), None, source
+    author_text = prefix[:boundary].strip()
+    title = prefix[boundary + 2 :].strip()
+    authors = tuple(item.strip() for item in author_text.split(";") if item.strip())
+    return authors, title or None, source or None
+
+
+def _reference_details(value: str, year: str | None) -> dict[str, str]:
+    details: dict[str, str] = {}
+    patterns = {
+        "volume": r",\s+v\.\s*([^,]+)",
+        "issue": r",\s+n\.\s*([^,]+)",
+    }
+    for key, pattern in patterns.items():
+        if match := re.search(pattern, value):
+            details[key] = match.group(1).strip()
+    pages = re.search(r",\s+p\.\s*([^,\-]+?)(?:\s*-\s*([^,]+))?,", value)
+    if pages:
+        details["first_page"] = pages.group(1).strip()
+        details["last_page"] = pages.group(2).strip() if pages.group(2) else details["first_page"]
+    elif year and "volume" in details:
+        tail = re.search(
+            rf",\s+v\.\s*[^,]+(?:,\s+n\.\s*[^,]+)?(?:,\s+([^,]+))?,\s*{re.escape(year)}\.",
+            value,
+        )
+        if tail and tail.group(1):
+            details["elocation_id"] = tail.group(1).strip()
+    return details
+
+
+def _native_display_formulas(value: str) -> tuple[_NativeDisplayFormula, ...]:
+    return tuple(
+        _NativeDisplayFormula(
+            start=match.start(),
+            end=match.end(),
+            source=match.group("source").strip(),
+            label=match.group("label"),
+        )
+        for match in _NATIVE_DISPLAY_FORMULA.finditer(value)
+        if match.group("source").strip()
+    )
+
+
+def _rich_text_slice(
+    value: RichText,
+    start: int,
+    end: int,
+    *,
+    article_id: str,
+    locator: str,
+) -> RichText | None:
+    plain = value.plain.value or ""
+    sliced_plain = plain[start:end]
+    if not sliced_plain.strip():
+        return None
+    cursor = 0
+    sliced_inlines: list[InlineNode] = []
+    for inline in value.inlines:
+        inline_start = cursor
+        inline_end = cursor + len(inline.text)
+        overlap_start = max(start, inline_start)
+        overlap_end = min(end, inline_end)
+        if overlap_start < overlap_end:
+            sliced_inlines.append(
+                inline.model_copy(
+                    update={
+                        "id": stable_id(article_id, "inline-slice", f"{locator}:{inline.id}"),
+                        "text": inline.text[
+                            overlap_start - inline_start : overlap_end - inline_start
+                        ],
+                    }
+                )
+            )
+        elif not inline.text and inline.kind == InlineKind.INLINE_FORMULA and start <= cursor < end:
+            sliced_inlines.append(
+                inline.model_copy(
+                    update={"id": stable_id(article_id, "inline-slice", f"{locator}:{inline.id}")}
+                )
+            )
+        cursor = inline_end
+    return RichText(
+        plain=value.plain.model_copy(
+            update={
+                "value": sliced_plain,
+                "state": FieldState.PRESENT,
+                "transformation": "native-display-formula-split",
+            }
+        ),
+        inlines=tuple(sliced_inlines),
+    )
 
 
 def _without_prefix(value: RichText, length: int) -> RichText:
@@ -205,6 +395,158 @@ def _insert_missing_inline_formula_nodes(
     return inlines
 
 
+def _mark_native_inline_assignments(
+    inlines: list[InlineNode],
+    *,
+    plain: str,
+    paragraph: RawParagraph,
+    article_id: str,
+) -> list[InlineNode]:
+    """Represent a complete native mathematical assignment line as one inline formula."""
+    for match in reversed(tuple(_NATIVE_INLINE_ASSIGNMENT.finditer(plain))):
+        cursor = 0
+        positioned: list[tuple[int, int, int, InlineNode]] = []
+        for index, inline in enumerate(inlines):
+            end = cursor + len(inline.text)
+            positioned.append((index, cursor, end, inline))
+            cursor = end
+        affected = [
+            item for item in positioned if item[1] < match.end() and item[2] > match.start()
+        ]
+        if not affected or any(item[3].kind == InlineKind.INLINE_FORMULA for item in affected):
+            continue
+        first_index, first_start, _, first_inline = affected[0]
+        last_index, last_start, _, last_inline = affected[-1]
+        replacement: list[InlineNode] = []
+        if match.start() > first_start:
+            replacement.append(
+                first_inline.model_copy(
+                    update={
+                        "id": stable_id(
+                            article_id,
+                            "native-inline-formula-head",
+                            f"{first_inline.id}:{match.start()}",
+                        ),
+                        "text": first_inline.text[: match.start() - first_start],
+                    }
+                )
+            )
+        evidence_ids = tuple(
+            dict.fromkeys(evidence_id for item in affected for evidence_id in item[3].evidence_ids)
+        )
+        replacement.append(
+            InlineNode(
+                id=stable_id(
+                    article_id,
+                    "native-inline-formula",
+                    f"{paragraph.id}:{match.start()}:{match.end()}",
+                ),
+                kind=InlineKind.INLINE_FORMULA,
+                text=plain[match.start() : match.end()],
+                formula_source=_present(
+                    match.group("source"),
+                    evidence_ids,
+                    "native-inline-formula-source",
+                ),
+                formula_representation=FormulaRepresentation.TEXT,
+                evidence_ids=evidence_ids,
+            )
+        )
+        last_local_end = match.end() - last_start
+        if last_local_end < len(last_inline.text):
+            replacement.append(
+                last_inline.model_copy(
+                    update={
+                        "id": stable_id(
+                            article_id,
+                            "native-inline-formula-tail",
+                            f"{last_inline.id}:{match.end()}",
+                        ),
+                        "text": last_inline.text[last_local_end:],
+                    }
+                )
+            )
+        inlines[first_index : last_index + 1] = replacement
+    return inlines
+
+
+def _group_pseudocode_inline_formulas(
+    inlines: list[InlineNode],
+    *,
+    plain: str,
+    paragraph: RawParagraph,
+    article_id: str,
+) -> list[InlineNode]:
+    """Collapse a source expression split across several anchored glyph assets."""
+    for line in reversed(tuple(_PSEUDOCODE_LINE.finditer(plain))):
+        cursor = 0
+        positioned: list[tuple[int, int, int, InlineNode]] = []
+        for index, inline in enumerate(inlines):
+            end = cursor + len(inline.text)
+            positioned.append((index, cursor, end, inline))
+            cursor = end
+        formula_positions = [
+            item
+            for item in positioned
+            if item[3].kind == InlineKind.INLINE_FORMULA and line.start() <= item[1] < line.end()
+        ]
+        if len(formula_positions) < 3:
+            continue
+
+        first_index, group_start, _, _ = formula_positions[0]
+        last_index = first_index
+        source_parts: list[str] = []
+        evidence_ids: list[str] = []
+        trailing: InlineNode | None = None
+        for index, start, end, inline in positioned[first_index:]:
+            if start >= line.end():
+                break
+            last_index = index
+            evidence_ids.extend(inline.evidence_ids)
+            if inline.kind == InlineKind.INLINE_FORMULA:
+                source_value = inline.formula_source.value if inline.formula_source else None
+                if source_value:
+                    source_parts.append(re.sub(r"\.[^.]+$", "", source_value.rsplit("/", 1)[-1]))
+            else:
+                source_parts.append(inline.text[: max(0, line.end() - start)])
+            if end > line.end():
+                split = line.end() - start
+                trailing = inline.model_copy(
+                    update={
+                        "id": stable_id(
+                            article_id,
+                            "pseudocode-formula-tail",
+                            f"{inline.id}:{line.end()}",
+                        ),
+                        "text": inline.text[split:],
+                    }
+                )
+                break
+
+        grouped_source = "".join(source_parts).strip()
+        grouped = InlineNode(
+            id=stable_id(
+                article_id,
+                "grouped-inline-formula",
+                f"{paragraph.id}:{line.start()}:{line.end()}",
+            ),
+            kind=InlineKind.INLINE_FORMULA,
+            text=plain[group_start : line.end()],
+            formula_source=_present(
+                grouped_source,
+                tuple(dict.fromkeys(evidence_ids)),
+                "grouped-pseudocode-formula-components",
+            ),
+            formula_representation=FormulaRepresentation.TEXT,
+            evidence_ids=tuple(dict.fromkeys(evidence_ids)),
+        )
+        replacement = [grouped]
+        if trailing is not None and trailing.text:
+            replacement.append(trailing)
+        inlines[first_index : last_index + 1] = replacement
+    return inlines
+
+
 def _article_id(source_id: str) -> str:
     match = _ARTICLE_NUMBER.search(source_id)
     if not match:
@@ -266,11 +608,28 @@ class CanonicalMapper:
                     return value, paragraph.evidence_ids
             return None
 
+        abstract_headings = [
+            text_for(story, paragraph)
+            for story, paragraph in paragraphs_by_role["abstract-heading"]
+        ]
+        document_languages = [
+            _language_from_label(
+                heading,
+                self.profile.primary_language if position == 0 else self.profile.secondary_language,
+            )
+            for position, heading in enumerate(abstract_headings)
+        ]
         titles: list[LocalizedText] = []
-        for role, language in (
-            ("title-primary", self.profile.primary_language),
-            ("title-secondary", self.profile.secondary_language),
-        ):
+        for position, role in enumerate(("title-primary", "title-secondary")):
+            language = (
+                document_languages[position]
+                if position < len(document_languages)
+                else (
+                    self.profile.primary_language
+                    if position == 0
+                    else self.profile.secondary_language
+                )
+            )
             candidate = first_text(role)
             if candidate:
                 titles.append(
@@ -296,14 +655,17 @@ class CanonicalMapper:
                 )
             )
 
+        back_statements = self._back_statements(paragraphs_by_role, text_for, raw)
         affiliations = self._affiliations(paragraphs_by_role, text_for, article_id)
         contributors = self._contributors(
             paragraphs_by_role,
             text_for,
             article_id,
             tuple(item.id for item in affiliations),
+            raw,
+            contribution_statement=back_statements.contribution_statement,
         )
-        correspondence = self._correspondence(paragraphs_by_role, text_for, article_id)
+        correspondence = self._correspondence(paragraphs_by_role, text_for, article_id, raw)
         if correspondence.email is not None:
             corresponding_positions = [
                 position
@@ -321,8 +683,12 @@ class CanonicalMapper:
         abstracts: list[LocalizedText] = []
         keywords: list[LocalizedText] = []
         for position, (story, paragraph) in enumerate(paragraphs_by_role["abstract"]):
-            language = (
+            fallback = (
                 self.profile.primary_language if position == 0 else self.profile.secondary_language
+            )
+            language = _language_from_label(
+                abstract_headings[position] if position < len(abstract_headings) else "",
+                fallback,
             )
             value = text_for(story, paragraph)
             if value:
@@ -333,10 +699,12 @@ class CanonicalMapper:
                     )
                 )
         for position, (story, paragraph) in enumerate(paragraphs_by_role["keywords"]):
-            language = (
+            fallback = (
                 self.profile.primary_language if position == 0 else self.profile.secondary_language
             )
             value = text_for(story, paragraph)
+            label = value.split(":", 1)[0] if ":" in value else ""
+            language = _language_from_label(label, fallback)
             if ":" in value:
                 value = value.split(":", 1)[1].strip()
             if value:
@@ -348,7 +716,6 @@ class CanonicalMapper:
                 )
 
         references = self._references(paragraphs_by_role, text_for, article_id)
-        back_statements = self._back_statements(paragraphs_by_role, text_for, raw)
         sections, section_review_reasons = self._sections(
             raw,
             paragraphs_by_role,
@@ -372,6 +739,11 @@ class CanonicalMapper:
             for item in raw.assets
         )
         review_reasons = [f"unmapped_style:{name}" for name in sorted(unknown)]
+        review_reasons.extend(
+            f"{reason}:{reference.id}"
+            for reference in references
+            for reason in reference.review_reasons
+        )
         review_reasons.extend(
             f"reading_order:{issue.code}:{issue.story_id or 'document'}"
             for issue in raw.reading_order_issues
@@ -404,6 +776,22 @@ class CanonicalMapper:
                     ),
                     identifiers=(
                         Identifier(
+                            kind="publisher-id",
+                            value=_present(
+                                self.profile.journal_publisher_id,
+                                (profile_evidence.id,),
+                                "journal-profile",
+                            ),
+                        ),
+                        Identifier(
+                            kind="print-issn",
+                            value=_present(
+                                self.profile.journal_print_issn,
+                                (profile_evidence.id,),
+                                "journal-profile",
+                            ),
+                        ),
+                        Identifier(
                             kind="electronic-issn",
                             value=_present(
                                 self.profile.journal_issn,
@@ -411,6 +799,11 @@ class CanonicalMapper:
                                 "journal-profile",
                             ),
                         ),
+                    ),
+                    publisher_name=_present(
+                        self.profile.publisher_name,
+                        (profile_evidence.id,),
+                        "journal-profile",
                     ),
                 ),
                 article_identifiers=tuple(article_identifiers),
@@ -426,7 +819,17 @@ class CanonicalMapper:
                 history_dates=correspondence.history_dates,
                 abstracts=tuple(abstracts),
                 keywords=tuple(keywords),
+                license_text=_present(
+                    self.profile.license_text,
+                    (profile_evidence.id,),
+                    "journal-profile",
+                ),
                 funding=correspondence.funding,
+                subject_category=_present(
+                    self.profile.subject_category,
+                    (profile_evidence.id,),
+                    "journal-profile",
+                ),
             ),
             body=sections,
             back=BackMatter(
@@ -507,6 +910,7 @@ class CanonicalMapper:
         by_role: defaultdict[str, list[tuple[RawStory, RawParagraph]]],
         text_for: Callable[[RawStory, RawParagraph], str],
         article_id: str,
+        raw: RawArticle,
     ) -> _CorrespondenceData:
         email: SourcedText | None = None
         conflicts: SourcedText | None = None
@@ -515,10 +919,34 @@ class CanonicalMapper:
         notes: list[NoteBlock] = []
         review_reasons: list[str] = []
         seen_history: set[str] = set()
+        hyperlink_targets = {
+            link.source_id: link.target
+            for link in raw.links
+            if link.relationship == "external-hyperlink"
+        }
 
         for story, paragraph in by_role["correspondence"]:
             evidence_ids = paragraph.evidence_ids
             lines = tuple(line.strip() for line in text_for(story, paragraph).splitlines())
+            editor_line_count = sum(
+                line.casefold().startswith(
+                    tuple(
+                        f"{label.casefold()}:"
+                        for label in ("Associate editor", "Scientific editor", "Editor")
+                    )
+                )
+                for line in lines
+            )
+            paragraph_orcid_targets = tuple(
+                dict.fromkeys(
+                    target
+                    for run_id in paragraph.text_run_ids
+                    if (target := hyperlink_targets.get(run_id)) is not None
+                    and target.casefold().startswith("https://orcid.org/")
+                )
+            )
+            if editor_line_count > 1 and paragraph_orcid_targets:
+                review_reasons.append("ambiguous_editor_orcid_hyperlinks")
             for line_position, line in enumerate(lines):
                 if not line:
                     continue
@@ -550,11 +978,34 @@ class CanonicalMapper:
                     if not value:
                         review_reasons.append("empty_funding_statement")
                         continue
-                    agency = value.split(",", 1)[0].strip()
+                    parsed_funding = parse_funding(value)
+                    if not parsed_funding.agency and not parsed_funding.explicit_none:
+                        review_reasons.append("funding_structure_requires_authority")
                     funding.append(
                         FundingStatement(
-                            agency=_present(
-                                agency, evidence_ids, "funding-agency-before-first-comma"
+                            agency=(
+                                _missing("explicit-no-funding-agency")
+                                if parsed_funding.explicit_none
+                                else _present(
+                                    parsed_funding.agency,
+                                    evidence_ids,
+                                    "explicit-single-funder-declaration",
+                                )
+                                if parsed_funding.agency
+                                else SourcedText(
+                                    state=FieldState.NEEDS_REVIEW,
+                                    evidence_ids=evidence_ids,
+                                    transformation="unresolved-funding-structure",
+                                )
+                            ),
+                            award_id=(
+                                _present(
+                                    parsed_funding.award,
+                                    evidence_ids,
+                                    "explicit-single-funder-award",
+                                )
+                                if parsed_funding.award
+                                else None
                             ),
                             statement=_present(
                                 value, evidence_ids, "correspondence-labeled-funding"
@@ -593,7 +1044,7 @@ class CanonicalMapper:
                 editor_type = next(
                     (
                         label
-                        for label in ("Associate editor", "Scientific editor")
+                        for label in ("Associate editor", "Scientific editor", "Editor")
                         if lowered.startswith(f"{label.casefold()}:")
                     ),
                     None,
@@ -603,7 +1054,11 @@ class CanonicalMapper:
                     if not value:
                         review_reasons.append(f"empty_{editor_type.casefold().replace(' ', '_')}")
                         continue
-                    content = f"{editor_type}: {value}"
+                    orcid_targets = paragraph_orcid_targets if editor_line_count == 1 else ()
+                    if len(orcid_targets) == 1:
+                        value = f"{value} {orcid_targets[0]}"
+                    elif len(orcid_targets) > 1:
+                        review_reasons.append("ambiguous_editor_orcid_hyperlinks")
                     notes.append(
                         NoteBlock(
                             id=stable_id(
@@ -611,10 +1066,14 @@ class CanonicalMapper:
                                 "correspondence-note",
                                 f"{paragraph.id}:{line_position}:{editor_type.casefold()}",
                             ),
-                            note_type=editor_type.casefold().replace(" ", "-"),
+                            note_type=(
+                                "edited-by"
+                                if editor_type == "Editor"
+                                else editor_type.casefold().replace(" ", "-")
+                            ),
                             content=RichText(
                                 plain=_present(
-                                    content,
+                                    value,
                                     evidence_ids,
                                     "correspondence-labeled-editor",
                                 )
@@ -622,9 +1081,10 @@ class CanonicalMapper:
                             evidence_ids=evidence_ids,
                         )
                     )
-                    review_reasons.append(
-                        f"{editor_type.casefold().replace(' ', '_')}_orcid_requires_enrichment"
-                    )
+                    if not orcid_targets:
+                        review_reasons.append(
+                            f"{editor_type.casefold().replace(' ', '_')}_orcid_requires_enrichment"
+                        )
                     continue
                 review_reasons.append("unmapped_correspondence_line")
 
@@ -684,10 +1144,23 @@ class CanonicalMapper:
         text_for: object,
         article_id: str,
         affiliation_ids: tuple[str, ...],
+        raw: RawArticle,
+        *,
+        contribution_statement: SourcedText | None,
     ) -> tuple[Contributor, ...]:
         contributors: list[Contributor] = []
+        roles_by_name = _credit_roles(contribution_statement)
+        links_by_run = {
+            link.source_id: link
+            for link in raw.links
+            if link.relationship == "external-hyperlink"
+            and _ORCID_URL.fullmatch(link.target) is not None
+        }
         for story, paragraph in by_role["contributors"]:
             value = text_for(story, paragraph)  # type: ignore[operator]
+            paragraph_orcids = [
+                links_by_run[run_id] for run_id in paragraph.text_run_ids if run_id in links_by_run
+            ]
             for position, source_name in enumerate(re.split(r"\s*,\s*", value)):
                 markers = [int(item) for item in re.findall(r"\d+", source_name)]
                 clean_name = " ".join(_AUTHOR_MARKERS.sub("", source_name).split())
@@ -699,7 +1172,21 @@ class CanonicalMapper:
                     for index in markers
                     if 0 < index <= len(affiliation_ids)
                 )
-                contributor_id = stable_id(article_id, "contributor", str(position))
+                contributor_id = stable_id(article_id, "contributor", str(len(contributors)))
+                orcid_link = (
+                    paragraph_orcids[position] if position < len(paragraph_orcids) else None
+                )
+                name_tokens = {
+                    part.casefold()
+                    for part in re.findall(r"[A-Za-z]+", clean_name)
+                    if len(part) >= 4
+                }
+                matching_roles = [
+                    roles
+                    for name, roles in roles_by_name.items()
+                    if name_tokens
+                    & {part.casefold() for part in re.findall(r"[A-Za-z]+", name) if len(part) >= 4}
+                ]
                 contributors.append(
                     Contributor(
                         id=contributor_id,
@@ -716,7 +1203,17 @@ class CanonicalMapper:
                                 "deterministic-last-token-name-split",
                             ),
                         ),
+                        orcid=(
+                            _present(
+                                orcid_link.target,
+                                orcid_link.evidence_ids,
+                                "source-authenticated-orcid-hyperlink",
+                            )
+                            if orcid_link is not None
+                            else None
+                        ),
                         affiliation_ids=selected_affiliations,
+                        roles=matching_roles[0] if len(matching_roles) == 1 else (),
                         corresponding="*" in source_name,
                         evidence_ids=paragraph.evidence_ids,
                     )
@@ -737,14 +1234,69 @@ class CanonicalMapper:
                 if not clean:
                     continue
                 clean = re.sub(r"^\d+", "", clean).strip()
+                match = _AFFILIATION.fullmatch(clean)
+                if match is None:
+                    institution = clean
+                    original_text = department = city = state = country = country_code = None
+                else:
+                    values = {key: value.strip() for key, value in match.groupdict().items()}
+                    institution = values["institution"]
+                    original_text = _present(
+                        clean,
+                        paragraph.evidence_ids,
+                        "line-from-affiliation-style",
+                    )
+                    department = _present(
+                        values["department"],
+                        paragraph.evidence_ids,
+                        "deterministic-affiliation-decomposition",
+                    )
+                    city_value, state_value = split_explicit_brazil_state(
+                        values["city"], values["country"]
+                    )
+                    city = _present(
+                        city_value,
+                        paragraph.evidence_ids,
+                        "deterministic-affiliation-decomposition",
+                    )
+                    state = (
+                        _present(
+                            state_value,
+                            paragraph.evidence_ids,
+                            "explicit-affiliation-parenthesized-uf",
+                        )
+                        if state_value
+                        else None
+                    )
+                    country = _present(
+                        values["country"],
+                        paragraph.evidence_ids,
+                        "deterministic-affiliation-decomposition",
+                    )
+                    code = self.profile.country_codes.get(values["country"])
+                    country_code = (
+                        _present(
+                            code,
+                            paragraph.evidence_ids,
+                            "journal-profile-country-code",
+                        )
+                        if code
+                        else None
+                    )
                 affiliations.append(
                     Affiliation(
                         id=stable_id(article_id, "affiliation", str(len(affiliations))),
                         institution=_present(
-                            clean,
+                            institution,
                             paragraph.evidence_ids,
-                            "line-from-affiliation-style",
+                            "deterministic-affiliation-decomposition",
                         ),
+                        original_text=original_text,
+                        department=department,
+                        city=city,
+                        state_or_province=state,
+                        country=country,
+                        country_code=country_code,
                         evidence_ids=paragraph.evidence_ids,
                     )
                 )
@@ -760,6 +1312,7 @@ class CanonicalMapper:
         run_ids: tuple[str, ...] | None = None,
         inline_formulas_by_run: dict[str, list[RawAnchoredObject]] | None = None,
         raw_assets: dict[str, RawAsset] | None = None,
+        formula_sources_by_object: dict[str, str] | None = None,
         hyperlinks_by_run: dict[str, str] | None = None,
     ) -> RichText:
         runs = {run.id: run for run in story.runs}
@@ -773,7 +1326,18 @@ class CanonicalMapper:
             ):
                 asset_id = formula.asset_ids[0] if formula.asset_ids else None
                 asset = (raw_assets or {}).get(asset_id or "")
-                source = asset.logical_path if asset is not None else "unresolved-formula-asset"
+                source = (
+                    asset.logical_path
+                    if asset is not None
+                    else (formula_sources_by_object or {}).get(formula.id)
+                )
+                representation = (
+                    FormulaRepresentation.IMAGE
+                    if asset is not None
+                    else FormulaRepresentation.TEXT
+                    if source is not None
+                    else FormulaRepresentation.UNKNOWN
+                )
                 inlines.append(
                     InlineNode(
                         id=stable_id(
@@ -783,12 +1347,25 @@ class CanonicalMapper:
                         ),
                         kind=InlineKind.INLINE_FORMULA,
                         text="",
-                        formula_source=_present(
-                            source,
-                            formula.evidence_ids,
-                            "anchored-inline-pdf-formula",
+                        formula_source=(
+                            _present(
+                                source,
+                                formula.evidence_ids,
+                                (
+                                    "anchored-inline-pdf-formula"
+                                    if asset is not None
+                                    else "embedded-story-inline-formula"
+                                ),
+                            )
+                            if source is not None
+                            else SourcedText(
+                                state=FieldState.NEEDS_REVIEW,
+                                evidence_ids=formula.evidence_ids,
+                                transformation="unresolved-inline-formula-source",
+                                confidence=1.0,
+                            )
                         ),
-                        formula_representation=FormulaRepresentation.IMAGE,
+                        formula_representation=representation,
                         formula_asset_id=asset_id,
                         evidence_ids=formula.evidence_ids,
                     )
@@ -836,6 +1413,18 @@ class CanonicalMapper:
             paragraph=paragraph,
             article_id=article_id,
         )
+        inlines = _mark_native_inline_assignments(
+            inlines,
+            plain=plain,
+            paragraph=paragraph,
+            article_id=article_id,
+        )
+        inlines = _group_pseudocode_inline_formulas(
+            inlines,
+            plain=plain,
+            paragraph=paragraph,
+            article_id=article_id,
+        )
         return RichText(
             plain=SourcedText(
                 value=plain or None,
@@ -859,11 +1448,25 @@ class CanonicalMapper:
         *,
         excluded_paragraph_ids: frozenset[str] = frozenset(),
     ) -> tuple[tuple[Section, ...], tuple[str, ...]]:
+        embedded_story_sources = {
+            anchored_object.source_self_id
+            for anchored_object in raw.anchored_objects
+            if not anchored_object.asset_ids
+        }
         body_items = [
             (*item, role)
-            for role in ("section-level-1", "section-level-2", "paragraph")
+            for role in (
+                *sorted(
+                    (name for name in by_role if _SECTION_ROLE.fullmatch(name)),
+                    key=lambda name: int(name.rsplit("-", 1)[1]),
+                ),
+                "paragraph",
+                "list-level-1",
+                "list-level-2",
+            )
             for item in by_role[role]
             if item[1].id not in excluded_paragraph_ids
+            and item[0].source_self_id not in embedded_story_sources
         ]
         body_items.sort(key=lambda item: (raw.reading_order.index(item[0].id), item[1].position))
         sections: list[dict[str, object]] = []
@@ -879,13 +1482,36 @@ class CanonicalMapper:
             else:
                 citation_review_reasons.append(f"unsafe_external_hyperlink:{link.id}")
         raw_assets = {asset.id: asset for asset in raw.assets}
+        story_by_source_self = {story.source_self_id: story for story in raw.stories}
+        formula_sources_by_object = {
+            anchored_object.id: "".join(
+                run.text for run in story_by_source_self[anchored_object.source_self_id].runs
+            ).strip()
+            for anchored_object in raw.anchored_objects
+            if not anchored_object.asset_ids
+            and anchored_object.source_self_id in story_by_source_self
+        }
         block_formulas_by_run: defaultdict[str, list[RawAnchoredObject]] = defaultdict(list)
         inline_formulas_by_run: defaultdict[str, list[RawAnchoredObject]] = defaultdict(list)
+        last_inline_equation_asset_number = 0
         for anchored_object in raw.anchored_objects:
             if (
                 anchored_object.kind == RawObjectKind.FORMULA
                 and anchored_object.anchor_run_id is not None
             ):
+                if anchored_object.placement == AnchoredPlacement.INLINE:
+                    asset = raw_assets.get(
+                        anchored_object.asset_ids[0] if anchored_object.asset_ids else ""
+                    )
+                    sequence_number = (
+                        inline_equation_asset_number(asset.logical_path)
+                        if asset is not None
+                        else None
+                    )
+                    if sequence_number is not None:
+                        if sequence_number <= last_inline_equation_asset_number:
+                            continue
+                        last_inline_equation_asset_number = sequence_number
                 target = (
                     inline_formulas_by_run
                     if anchored_object.placement == AnchoredPlacement.INLINE
@@ -908,12 +1534,18 @@ class CanonicalMapper:
             ]
             if not text and not block_formula_objects and not inline_formula_objects:
                 continue
-            if role.startswith("section-level"):
-                level = 1 if role.endswith("1") else 2
+            if section_match := _SECTION_ROLE.fullmatch(role):
+                level = int(section_match.group(1))
+                title = _section_title(text, level)
                 current = {
                     "id": stable_id(article_id, "section", paragraph.id),
-                    "title": _present(text, paragraph.evidence_ids, f"style-role:{role}"),
+                    "title": _present(
+                        title,
+                        paragraph.evidence_ids,
+                        f"style-role:{role}:normalized-heading-whitespace-and-case",
+                    ),
                     "level": level,
+                    "section_type": _section_type(text, level),
                     "blocks": [],
                     "children": [],
                     "evidence_ids": paragraph.evidence_ids,
@@ -946,20 +1578,68 @@ class CanonicalMapper:
                 blocks = cast(list[object], current["blocks"])
                 properties = style_properties.get(paragraph.paragraph_style_id or "", {})
                 list_type = str(properties.get("BulletsAndNumberingListType", ""))
-                if list_type in {"BulletList", "NumberedList"}:
+                if list_type in {"BulletList", "NumberedList"} or role.startswith("list-level-"):
                     content = self._rich_text(
                         story,
                         paragraph,
                         character_names,
                         article_id,
+                        inline_formulas_by_run=inline_formulas_by_run,
+                        raw_assets=raw_assets,
+                        formula_sources_by_object=formula_sources_by_object,
                         hyperlinks_by_run=hyperlinks_by_run,
                     )
-                    item = ListItem(
-                        id=stable_id(article_id, "list-item", paragraph.id),
-                        content=content,
-                        evidence_ids=paragraph.evidence_ids,
+                    line_markers = tuple(_LIST_LINE_MARKER.finditer(content.plain.value or ""))
+                    item_contents: list[RichText] = []
+                    if len(line_markers) > 1 and line_markers[0].start() == 0:
+                        for position, marker in enumerate(line_markers):
+                            end = (
+                                line_markers[position + 1].start()
+                                if position + 1 < len(line_markers)
+                                else len(content.plain.value or "")
+                            )
+                            item_content = _rich_text_slice(
+                                content,
+                                marker.end(),
+                                end,
+                                article_id=article_id,
+                                locator=f"list:{paragraph.id}:{position}",
+                            )
+                            if item_content is not None:
+                                item_contents.append(
+                                    item_content.model_copy(
+                                        update={
+                                            "plain": item_content.plain.model_copy(
+                                                update={
+                                                    "transformation": (
+                                                        "numbered-lines-split-and-markers-extracted"
+                                                    )
+                                                }
+                                            )
+                                        }
+                                    )
+                                )
+                    else:
+                        if single_marker := _LIST_MARKER.match(content.plain.value or ""):
+                            content = _without_prefix(content, single_marker.end())
+                        item_contents.append(content)
+                    formula_review_reasons.extend(
+                        f"inline_formula_requires_mathml_transcription:{inline.id}"
+                        for item_content in item_contents
+                        for inline in item_content.inlines
+                        if inline.kind == InlineKind.INLINE_FORMULA
+                        and inline.formula_source is not None
+                        and inline.formula_source.transformation == "native-inline-formula-source"
                     )
-                    ordered = list_type == "NumberedList"
+                    items = tuple(
+                        ListItem(
+                            id=stable_id(article_id, "list-item", f"{paragraph.id}:{position}"),
+                            content=item_content,
+                            evidence_ids=paragraph.evidence_ids,
+                        )
+                        for position, item_content in enumerate(item_contents)
+                    )
+                    ordered = list_type == "NumberedList" or bool(re.match(r"^\s*\d+[.)]", text))
                     if (
                         blocks
                         and isinstance(blocks[-1], ListBlock)
@@ -968,7 +1648,7 @@ class CanonicalMapper:
                         previous_list = blocks[-1]
                         blocks[-1] = previous_list.model_copy(
                             update={
-                                "items": (*previous_list.items, item),
+                                "items": (*previous_list.items, *items),
                                 "evidence_ids": tuple(
                                     dict.fromkeys(
                                         (*previous_list.evidence_ids, *paragraph.evidence_ids)
@@ -981,7 +1661,7 @@ class CanonicalMapper:
                             ListBlock(
                                 id=stable_id(article_id, "list", paragraph.id),
                                 ordered=ordered,
-                                items=(item,),
+                                items=items,
                                 evidence_ids=paragraph.evidence_ids,
                             )
                         )
@@ -1006,7 +1686,23 @@ class CanonicalMapper:
                         run_ids=tuple(run_ids),
                         inline_formulas_by_run=inline_formulas_by_run,
                         raw_assets=raw_assets,
+                        formula_sources_by_object=formula_sources_by_object,
                         hyperlinks_by_run=hyperlinks_by_run,
+                    )
+                    if block_formula_objects:
+                        plain_with_label = rich_text.plain.value or ""
+                        leading_label = re.match(r"^\s*(\([1-9]\d*\))\s*", plain_with_label)
+                        known_labels = {
+                            formula.label for formula in block_formula_objects if formula.label
+                        }
+                        if leading_label and leading_label.group(1) in known_labels:
+                            rich_text = _without_prefix(rich_text, leading_label.end())
+                    formula_review_reasons.extend(
+                        f"inline_formula_requires_mathml_transcription:{inline.id}"
+                        for inline in rich_text.inlines
+                        if inline.kind == InlineKind.INLINE_FORMULA
+                        and inline.formula_source is not None
+                        and inline.formula_source.transformation == "native-inline-formula-source"
                     )
                     if rich_text.plain.value is None and not any(
                         inline.kind == InlineKind.INLINE_FORMULA for inline in rich_text.inlines
@@ -1017,27 +1713,91 @@ class CanonicalMapper:
                         if not block_formula_objects
                         else f"{paragraph.id}:segment:{segment}"
                     )
-                    paragraph_id = stable_id(article_id, "paragraph", paragraph_locator)
-                    citation_resolution = resolve_citations(
-                        rich_text,
-                        references,
-                        article_id=article_id,
-                        paragraph_id=paragraph_id,
-                    )
-                    blocks.append(
-                        Paragraph(
-                            id=paragraph_id,
-                            content=citation_resolution.content,
-                            cross_references=citation_resolution.cross_references,
-                            evidence_ids=paragraph.evidence_ids,
+                    plain_value = rich_text.plain.value or ""
+                    native_formulas = _native_display_formulas(plain_value)
+
+                    def append_text_part(
+                        part_content: RichText,
+                        part: int,
+                        *,
+                        split: bool,
+                    ) -> None:
+                        paragraph_id = stable_id(
+                            article_id,
+                            "paragraph",
+                            f"{paragraph_locator}:part:{part}" if split else paragraph_locator,
                         )
-                    )
-                    citation_review_reasons.extend(citation_resolution.review_reasons)
-                    plain_value = citation_resolution.content.plain.value or ""
-                    for match in re.finditer(r"(?m)^[ \t]*:[ \t]+\S", plain_value):
-                        formula_review_reasons.append(
-                            f"possible_missing_inline_formula:{paragraph.id}:{match.start()}"
+                        citation_resolution = resolve_citations(
+                            part_content,
+                            references,
+                            article_id=article_id,
+                            paragraph_id=paragraph_id,
                         )
+                        blocks.append(
+                            Paragraph(
+                                id=paragraph_id,
+                                content=citation_resolution.content,
+                                cross_references=citation_resolution.cross_references,
+                                evidence_ids=paragraph.evidence_ids,
+                            )
+                        )
+                        citation_review_reasons.extend(citation_resolution.review_reasons)
+                        text_value = citation_resolution.content.plain.value or ""
+                        for match in re.finditer(r"(?m)^[ \t]*:[ \t]+\S", text_value):
+                            formula_review_reasons.append(
+                                f"possible_missing_inline_formula:{paragraph.id}:{match.start()}"
+                            )
+
+                    if native_formulas:
+                        cursor = 0
+                        for formula_position, native_formula in enumerate(native_formulas):
+                            before = _rich_text_slice(
+                                rich_text,
+                                cursor,
+                                native_formula.start,
+                                article_id=article_id,
+                                locator=f"{paragraph_locator}:part:{formula_position}",
+                            )
+                            if before is not None:
+                                append_text_part(before, formula_position, split=True)
+                            formula_id = stable_id(
+                                article_id,
+                                "native-display-formula",
+                                f"{paragraph.id}:{native_formula.label}",
+                            )
+                            blocks.append(
+                                FormulaBlock(
+                                    id=formula_id,
+                                    display=True,
+                                    source=_present(
+                                        native_formula.source,
+                                        paragraph.evidence_ids,
+                                        "source-native-display-formula",
+                                    ),
+                                    representation=FormulaRepresentation.TEXT,
+                                    label=_present(
+                                        native_formula.label,
+                                        paragraph.evidence_ids,
+                                        "source-native-formula-label",
+                                    ),
+                                    evidence_ids=paragraph.evidence_ids,
+                                )
+                            )
+                            formula_review_reasons.append(
+                                f"native_formula_requires_mathml_transcription:{formula_id}"
+                            )
+                            cursor = native_formula.end
+                        after = _rich_text_slice(
+                            rich_text,
+                            cursor,
+                            len(plain_value),
+                            article_id=article_id,
+                            locator=f"{paragraph_locator}:part:{len(native_formulas)}",
+                        )
+                        if after is not None:
+                            append_text_part(after, len(native_formulas), split=True)
+                    else:
+                        append_text_part(rich_text, 0, split=False)
                     for inline_formula in inline_formula_objects:
                         if inline_formula.anchor_run_id not in run_ids:
                             continue
@@ -1103,7 +1863,9 @@ class CanonicalMapper:
             )
             for story in raw.stories
         }
+        story_order = {story_id: position for position, story_id in enumerate(raw.reading_order)}
         captions = by_role["caption"]
+        used_table_footnotes: set[str] = set()
         graphic_blocks: list[FigureBlock | TableBlock] = []
         graphic_review_reasons: list[str] = [
             *citation_review_reasons,
@@ -1111,7 +1873,34 @@ class CanonicalMapper:
         ]
         used_tables: set[str] = set()
         used_assets: set[str] = set()
+        figure_asset_ids = {
+            asset_id
+            for anchored_object in raw.anchored_objects
+            if anchored_object.kind == RawObjectKind.FIGURE
+            for asset_id in anchored_object.asset_ids
+        }
+        figure_assets_by_number: defaultdict[int, list[RawAsset]] = defaultdict(list)
+        for raw_asset in raw.assets:
+            number = figure_asset_number(raw_asset.logical_path)
+            if raw_asset.id in figure_asset_ids and number is not None:
+                figure_assets_by_number[number].append(raw_asset)
+        for candidates in figure_assets_by_number.values():
+            candidates.sort(key=lambda item: (item.logical_path.casefold(), item.id))
+        recognized_figure_asset_ids = {
+            item.id for candidates in figure_assets_by_number.values() for item in candidates
+        }
         run_lookup = {run.id: run for item in raw.stories for run in item.runs}
+
+        def caption_kind(story: RawStory, paragraph: RawParagraph) -> str | None:
+            value = "".join(run_lookup[item].text for item in paragraph.text_run_ids)
+            match = _NUMBERED_GRAPHIC.match(value)
+            return match.group(1).casefold() if match else None
+
+        table_caption_keys = sorted(
+            (story_order[story.id], paragraph.position)
+            for story, paragraph in captions
+            if caption_kind(story, paragraph) == "table"
+        )
 
         def table_rows(table_id: str) -> tuple[tuple[RichText, ...], ...]:
             table = raw_tables[table_id]
@@ -1239,6 +2028,40 @@ class CanonicalMapper:
                 table_id = candidate_tables[0]
                 used_tables.add(table_id)
                 table = raw_tables[table_id]
+                caption_key = (story_order[story.id], paragraph.position)
+                next_caption_key = next(
+                    (position for position in table_caption_keys if position > caption_key),
+                    (len(raw.reading_order), 0),
+                )
+                table_footnotes = tuple(
+                    self._rich_text(
+                        footnote_story,
+                        footnote_paragraph,
+                        character_names,
+                        article_id,
+                        hyperlinks_by_run=hyperlinks_by_run,
+                    )
+                    for footnote_story, footnote_paragraph in by_role["table-footnote"]
+                    if footnote_paragraph.id not in used_table_footnotes
+                    and story_page.get(footnote_story.id, 10**9) == story_page.get(story.id, 10**9)
+                    and caption_key
+                    < (
+                        story_order.get(footnote_story.id, len(raw.reading_order)),
+                        footnote_paragraph.position,
+                    )
+                    < next_caption_key
+                )
+                used_table_footnotes.update(
+                    footnote_paragraph.id
+                    for footnote_story, footnote_paragraph in by_role["table-footnote"]
+                    if story_page.get(footnote_story.id, 10**9) == story_page.get(story.id, 10**9)
+                    and caption_key
+                    < (
+                        story_order.get(footnote_story.id, len(raw.reading_order)),
+                        footnote_paragraph.position,
+                    )
+                    < next_caption_key
+                )
                 graphic_blocks.append(
                     TableBlock(
                         id=stable_id(article_id, "canonical-table", table.id),
@@ -1250,27 +2073,24 @@ class CanonicalMapper:
                         caption=caption,
                         rows=table_rows(table_id),
                         cell_spans=table_cell_spans(table_id),
+                        footnotes=table_footnotes,
                         evidence_ids=table.evidence_ids,
                     )
                 )
             else:
-                asset_pattern = re.compile(
-                    rf"(?:^|[^a-z])figure[\s_-]*0*{number}(?:[^0-9]|$)", re.I
-                )
-                asset = next(
-                    (
-                        item
-                        for item in raw.assets
-                        if item.id not in used_assets and asset_pattern.search(item.logical_path)
-                    ),
-                    None,
-                )
-                if asset is None:
+                matching_assets = [
+                    item for item in figure_assets_by_number[number] if item.id not in used_assets
+                ]
+                if len(matching_assets) == 1:
+                    asset = matching_assets[0]
+                    used_assets.add(asset.id)
+                    asset_id = asset.id
+                elif not matching_assets:
                     graphic_review_reasons.append(f"unmatched_figure_asset:{number}")
                     asset_id = None
                 else:
-                    used_assets.add(asset.id)
-                    asset_id = asset.id
+                    graphic_review_reasons.append(f"ambiguous_figure_asset:{number}")
+                    asset_id = None
                 graphic_blocks.append(
                     FigureBlock(
                         id=stable_id(article_id, "figure", paragraph.id),
@@ -1335,10 +2155,82 @@ class CanonicalMapper:
                     return True
             return False
 
-        unplaced_graphics = [
-            block for block in graphic_blocks if not place_after_first_mention(block, sections)
-        ]
-        if unplaced_graphics:
+        placed_graphics: set[str] = set()
+        unplaced_graphics: list[FigureBlock | TableBlock] = []
+        for block in graphic_blocks:
+            if place_after_first_mention(block, sections):
+                placed_graphics.add(block.id)
+            else:
+                unplaced_graphics.append(block)
+
+        def section_graphic_location(
+            graphic_id: str,
+            candidates: list[dict[str, object]],
+        ) -> tuple[list[object], int] | None:
+            for section in candidates:
+                blocks = cast(list[object], section["blocks"])
+                for position, existing in enumerate(blocks):
+                    if (
+                        isinstance(existing, (FigureBlock, TableBlock))
+                        and existing.id == graphic_id
+                    ):
+                        return blocks, position
+                children = cast(list[dict[str, object]], section["children"])
+                if location := section_graphic_location(graphic_id, children):
+                    return location
+            return None
+
+        def place_by_graphic_order(block: FigureBlock | TableBlock) -> bool:
+            number = graphic_number(block)
+            same_kind = [
+                candidate
+                for candidate in graphic_blocks
+                if isinstance(candidate, type(block)) and candidate.id in placed_graphics
+            ]
+            following = min(
+                (candidate for candidate in same_kind if graphic_number(candidate) > number),
+                key=graphic_number,
+                default=None,
+            )
+            if following is not None:
+                location = section_graphic_location(following.id, sections)
+                if location is not None:
+                    blocks, position = location
+                    blocks.insert(position, block)
+                    return True
+            preceding = max(
+                (candidate for candidate in same_kind if graphic_number(candidate) < number),
+                key=graphic_number,
+                default=None,
+            )
+            if preceding is not None:
+                location = section_graphic_location(preceding.id, sections)
+                if location is not None:
+                    blocks, position = location
+                    insertion = position + 1
+                    while insertion < len(blocks) and isinstance(blocks[insertion], type(block)):
+                        insertion += 1
+                    blocks.insert(insertion, block)
+                    return True
+            return False
+
+        still_unplaced: list[FigureBlock | TableBlock] = []
+        for block in sorted(unplaced_graphics, key=graphic_number):
+            if place_by_graphic_order(block):
+                placed_graphics.add(block.id)
+                graphic_review_reasons.append(
+                    f"graphic_placement_by_number:{block.kind}:{graphic_number(block)}"
+                )
+            else:
+                still_unplaced.append(block)
+        if still_unplaced and sections:
+            target_blocks = cast(list[object], sections[-1]["blocks"])
+            target_blocks.extend(still_unplaced)
+            for block in still_unplaced:
+                graphic_review_reasons.append(
+                    f"graphic_placement_at_body_end:{block.kind}:{graphic_number(block)}"
+                )
+        elif still_unplaced:
             sections.append(
                 {
                     "id": stable_id(article_id, "section", "graphic-elements"),
@@ -1348,13 +2240,19 @@ class CanonicalMapper:
                         "deterministic-container-label",
                     ),
                     "level": 1,
-                    "blocks": unplaced_graphics,
+                    "blocks": still_unplaced,
                     "children": [],
                     "evidence_ids": (),
                 }
             )
+            graphic_review_reasons.append("graphic_container_created_for_body_without_sections")
         for table_id in sorted(set(raw_tables) - used_tables):
             graphic_review_reasons.append(f"unmatched_source_table:{table_id}")
+        for _, paragraph in by_role["table-footnote"]:
+            if paragraph.id not in used_table_footnotes:
+                graphic_review_reasons.append(f"unmatched_table_footnote:{paragraph.id}")
+        for asset_id in sorted(recognized_figure_asset_ids - used_assets):
+            graphic_review_reasons.append(f"unmatched_source_figure_asset:{asset_id}")
         return (
             tuple(Section.model_validate(item) for item in sections),
             tuple(graphic_review_reasons),
@@ -1372,17 +2270,97 @@ class CanonicalMapper:
             for line in value.splitlines():
                 if not line.strip():
                     continue
+                source_line = line.strip()
                 reference_id = stable_id(article_id, "reference", str(len(references)))
+                doi_match = _REFERENCE_DOI.search(source_line)
+                publication_year = _REFERENCE_PUBLICATION_YEAR.search(source_line)
+                year_matches = _REFERENCE_YEAR.findall(source_line)
+                year = (
+                    publication_year.group(1)
+                    if publication_year is not None
+                    else (year_matches[-1] if year_matches else None)
+                )
+                authors, title, source = _reference_parts(source_line)
+                details = _reference_details(source_line, year)
+                metadata = reference_metadata(source_line, title, source)
+                additions = dict(metadata.fields)
+                title = additions.pop("title", title)
+                source = additions.pop("source", source)
+                year = additions.pop("year", year)
+                details.update(additions)
                 references.append(
                     Reference(
                         id=reference_id,
+                        publication_type=metadata.publication_type,
+                        review_reasons=metadata.review_reasons,
+                        editors=tuple(
+                            _present(editor, paragraph.evidence_ids, "literal-reference-editor")
+                            for editor in metadata.editors
+                        ),
                         mixed_citation=RichText(
                             plain=_present(
-                                line,
+                                source_line,
                                 paragraph.evidence_ids,
                                 "line-break-reference-split",
                             )
                         ),
+                        identifiers=(
+                            (
+                                Identifier(
+                                    kind="doi",
+                                    value=_present(
+                                        doi_match.group(0).rstrip(".,;"),
+                                        paragraph.evidence_ids,
+                                        "deterministic-reference-doi-extraction",
+                                    ),
+                                ),
+                            )
+                            if doi_match
+                            else ()
+                        ),
+                        year=(
+                            _present(
+                                year,
+                                paragraph.evidence_ids,
+                                "deterministic-reference-year-extraction",
+                            )
+                            if year
+                            else None
+                        ),
+                        authors=tuple(
+                            _present(
+                                author,
+                                paragraph.evidence_ids,
+                                "deterministic-reference-author-split",
+                            )
+                            for author in authors
+                        ),
+                        title=(
+                            _present(
+                                title,
+                                paragraph.evidence_ids,
+                                "deterministic-reference-title-extraction",
+                            )
+                            if title
+                            else None
+                        ),
+                        source=(
+                            _present(
+                                source,
+                                paragraph.evidence_ids,
+                                "deterministic-reference-source-extraction",
+                            )
+                            if source
+                            else None
+                        ),
+                        **{
+                            key: _present(
+                                value,
+                                paragraph.evidence_ids,
+                                f"deterministic-reference-{key.replace('_', '-')}-extraction",
+                            )
+                            for key, value in details.items()
+                        },
                         evidence_ids=paragraph.evidence_ids,
                     )
                 )

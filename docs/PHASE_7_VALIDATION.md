@@ -1,6 +1,10 @@
 # Fase 7 — Homologação automatizada e piloto simulado
 
-Data inicial: 2026-09-04. Estado: **EM EXECUÇÃO — V-01 A V-11 QUALIFICADOS; PRÓXIMA FAMÍLIA V-12**.
+Data inicial: 2026-09-04. Estado: **EM EXECUÇÃO — 7C-08 APROVADA; V-12 EM ANDAMENTO**.
+
+Prioridade revisada em 2026-09-25: H0–H4/G-HOMOLOG para avaliação funcional antecipada pelo
+especialista, conforme `EXPERT_TEST_READINESS_PLAN.md` e ADR-015. V-12 a V-15 permanecem
+obrigatórios para produção, não integralmente para a primeira avaliação restrita.
 
 ## Estado das famílias V-01 a V-11
 
@@ -12,7 +16,7 @@ Data inicial: 2026-09-04. Estado: **EM EXECUÇÃO — V-01 A V-11 QUALIFICADOS; 
 | V-04 Canonical Article Model | PASSOU | schemas, invariantes, migrations e round-trip |
 | V-05 Construção XML JATS/SPS | PASSOU | builder determinístico, DTD, SPS e referências |
 | V-06 Validadores formais | PASSOU COM RESTRIÇÃO | 4 contêineres qualificados; XPM SPS 1.10 aguarda worker Windows |
-| V-07 Fidelidade comparativa | PASSOU | candidato real com zero bloqueios e diferenças qualificadas por fonte |
+| V-07 Fidelidade comparativa | PASSOU NO CORPUS ATUAL | dois artigos requalificados, zero bloqueio semântico; sem garantia universal |
 | V-08 OpenClaw assistivo | PASSOU | seis domínios, evidência viva, matriz adversarial e contratos fail-closed |
 | V-09 Segurança e multiempresa | PASSOU | identidade, RBAC, isolamento, entradas hostis e segredos |
 | V-10 Fluxo ponta a ponta | PASSOU | fluxo operacional, idempotência, recuperação, UI e VPS |
@@ -488,9 +492,77 @@ A V-11 não autoriza RC nem produção. Os limites reais de desempenho, capacida
 serão medidos na V-12; interrupção cooperativa, recuperação e continuidade pertencem à V-13; XPM
 e a homologação humana final continuam pendentes.
 
+## Requalificação corretiva 7C — artigo e20240135
+
+Em 2026-09-11, o primeiro processamento do novo artigo `ESA_2024135_AOP.idml` foi executado duas
+vezes e produziu o mesmo XML. A validação interna básica passou, mas a comparação com a referência
+editorial encontrou 108 bloqueios: figuras sem mídia, 40 fórmulas gráficas contra 43 MathML,
+hierarquia incompleta, notas ausentes, dois nomes compostos invertidos e uma citação bibliográfica
+faltante. O Packtools 4.17.2 confirmou 108 críticos e 79 erros; o pacote recusou o primeiro ativo
+inexistente. As 35 referências, cinco tabelas, quatro afiliações e o fluxo textual principal foram
+preservados.
+
+O resultado demonstra que os gates detectam a falha, mas que o pipeline ainda não generaliza para
+esse segundo arranjo real do template ESA. O baseline 7C-00 está congelado, o risco de overfitting
+R-21 foi materializado e as oito etapas corretivas estão em
+`docs/PHASE_7_CORRECTIVE_E20240135.md`. Em 2026-09-14, G7C-01 aprovou o manifesto com 12/12
+artefatos, o inventário content-addressed e a reprodução exata dos 108 bloqueios. Em 2026-09-14,
+G7C-02 corrigiu a classificação dos PDFs `FigNN`, vinculou sete figuras a sete `graphic`, restaurou
+a ordem global 1–7 e removeu a seção artificial. Figuras e mídia atingiram precisão, recall, F1 e
+fidelidade 1,0; os bloqueios caíram para 94 e os sete JPGs finais resolveram no pré-empacotamento.
+Em 2026-09-15, G7C-03 corrigiu a detecção e a posição das 43 fórmulas, classificadas em 32 inline e
+11 display. Os recortes do PDF foram autenticados e avaliados por proponente, dois críticos e
+adjudicador com o gold oculto; o catálogo final registrou 43 aceites para revisão humana, 86 passes
+de críticos, zero abstensão incorporada e custo de 1.793.642 micro-USD. O XML candidato ficou
+determinístico e válido, sem fórmula gráfica; `formulas` e `formula_content` passaram. Os bloqueios
+gerais caíram para 33, agora fora do domínio de fórmulas. O corpus e o catálogo privados permanecem
+exclusivamente locais.
+
+Em 2026-09-16, G7C-04 reproduziu exatamente as 26 seções da referência nos níveis 6/11/9 e
+aprovou as sete notas estruturais e dez unidades semânticas de notas. O corpo manteve os 5.814
+tokens esperados sem omissão, invenção, alteração, deslocamento ou conteúdo não autenticado;
+precisão 0,998969, recall 1,0 e fidelidade 0,998366. Tabelas, referências e as 43 fórmulas
+permaneceram aprovadas. O gate determinístico passou sem mismatch e os bloqueios gerais caíram de
+30 para 6.
+
+Ainda em 2026-09-16, G7C-05 preservou os quatro autores e quatro ORCIDs da fonte, confirmou os
+componentes dos nomes, o título do periódico e `other=00224` por autoridade Crossref independente
+e content-addressed, e completou a chamada da referência ordinal 18. O gate atingiu 39/39
+cross-references, corpo 5.814/5.814 sem duplicação e zero bloqueio nos 12 domínios após reconciliar
+as 24 fórmulas qualificadas. O XML é determinístico e válido sem issues; a revisão humana segue
+pendente. O candidato semântico geral está aprovado.
+
+Em 2026-09-17, G7C-06 produziu um pacote byte a byte reproduzível com um XML, um PDF e sete JPEGs,
+validação offline sem issues, 35 referências estruturadas e todos os vínculos resolvidos. Foram
+eliminados oito erros reais de paginação e as nove divergências restantes entre citação mista e
+estruturada. Os achados bloqueantes brutos do Packtools/SPSValidator ficaram restritos a códigos e
+quantidades reproduzidos como defeitos de agregação, consulta externa ou ausência comprovada na
+própria referência autorizada; o gate falha fechado para qualquer ocorrência nova. O relatório
+registra `real_critical_errors=0`, mas mantém `release_ready=false`, pois o XPM SPS 1.10 ainda
+depende de execução Windows.
+
+Em 2026-09-17, G7C-07 reavaliou os seis domínios alterados com proponente, críticos XML/editorial e
+adjudicador. Os seis casos reais controlados passaram todos os checks e ficaram exclusivamente
+`accepted_for_human_review`; cinco foram exatos e a fórmula visual foi semanticamente equivalente.
+Foram 24 chamadas, zero reparo, zero falso consenso candidato, zero tool/Skill e custo de 140.447
+micro-USD. Os cinco controles negativos específicos falharam fechado, e a matriz adversarial
+complementar passou 30/30 casos e 84 papéis sem provider. O cleanup foi confirmado na VPS com
+serviços saudáveis, flags falsas e zero credencial, rede transitória, sessão, run ou proposta. Como
+os papéis usam o mesmo modelo, `role_models_independent=false` permanece explícito e não autoriza
+release.
+
 ## Decisão
 
-V-01 a V-11 estão aprovados, com as restrições explícitas de XPM/Windows, do defeito conhecido do
-validador externo e da homologação humana ainda pendente. A próxima ação é executar a V-12,
-medindo desempenho, capacidade e custo na VPS atual. Isso não aprova o Pacote 7.1, o
-Gate G7-T nem produção.
+V-01 a V-11 qualificaram seus mecanismos, com as restrições explícitas de XPM/Windows, do defeito
+conhecido do validador externo e da homologação humana ainda pendente. O novo artigo e20240135
+reabriu a qualificação de corpus de V-07: o comparador encontrou 108 bloqueios e impediu corretamente
+o pacote. G7C-02 eliminou os bloqueios de figuras/mídia, G7C-03 aprovou as 43 fórmulas MathML e
+G7C-04 aprovou hierarquia, fluxo e notas, G7C-05 zerou os bloqueios semânticos, aprovou os quatro
+autores/metadados e completou 39/39 cross-references, G7C-06 aprovou o pacote formal íntegro e
+reproduzível sem retirar o bloqueio do XPM, e G7C-07 aprovou a auditoria assistiva dos seis domínios
+sem aplicação automática. Em 2026-09-21, G7C-08 requalificou os dois artigos, incluindo o XML
+formal final, e implantou a imagem `phase7-7c08-v1` com rollback comprovado. A suíte passou
+380 testes/87,31%; 18 gates foram reproduzidos na VPS sem rede e em filesystem read-only.
+V-07 está **PASSOU NO CORPUS ATUAL**. Evidências e rastreabilidade estão em
+`docs/PHASE_7C08_REQUALIFICATION.md`. A próxima ação é V-12; o Pacote 7.1 completo,
+o G7-T, a RC e a ativação de produção continuam não aprovados.

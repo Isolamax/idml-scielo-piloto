@@ -14,6 +14,7 @@ from zipfile import ZipFile
 
 from lxml import etree
 
+from idml_foundation.asset_identity import equation_asset_placement, figure_asset_number
 from idml_foundation.domain.common import (
     BoundingBox,
     Evidence,
@@ -41,7 +42,11 @@ from idml_foundation.domain.raw import (
     StyleKind,
 )
 from idml_foundation.ingest.safe_zip import UnsafeArchiveError, inspect_idml
-from idml_foundation.ingest.xml_security import UnsafeXmlError, parse_untrusted_xml
+from idml_foundation.ingest.xml_security import (
+    UnsafeXmlError,
+    XmlComplexityBudget,
+    parse_untrusted_xml,
+)
 from idml_foundation.settings import Settings
 
 _STYLE_PREFIX = re.compile(r"^(\d{1,2}(?:\.\d+)?)")
@@ -63,6 +68,21 @@ def _direct_elements(root: etree._Element, name: str) -> list[etree._Element]:
 def _normalize_style_name(value: str) -> str:
     value = unicodedata.normalize("NFKC", value).replace("\ufffd", "")
     return " ".join(value.casefold().split())
+
+
+def _direct_character_style_name(value: str, position: str | None) -> str:
+    """An explicit run position overrides script hints in the applied style's name.
+
+    Only the semantic name used by the mapper changes. The source style, parent,
+    exact properties and text remain in the raw graph for audit. Unknown position
+    modes retain the existing representation; this is not font/glyph substitution.
+    """
+    normalized = _normalize_style_name(value)
+    explicit = (position or "").casefold()
+    if explicit not in {"normal", "subscript", "superscript"}:
+        return normalized
+    normalized = re.sub(r"superscript|sobrescrito|subscript|subscrito", "", normalized)
+    return " ".join((normalized + (" " + explicit if explicit != "normal" else "")).split())
 
 
 def style_prefix(value: str) -> str | None:
@@ -115,6 +135,15 @@ def _media_type(name: str, resource_format: str | None) -> str:
     return "application/octet-stream"
 
 
+def _anchored_object_kind(name: str, media_type: str) -> RawObjectKind:
+    """Classify linked artwork without assuming that every PDF is a formula."""
+    if figure_asset_number(name) is not None:
+        return RawObjectKind.FIGURE
+    if media_type == "application/pdf":
+        return RawObjectKind.FORMULA
+    return RawObjectKind.UNKNOWN
+
+
 def _text_of_range(element: etree._Element) -> str:
     pieces: list[str] = []
     range_is_table_cell = any(_local_name(item) == "Cell" for item in element.iterancestors())
@@ -157,7 +186,10 @@ class _RangeEvent:
     hyperlink_source_id: str | None = None
 
 
-def _range_events(element: etree._Element) -> list[_RangeEvent]:
+def _range_events(
+    element: etree._Element,
+    hyperlink_targets: dict[str, str] | None = None,
+) -> list[_RangeEvent]:
     events: list[_RangeEvent] = []
     range_is_table_cell = any(_local_name(item) == "Cell" for item in element.iterancestors())
     range_is_note = any(
@@ -218,6 +250,14 @@ def _range_events(element: etree._Element) -> list[_RangeEvent]:
                 )
         elif name == "Link" and (link_self := descendant.get("Self")):
             events.append(_RangeEvent(kind="asset_link", value=link_self))
+        elif name == "TextFrame" and (parent_story := descendant.get("ParentStory")):
+            events.append(_RangeEvent(kind="embedded_story", value=parent_story))
+        elif (
+            name in {"Rectangle", "Oval", "Polygon", "GraphicLine", "Group"}
+            and (page_item_self := descendant.get("Self"))
+            and page_item_self in (hyperlink_targets or {})
+        ):
+            events.append(_RangeEvent(kind="hyperlink_page_item", value=page_item_self))
     return events
 
 
@@ -227,7 +267,7 @@ def _anchor_context(
 ) -> tuple[AnchoredPlacement, str | None]:
     left = ""
     for event in reversed(events[:position]):
-        if event.kind == "asset_link":
+        if event.kind != "text":
             break
         left = event.value + left
         if "\n" in event.value:
@@ -235,7 +275,7 @@ def _anchor_context(
             break
     right = ""
     for event in events[position + 1 :]:
-        if event.kind == "asset_link":
+        if event.kind != "text":
             break
         right += event.value
         if "\n" in event.value:
@@ -282,8 +322,9 @@ class IdmlParser:
 
         try:
             with ZipFile(BytesIO(data)) as archive:
+                budget = XmlComplexityBudget()
                 roots = {
-                    name: parse_untrusted_xml(archive.read(name))
+                    name: parse_untrusted_xml(archive.read(name), budget=budget)
                     for name in archive.namelist()
                     if name.casefold().endswith(".xml")
                 }
@@ -331,6 +372,32 @@ class IdmlParser:
         )
         frames, spreads = layout.frames, layout.spreads
         stories = tuple(result.story for result in story_results)
+        story_by_source_self = {story.source_self_id: story for story in stories}
+        style_by_id = {style.id: style for style in styles}
+
+        def is_embedded_formula_story(source_self_id: str) -> bool:
+            embedded_story = story_by_source_self.get(source_self_id)
+            if embedded_story is None:
+                return False
+            value = "".join(run.text for run in embedded_story.runs).strip()
+            if not value or len(value) > 64:
+                return False
+            return any(
+                str(style_by_id[run.character_style_id].properties.get("Position", "")).casefold()
+                in {"subscript", "superscript"}
+                for run in embedded_story.runs
+                if run.character_style_id in style_by_id
+            )
+
+        story_objects = tuple(item for result in story_results for item in result.objects)
+        story_objects = tuple(
+            item.model_copy(update={"kind": RawObjectKind.FORMULA})
+            if item.kind == RawObjectKind.UNKNOWN
+            and not item.asset_ids
+            and is_embedded_formula_story(item.source_self_id)
+            else item
+            for item in story_objects
+        )
         known_story_ids = {story.id for story in stories}
         reference_issues: list[ReadingOrderIssue] = []
         for frame in frames:
@@ -402,8 +469,7 @@ class IdmlParser:
                 spreads=spreads,
                 styles=styles,
                 tables=tuple(table for result in story_results for table in result.tables),
-                anchored_objects=tuple(item for result in story_results for item in result.objects)
-                + layout.objects,
+                anchored_objects=story_objects + layout.objects,
                 assets=tuple(asset for result in story_results for asset in result.assets)
                 + layout.assets,
                 links=tuple(link for result in story_results for link in result.links)
@@ -516,13 +582,27 @@ class IdmlParser:
             for element in _elements(root, "HyperlinkURLDestination")
             if element.get("DestinationUniqueKey") and element.get("DestinationURL")
         }
-        return {
+        source_page_items = {
+            element.get("Self", ""): element.get("SourcePageItem", "")
+            for root in roots.values()
+            for element in _elements(root, "HyperlinkPageItemSource")
+            if element.get("Self") and element.get("SourcePageItem")
+        }
+        targets = {
             source: destination_by_key[key]
             for root in roots.values()
             for element in _elements(root, "Hyperlink")
             if (source := element.get("Source"))
             and (key := element.get("DestinationUniqueKey")) in destination_by_key
         }
+        targets.update(
+            {
+                page_item: targets[source]
+                for source, page_item in source_page_items.items()
+                if source in targets
+            }
+        )
+        return targets
 
     def _parse_story(
         self,
@@ -548,6 +628,7 @@ class IdmlParser:
         anchor_run_by_link: dict[str, str] = {}
         anchor_placement_by_link: dict[str, AnchoredPlacement] = {}
         anchor_label_by_link: dict[str, str] = {}
+        embedded_story_evidence: dict[str, tuple[str, ...]] = {}
         note_elements = [
             element
             for element in story_element.iter()
@@ -660,17 +741,19 @@ class IdmlParser:
                     nested_ranges = _direct_elements(child, "CharacterStyleRange")
                     character_ranges.extend(nested_ranges or [child])
             range_events = [
-                (character_range, _range_events(character_range))
+                (character_range, _range_events(character_range, hyperlink_targets))
                 for character_range in character_ranges
             ]
             paragraph_events = [event for _, events in range_events for event in events]
             for event_position, event in enumerate(paragraph_events):
-                if event.kind != "asset_link":
+                if event.kind not in {"asset_link", "embedded_story"}:
                     continue
                 placement, label = _anchor_context(paragraph_events, event_position)
                 anchor_placement_by_link[event.value] = placement
                 if label is not None:
                     anchor_label_by_link[event.value] = label
+                if event.kind == "embedded_story":
+                    embedded_story_evidence[event.value] = (paragraph_evidence.id,)
 
             def character_style_id(
                 character_range: etree._Element,
@@ -702,8 +785,9 @@ class IdmlParser:
                     RawStyle(
                         id=override_id,
                         source_name=source_override_id,
-                        normalized_name=_normalize_style_name(
-                            " ".join((base_style or "", *properties.values()))
+                        normalized_name=_direct_character_style_name(
+                            " ".join((base_style or "", *properties.values())),
+                            character_range.get("Position"),
                         ),
                         kind=StyleKind.CHARACTER,
                         parent_style_id=(base_style_id),
@@ -784,6 +868,13 @@ class IdmlParser:
                         )
                         buffered_text = ""
                         buffered_hyperlink_source_id = None
+                    if event.kind == "hyperlink_page_item":
+                        append_run(
+                            "",
+                            character_range,
+                            hyperlink_source_id=event.value,
+                        )
+                        continue
                     append_run("", character_range, anchor_link_self=event.value)
                     pending_label = anchor_label_by_link.get(event.value)
                 if buffered_text:
@@ -872,6 +963,8 @@ class IdmlParser:
         for link_position, link in enumerate(_elements(story_element, "Link")):
             link_self = link.get("Self", f"{source_self}:link:{link_position}")
             name = _sanitized_asset_name(link.get("LinkResourceURI", ""))
+            media_type = _media_type(name, link.get("LinkResourceFormat"))
+            explicit_formula_placement = equation_asset_placement(name)
             asset_id = stable_id(article_key, "asset", link_self)
             link_evidence = self._evidence(
                 article_key, artifact_sha, path, link_self, "Sanitized external asset link"
@@ -881,7 +974,7 @@ class IdmlParser:
                 RawAsset(
                     id=asset_id,
                     logical_path=name,
-                    media_type=_media_type(name, link.get("LinkResourceFormat")),
+                    media_type=media_type,
                     external=True,
                     evidence_ids=(link_evidence.id,),
                 )
@@ -899,16 +992,35 @@ class IdmlParser:
                 RawAnchoredObject(
                     id=stable_id(article_key, "object", link_self),
                     source_self_id=link_self,
-                    kind=(
-                        RawObjectKind.FORMULA
-                        if name.casefold().endswith(".pdf")
-                        else RawObjectKind.FIGURE
+                    kind=_anchored_object_kind(name, media_type),
+                    placement=(
+                        AnchoredPlacement(explicit_formula_placement)
+                        if explicit_formula_placement is not None
+                        else anchor_placement_by_link.get(
+                            link_self,
+                            AnchoredPlacement.UNKNOWN,
+                        )
                     ),
-                    placement=anchor_placement_by_link.get(link_self, AnchoredPlacement.UNKNOWN),
                     label=anchor_label_by_link.get(link_self),
                     anchor_run_id=anchor_run_by_link.get(link_self),
                     asset_ids=(asset_id,),
                     evidence_ids=(link_evidence.id,),
+                )
+            )
+
+        for embedded_story_self, evidence_ids in sorted(embedded_story_evidence.items()):
+            objects.append(
+                RawAnchoredObject(
+                    id=stable_id(article_key, "object", embedded_story_self),
+                    source_self_id=embedded_story_self,
+                    kind=RawObjectKind.UNKNOWN,
+                    placement=anchor_placement_by_link.get(
+                        embedded_story_self,
+                        AnchoredPlacement.UNKNOWN,
+                    ),
+                    label=anchor_label_by_link.get(embedded_story_self),
+                    anchor_run_id=anchor_run_by_link.get(embedded_story_self),
+                    evidence_ids=evidence_ids,
                 )
             )
 
@@ -1101,11 +1213,7 @@ class IdmlParser:
                     RawAnchoredObject(
                         id=stable_id(article_key, "layout-object", link_self),
                         source_self_id=link_self,
-                        kind=(
-                            RawObjectKind.FORMULA
-                            if media_type == "application/pdf"
-                            else RawObjectKind.FIGURE
-                        ),
+                        kind=_anchored_object_kind(name, media_type),
                         asset_ids=(asset_id,),
                         page_index=page_indices[0] if page_indices else None,
                         evidence_ids=(link_evidence.id,),

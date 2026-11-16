@@ -6,13 +6,18 @@ import pytest
 from lxml import etree
 
 from idml_foundation.ai.evidence import evidence_reference
-from idml_foundation.ai.formula_catalog import build_formula_transcription_catalog
+from idml_foundation.ai.formula_catalog import (
+    _strip_qualified_script_suffixes,
+    build_formula_transcription_catalog,
+)
 from idml_foundation.ai.real_domain_corpus import build_real_domain_corpus
 from idml_foundation.ai.security import payload_digest
 from idml_foundation.ai.visual_formula_corpus import (
     PdfFormulaCrop,
     attach_visual_formula_evidence,
 )
+from idml_foundation.domain.canonical import Section
+from idml_foundation.domain.common import stable_id
 from idml_foundation.pipeline.service import DeterministicPipeline
 from idml_foundation.release.semantic_fidelity import XmlSemanticComparator
 from tests.phase3_helpers import synthetic_idml
@@ -22,6 +27,55 @@ MATHML = (
     "<mml:mi>x</mml:mi><mml:mo>=</mml:mo><mml:mn>2</mml:mn></mml:math>"
 )
 GOLD_MATHML = MATHML.replace("<mml:mn>2</mml:mn>", "<mml:mn>1</mml:mn>")
+
+
+def test_qualified_formula_removes_multinode_script_suffix_duplicate() -> None:
+    mathml = (
+        '<mml:math xmlns:mml="http://www.w3.org/1998/Math/MathML">'
+        "<mml:msubsup><mml:mi>C</mml:mi><mml:mi>k</mml:mi>"
+        "<mml:mo>*</mml:mo></mml:msubsup></mml:math>"
+    )
+    payload = {
+        "body": [
+            {
+                "blocks": [
+                    {
+                        "content": {
+                            "plain": {"value": "k* after", "transformation": "source"},
+                            "inlines": [
+                                {
+                                    "kind": "inline_formula",
+                                    "text": "",
+                                    "formula_source": {"value": mathml},
+                                },
+                                {"kind": "subscript", "text": "k"},
+                                {"kind": "text", "text": "* after"},
+                            ],
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+
+    _strip_qualified_script_suffixes(
+        payload,
+        [("/body/0/blocks/0/content/inlines/0/formula_source/value", mathml)],
+    )
+
+    content = payload["body"][0]["blocks"][0]["content"]
+    assert content["plain"]["value"] == " after"
+    assert content["plain"]["transformation"] == (
+        "qualified-formula-removes-source-script-duplicate"
+    )
+    assert content["inlines"] == [
+        {
+            "kind": "inline_formula",
+            "text": "",
+            "formula_source": {"value": mathml},
+        },
+        {"kind": "text", "text": " after"},
+    ]
 
 
 def _gold_xml() -> bytes:
@@ -160,6 +214,51 @@ def test_catalog_applies_complete_evidence_bound_formula_transition() -> None:
     assert not any(
         finding.blocking and finding.domain == "formula_content" for finding in reconciled.findings
     )
+
+
+def test_catalog_relocates_formula_by_authenticated_ordinal_after_hierarchy_change() -> None:
+    source, dataset, result = _qualified_fixture()
+    catalog, _ = build_formula_transcription_catalog(
+        dataset=dataset,
+        dataset_sha256=payload_digest(dataset),
+        journal_profile_id="esa-aop-1.0.0",
+        results=(result,),
+    )
+    original = DeterministicPipeline().run(source, logical_name="ESA_2024001_AOP.idml")
+    top = original.canonical.body[0]
+    subsection = top.children[0]
+    nested = Section(
+        id=stable_id(original.canonical.article_id, "section", "relocated-formula"),
+        title=subsection.title.model_copy(update={"value": "Relocated formula"}),
+        level=3,
+        blocks=subsection.blocks,
+        evidence_ids=subsection.evidence_ids,
+    )
+    relocated = original.canonical.model_copy(
+        update={
+            "body": (
+                top.model_copy(
+                    update={
+                        "children": (
+                            subsection.model_copy(update={"blocks": (), "children": (nested,)}),
+                        )
+                    }
+                ),
+            )
+        }
+    )
+
+    applied = catalog.apply(
+        relocated,
+        source_idml_sha256=hashlib.sha256(source).hexdigest(),
+    )
+
+    formula = next(
+        block for block in applied.body[0].children[0].children[0].blocks if block.kind == "formula"
+    )
+    assert formula.kind == "formula"
+    assert formula.representation.value == "mathml"
+    assert formula.source.value == MATHML
 
 
 def test_catalog_rejects_tampered_visual_evidence() -> None:

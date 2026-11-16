@@ -319,6 +319,28 @@ def test_visual_formula_manifest_and_envelope_never_disclose_image_bytes(tmp_pat
     assert manifest["total_preflight_cost_microusd"] == 58_500
 
 
+def test_visual_formula_manifest_accepts_native_text_source(tmp_path: Path) -> None:
+    plan_path, dataset_path, dataset = _files(tmp_path)
+    case = _visual_formula_case()
+    case["current_value"] = "xA"
+    case["atomic_formula"]["current_representation"] = "text"
+    case["atomic_formula"]["asset_id"] = None
+    raw_plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    raw_plan["selected_case_ids"] = [case["case_id"]]
+    plan_path.write_text(json.dumps(raw_plan), encoding="utf-8")
+    dataset["cases"] = [case]
+    dataset_path.write_text(json.dumps(dataset), encoding="utf-8")
+
+    manifest = prepare_lab_manifest(
+        load_lab_plan(plan_path),
+        dataset,
+        plan_path=plan_path,
+        dataset_path=dataset_path,
+    )
+
+    assert manifest["cases"][0]["case_id"] == case["case_id"]
+
+
 def test_prepare_lab_manifest_is_content_free_and_within_article_budget(tmp_path: Path) -> None:
     plan_path, dataset_path, dataset = _files(tmp_path)
     manifest = prepare_lab_manifest(

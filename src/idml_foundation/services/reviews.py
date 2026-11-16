@@ -7,6 +7,7 @@ from typing import Any
 from sqlalchemy import event, func, select, update
 from sqlalchemy.orm import Mapper, Session
 
+from idml_foundation.database import ensure_write_transaction
 from idml_foundation.domain.canonical import CanonicalArticle
 from idml_foundation.domain.common import canonical_bytes, content_digest
 from idml_foundation.models import (
@@ -21,6 +22,7 @@ from idml_foundation.pipeline.jats_builder import JatsBuilder
 from idml_foundation.pipeline.profile import JournalProfile
 from idml_foundation.pipeline.validation import OfflineJatsValidator
 from idml_foundation.schemas import JsonPatchOperation, ReviewDecisionCreate
+from idml_foundation.services.canonical_heads import current_canonical_snapshot, lock_resource
 from idml_foundation.services.snapshots import load_snapshot, store_snapshot
 
 _FORBIDDEN_SEGMENTS = {
@@ -230,6 +232,14 @@ def claim_review_item(
     user_id: str,
     expected_version: int,
 ) -> ReviewItem | None:
+    resource_id = db.scalar(
+        select(ReviewItem.resource_id).where(
+            ReviewItem.id == item_id, ReviewItem.organization_id == organization_id
+        )
+    )
+    if resource_id is None:
+        return None
+    lock_resource(db, organization_id, resource_id)
     result = db.execute(
         update(ReviewItem)
         .where(
@@ -265,11 +275,44 @@ def apply_review_decision(
     profile: JournalProfile,
     validator: OfflineJatsValidator,
 ) -> tuple[ReviewItem, ReviewDecision, ReviewBuild | None]:
+    ensure_write_transaction(db)
+    with db.begin_nested():
+        resource_id = db.scalar(
+            select(ReviewItem.resource_id).where(
+                ReviewItem.id == item_id, ReviewItem.organization_id == organization_id
+            )
+        )
+        if resource_id is None:
+            raise LookupError("review item not found")
+        lock_resource(db, organization_id, resource_id)
+        return _apply_review_decision(
+            db,
+            organization_id=organization_id,
+            item_id=item_id,
+            user_id=user_id,
+            payload=payload,
+            profile=profile,
+            validator=validator,
+        )
+
+
+def _apply_review_decision(
+    db: Session,
+    *,
+    organization_id: str,
+    item_id: str,
+    user_id: str,
+    payload: ReviewDecisionCreate,
+    profile: JournalProfile,
+    validator: OfflineJatsValidator,
+) -> tuple[ReviewItem, ReviewDecision, ReviewBuild | None]:
     item = db.scalar(
-        select(ReviewItem).where(
+        select(ReviewItem)
+        .where(
             ReviewItem.id == item_id,
             ReviewItem.organization_id == organization_id,
         )
+        .execution_options(populate_existing=True)
     )
     if item is None:
         raise LookupError("review item not found")
@@ -331,17 +374,10 @@ def apply_review_decision(
     )
     if base_snapshot is None:
         raise ValueError("review base snapshot is unavailable")
-    latest_snapshot_id = db.scalar(
-        select(DomainSnapshot.id)
-        .where(
-            DomainSnapshot.organization_id == organization_id,
-            DomainSnapshot.resource_id == item.resource_id,
-            DomainSnapshot.model_kind == "canonical",
-        )
-        .order_by(DomainSnapshot.revision.desc())
-        .limit(1)
+    current_snapshot = current_canonical_snapshot(
+        db, organization_id=organization_id, resource_id=item.resource_id
     )
-    if latest_snapshot_id != base_snapshot.id:
+    if current_snapshot is None or current_snapshot.id != base_snapshot.id:
         raise RuntimeError("review base snapshot is stale")
     base_document = load_snapshot(base_snapshot)
     if not isinstance(base_document, CanonicalArticle):
@@ -480,17 +516,10 @@ def validate_proposed_patch(
     )
     if snapshot is None:
         raise ValueError("review base snapshot is unavailable")
-    latest_snapshot_id = db.scalar(
-        select(DomainSnapshot.id)
-        .where(
-            DomainSnapshot.organization_id == organization_id,
-            DomainSnapshot.resource_id == item.resource_id,
-            DomainSnapshot.model_kind == "canonical",
-        )
-        .order_by(DomainSnapshot.revision.desc())
-        .limit(1)
+    current_snapshot = current_canonical_snapshot(
+        db, organization_id=organization_id, resource_id=item.resource_id
     )
-    if latest_snapshot_id != snapshot.id:
+    if current_snapshot is None or current_snapshot.id != snapshot.id:
         raise RuntimeError("review base snapshot is stale")
     updated_payload = copy.deepcopy(snapshot.payload)
     validate_patch_scope_and_atomicity(updated_payload, patch, item.field_path)

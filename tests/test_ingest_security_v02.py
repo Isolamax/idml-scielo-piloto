@@ -15,9 +15,10 @@ from idml_foundation.ingest.scanner import PolicyOnlyScanner
 from idml_foundation.ingest.xml_security import UnsafeXmlError, parse_untrusted_xml
 from idml_foundation.models import Artifact, Organization
 from idml_foundation.pipeline.idml_parser import IdmlParser
-from idml_foundation.routers.artifacts import upload_idml
 from idml_foundation.services.artifacts import store_idml_artifact
+from idml_foundation.services.storage_budget import ArtifactStorageError
 from idml_foundation.settings import Settings
+from tests.test_phase7_v12_http_upload import consume, multipart
 
 
 def archive_with(
@@ -289,7 +290,7 @@ def test_temporary_upload_is_removed_when_atomic_move_fails(
         raise OSError("simulated storage failure")
 
     monkeypatch.setattr(os, "replace", fail_replace)
-    with pytest.raises(OSError, match="simulated storage failure"):
+    with pytest.raises(ArtifactStorageError, match="artifact_storage_unavailable") as error:
         store_idml_artifact(
             db,
             organization_id=organization.id,
@@ -298,46 +299,19 @@ def test_temporary_upload_is_removed_when_atomic_move_fails(
             settings=settings,
             scanner=PolicyOnlyScanner(),
         )
+    assert isinstance(error.value.__cause__, OSError)
+    assert str(error.value.__cause__) == "simulated storage failure"
     assert list(settings.artifact_root.rglob(".upload-*")) == []
     assert db.scalar(select(Artifact).where(Artifact.organization_id == organization.id)) is None
 
 
 @pytest.mark.security
 def test_cancelled_and_oversized_uploads_never_reach_storage(settings: Settings) -> None:
-    class CancelledUpload:
-        filename = "cancelled.idml"
-
-        async def read(self, size: int) -> bytes:
-            del size
-            raise asyncio.CancelledError
-
-    class OversizedUpload:
-        filename = "oversized.idml"
-
-        async def read(self, size: int) -> bytes:
-            return b"x" * size
-
+    settings.upload_max_bytes = 256
     with pytest.raises(asyncio.CancelledError):
-        asyncio.run(
-            upload_idml(
-                db=None,  # type: ignore[arg-type]
-                settings=settings,
-                scanner=PolicyOnlyScanner(),
-                correlation_id="v02-cancelled",
-                context=None,  # type: ignore[arg-type]
-                upload=CancelledUpload(),  # type: ignore[arg-type]
-            )
-        )
+        consume(settings, multipart(b"part", ending=False), interrupt="cancel")
     with pytest.raises(HTTPException) as oversized_error:
-        asyncio.run(
-            upload_idml(
-                db=None,  # type: ignore[arg-type]
-                settings=settings,
-                scanner=PolicyOnlyScanner(),
-                correlation_id="v02-oversized",
-                context=None,  # type: ignore[arg-type]
-                upload=OversizedUpload(),  # type: ignore[arg-type]
-            )
-        )
+        consume(settings, multipart(b"x" * 257))
     assert oversized_error.value.status_code == 413
-    assert not settings.artifact_root.exists()
+    # A persistent admission lock is expected even for rejected requests.
+    assert {p.name for p in settings.artifact_root.iterdir()} == {".upload-admission"}

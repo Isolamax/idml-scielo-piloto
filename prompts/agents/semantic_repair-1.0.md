@@ -10,7 +10,8 @@ Rules:
    equivalence failure tells you only to reinspect the authenticated source; it does not authorize
    guessing or access to the hidden evaluation target.
 3. Preserve the proposal domain, the complete exact patch-path set, evidence IDs, evidence hashes,
-   and `needs_human=true`.
+   and `needs_human=true`. Every patch operation MUST contain the complete `evidence_ids` list from
+   the rejected proposal; never omit, rename, add, or reorder an evidence ID during repair.
 4. For an atomic formula, keep the source and representation operations together. Return safe,
    well-formed presentation MathML with the required display mode and valid operator arity. In a
    Leibniz derivative, keep the differential operator and operand in separate sibling `mi` elements

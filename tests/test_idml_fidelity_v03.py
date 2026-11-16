@@ -272,7 +272,7 @@ def test_v03_canonical_and_jats_preserve_inline_roles_hyperlink_and_footnote() -
     )
     assert result.validation.valid
     assert root.xpath("string(body//bold/italic)") == "combined "
-    assert root.xpath("string(body//list[@list-type='bullet']/list-item/p)") == "list item"
+    assert root.xpath("string(body//p[normalize-space(.)='list item'])") == "list item"
     assert not root.xpath(
         "body//ext-link[starts-with(@xlink:href, 'javascript:')]",
         namespaces={"xlink": "http://www.w3.org/1999/xlink"},

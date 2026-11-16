@@ -111,10 +111,31 @@ def _citation_patterns(signature: ReferenceSignature) -> tuple[tuple[re.Pattern[
         parenthetical = rf"{authors[0]}\s+et\s+al\.?\s*,\s*{year}"
         narrative = rf"{authors[0]}\s+et\s+al\.?\s*\(\s*(?P<year>{year})\s*\)"
     flags = re.IGNORECASE
-    return (
+    patterns = [
         (re.compile(rf"(?<!\w){parenthetical}(?!\w)", flags), "full"),
         (re.compile(rf"(?<!\w){narrative}(?!\w)", flags), "year"),
-    )
+    ]
+    if len(authors) == 3:
+        patterns.extend(
+            (
+                (
+                    re.compile(
+                        rf"(?<!\w){authors[0]}\s+et\s+al\.?\s*,\s*{year}(?!\w)",
+                        flags,
+                    ),
+                    "full",
+                ),
+                (
+                    re.compile(
+                        rf"(?<!\w){authors[0]}\s+et\s+al\.?\s*"
+                        rf"\(\s*(?P<year>{year})\s*\)(?!\w)",
+                        flags,
+                    ),
+                    "year",
+                ),
+            )
+        )
+    return tuple(patterns)
 
 
 def find_citations(

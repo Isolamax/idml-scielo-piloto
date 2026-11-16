@@ -92,14 +92,27 @@ def test_recovery_is_rate_limited_and_single_use_invalidates_sessions(
     old_token = issue_session(db, user, settings).raw_token
     db.commit()
 
+    client.base_url = "https://testserver"
+    login = client.post(
+        "/v1/auth/login",
+        json={
+            "email": user.email,
+            "password": PASSWORD,
+            "trust_browser": True,
+        },
+    )
+    assert login.status_code == 200
+    assert "HttpOnly" in login.headers["set-cookie"]
     issued = client.post("/v1/auth/recovery/request", json={"email": user.email})
     assert issued.status_code == 200
-    recovery_token = issued.json()["development_token"]
+    recovery_token = issued.json()["reset_token"]
     assert recovery_token
     missing = client.post("/v1/auth/recovery/request", json={"email": "absent-v09@example.com"})
     assert missing.status_code == 200
     assert missing.json()["accepted"] is True
+    assert missing.json()["reset_token"] is None
 
+    assert client.post("/v1/auth/recovery/request", json={"email": user.email}).status_code == 200
     blocked = client.post("/v1/auth/recovery/request", json={"email": user.email})
     assert blocked.status_code == 429
 
@@ -117,6 +130,36 @@ def test_recovery_is_rate_limited_and_single_use_invalidates_sessions(
         json={"token": recovery_token, "new_password": PASSWORD},
     )
     assert replay.status_code == 400
+
+
+@pytest.mark.security
+def test_recovery_requires_proof_and_support_requires_platform_mfa(
+    client: TestClient, db: Session, settings: Settings
+) -> None:
+    user = User(
+        email="device@example.com", password_hash=hash_password(PASSWORD), mfa_enabled_at=utcnow()
+    )
+    db.add(user)
+    db.flush()
+    session = issue_session(db, user, settings, mfa_verified=True).raw_token
+    db.commit()
+    payload = {"email": user.email}
+    assert client.post("/v1/auth/recovery/request", json=payload).json()["reset_token"] is None
+    headers = {"Authorization": f"Bearer {session}"}
+    assert (
+        client.post("/v1/auth/recovery/support", json=payload, headers=headers).status_code == 403
+    )
+    user.is_platform_admin = True
+    weak = issue_session(db, user, settings).raw_token
+    db.commit()
+    assert (
+        client.post(
+            "/v1/auth/recovery/support", json=payload, headers={"Authorization": f"Bearer {weak}"}
+        ).status_code
+        == 403
+    )
+    result = client.post("/v1/auth/recovery/support", json=payload, headers=headers)
+    assert result.status_code == 200 and result.json()["reset_token"]
 
 
 @pytest.mark.security

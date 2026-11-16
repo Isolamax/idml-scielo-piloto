@@ -19,5 +19,6 @@ RUN groupadd --gid 10001 validator \
 WORKDIR /validator
 COPY ops/spsvalidator_validate.py /validator/spsvalidator_validate.py
 COPY ops/validator_adapter_common.py /validator/validator_adapter_common.py
+COPY ops/external_verification.py /validator/external_verification.py
 USER 10001:10001
 ENTRYPOINT ["python", "/validator/spsvalidator_validate.py"]

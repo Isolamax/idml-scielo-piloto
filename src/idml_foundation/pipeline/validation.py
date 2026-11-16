@@ -56,7 +56,7 @@ class ValidationIssue(StrictModel):
 
 class ValidationReport(StrictModel):
     report_version: str = "1.1.0"
-    validator_profile: str = "jats-1.3-mathml3+sps-baseline-1.1.0"
+    validator_profile: str = "jats-1.3-mathml3+sps-baseline-1.2.0"
     xml_sha256: str = Field(pattern=SHA256_PATTERN)
     valid: bool
     issues: tuple[ValidationIssue, ...]
@@ -110,7 +110,10 @@ class OfflineJatsValidator:
                     stage=ValidationStage.JATS_DTD,
                     severity=ValidationSeverity.ERROR,
                     code="unexpected-doctype",
-                    message="DOCTYPE must identify the pinned offline JATS Publishing 1.3 DTD",
+                    message=(
+                        "DOCTYPE PUBLIC and SYSTEM identifiers must both identify the pinned "
+                        "JATS Publishing 1.3 with MathML3 DTD"
+                    ),
                 )
             )
 

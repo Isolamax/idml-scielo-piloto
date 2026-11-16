@@ -1,17 +1,19 @@
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from sqlalchemy import select, update
 
 from idml_foundation.dependencies import (
     AuthContext,
+    AuthenticatedContext,
     Configuration,
     CorrelationId,
     CurrentUser,
     Database,
     RateLimiter,
     oauth2_scheme,
+    require_recent_authentication,
 )
 from idml_foundation.mfa import (
     consume_recovery_code,
@@ -51,6 +53,22 @@ from idml_foundation.services.audit import record_audit
 
 router = APIRouter(prefix="/v1/auth", tags=["authentication"])
 _DUMMY_PASSWORD_HASH = hash_password("rate-limit timing equalization password")
+_DEVICE_COOKIE = "__Secure-idml-recovery"
+
+
+def issue_recovery_secret(
+    db: Database, user: User, settings: Configuration, *, purpose: str, lifetime: timedelta
+) -> str:
+    raw = new_one_time_token()
+    db.add(
+        OneTimeToken(
+            user_id=user.id,
+            purpose=purpose,
+            token_hash=hash_one_time_token(raw, settings.session_pepper.get_secret_value()),
+            expires_at=utcnow() + lifetime,
+        )
+    )
+    return raw
 
 
 def _rate_identities(request: Request, email: str) -> tuple[str, str]:
@@ -125,6 +143,7 @@ def _record_login_denied(
 def login(
     payload: LoginRequest,
     request: Request,
+    response: Response,
     db: Database,
     settings: Configuration,
     limiter: RateLimiter,
@@ -248,6 +267,20 @@ def login(
         mfa_verified=mfa_verified,
     )
     user.last_login_at = utcnow()
+    if payload.trust_browser:
+        lifetime = timedelta(days=30)
+        device = issue_recovery_secret(
+            db, user, settings, purpose="recovery_device", lifetime=lifetime
+        )
+        response.set_cookie(
+            _DEVICE_COOKIE,
+            device,
+            max_age=int(lifetime.total_seconds()),
+            secure=True,
+            httponly=True,
+            samesite="strict",
+            path="/v1/auth/recovery",
+        )
     record_audit(
         db,
         action="auth.login",
@@ -289,6 +322,7 @@ def me(user: CurrentUser) -> CurrentUserRead:
     return CurrentUserRead(
         id=user.id,
         email=user.email,
+        is_platform_admin=user.is_platform_admin,
         mfa_required=user.mfa_required,
         mfa_enabled=user.mfa_enabled_at is not None,
     )
@@ -396,6 +430,38 @@ def confirm_mfa(
     return MfaConfirmResponse(recovery_codes=recovery_codes)
 
 
+@router.post("/recovery/support", response_model=PasswordRecoveryIssued)
+def issue_support_link(
+    payload: PasswordRecoveryRequest,
+    db: Database,
+    settings: Configuration,
+    correlation_id: CorrelationId,
+    recent: Annotated[AuthenticatedContext, require_recent_authentication(require_mfa=True)],
+) -> PasswordRecoveryIssued:
+    if not recent.user.is_platform_admin:
+        raise HTTPException(status_code=403, detail="platform administrator required")
+    user = db.scalar(
+        select(User)
+        .where(User.email == normalize_email(str(payload.email)), User.is_active.is_(True))
+        .with_for_update()
+    )
+    if user is None:
+        raise HTTPException(status_code=404, detail="active account not found")
+    raw = issue_recovery_secret(
+        db, user, settings, purpose="password_recovery", lifetime=timedelta(minutes=30)
+    )
+    record_audit(
+        db,
+        action="auth.recovery.support",
+        resource_type="user",
+        resource_id=user.id,
+        actor_user_id=recent.user.id,
+        correlation_id=correlation_id,
+        outcome="success",
+    )
+    return PasswordRecoveryIssued(reset_token=raw)
+
+
 @router.post("/recovery/request", response_model=PasswordRecoveryIssued)
 def request_recovery(
     payload: PasswordRecoveryRequest,
@@ -405,34 +471,41 @@ def request_recovery(
     limiter: RateLimiter,
     correlation_id: CorrelationId,
 ) -> PasswordRecoveryIssued:
-    identities = _rate_identities(request, str(payload.email))
+    email = normalize_email(str(payload.email))
+    raw_device = request.cookies.get(_DEVICE_COOKIE, "")
+    user = None
+    if raw_device and len(raw_device) <= 200:
+        user = db.scalar(
+            select(User)
+            .join(OneTimeToken, OneTimeToken.user_id == User.id)
+            .where(
+                User.email == email,
+                User.is_active.is_(True),
+                OneTimeToken.purpose == "recovery_device",
+                OneTimeToken.token_hash
+                == hash_one_time_token(raw_device, settings.session_pepper.get_secret_value()),
+                OneTimeToken.consumed_at.is_(None),
+                OneTimeToken.expires_at > utcnow(),
+            )
+            .with_for_update()
+        )
+    scope = "recovery-browser" if user is not None else "recovery"
+    identities = (f"account:{email}",) if user is not None else _rate_identities(request, email)
     _check_rate_limit(
-        limiter,
-        scope="recovery",
-        identities=identities,
-        limit=settings.auth_recovery_max_requests,
+        limiter, scope=scope, identities=identities, limit=settings.auth_recovery_max_requests
     )
     _hit_rate_limit(
         limiter,
-        scope="recovery",
+        scope=scope,
         identities=identities,
         limit=settings.auth_recovery_max_requests,
         window_seconds=settings.auth_recovery_window_seconds,
     )
-    user = db.scalar(select(User).where(User.email == normalize_email(str(payload.email))))
-    development_token: str | None = None
-    if user is not None and user.is_active:
-        raw = new_one_time_token()
-        db.add(
-            OneTimeToken(
-                user_id=user.id,
-                purpose="password_recovery",
-                token_hash=hash_one_time_token(raw, settings.session_pepper.get_secret_value()),
-                expires_at=utcnow() + timedelta(minutes=30),
-            )
+    reset_token = None
+    if user is not None:
+        reset_token = issue_recovery_secret(
+            db, user, settings, purpose="password_recovery", lifetime=timedelta(minutes=30)
         )
-        if settings.environment in {"development", "test"}:
-            development_token = raw
     record_audit(
         db,
         action="auth.recovery.request",
@@ -440,7 +513,7 @@ def request_recovery(
         correlation_id=correlation_id,
         outcome="accepted",
     )
-    return PasswordRecoveryIssued(development_token=development_token)
+    return PasswordRecoveryIssued(reset_token=reset_token)
 
 
 @router.post("/recovery/complete", status_code=status.HTTP_204_NO_CONTENT)
@@ -451,28 +524,36 @@ def complete_recovery(
     correlation_id: CorrelationId,
 ) -> None:
     digest = hash_one_time_token(payload.token, settings.session_pepper.get_secret_value())
-    token = db.scalar(
-        select(OneTimeToken).where(
+    user_id = db.scalar(
+        select(OneTimeToken.user_id).where(
             OneTimeToken.token_hash == digest,
             OneTimeToken.purpose == "password_recovery",
             OneTimeToken.consumed_at.is_(None),
         )
     )
-    expires_at = token.expires_at if token else datetime.min.replace(tzinfo=UTC)
-    if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=UTC)
-    if token is None or expires_at <= datetime.now(UTC):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid token")
-    user = db.get(User, token.user_id)
+    user = db.scalar(select(User).where(User.id == user_id).with_for_update())
     if user is None or not user.is_active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid token")
+    consumed_at = utcnow()
+    claimed = db.scalar(
+        update(OneTimeToken)
+        .where(
+            OneTimeToken.token_hash == digest,
+            OneTimeToken.purpose == "password_recovery",
+            OneTimeToken.consumed_at.is_(None),
+            OneTimeToken.expires_at > consumed_at,
+        )
+        .values(consumed_at=consumed_at)
+        .returning(OneTimeToken.id)
+    )
+    if claimed is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid token")
     user.password_hash = hash_password(payload.new_password)
     user.token_version += 1
-    consumed_at = utcnow()
     outstanding = db.scalars(
         select(OneTimeToken).where(
             OneTimeToken.user_id == user.id,
-            OneTimeToken.purpose == "password_recovery",
+            OneTimeToken.purpose.in_(("password_recovery", "recovery_device")),
             OneTimeToken.consumed_at.is_(None),
         )
     )

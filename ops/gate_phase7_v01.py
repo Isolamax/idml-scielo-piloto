@@ -18,6 +18,8 @@ from idml_foundation.domain.corpus import (
 DEPLOYED_SOURCE_ROOTS = (
     ".github",
     "benchmarks/agents",
+    "benchmarks/qualification",
+    "benchmarks/security",
     "config",
     "corpus",
     "deploy",
@@ -50,6 +52,8 @@ def repository_files(repository_root: Path) -> tuple[tuple[str, ...], str]:
         result = subprocess.run(  # noqa: S603 - absolute executable and fixed arguments
             [
                 git,
+                "-c",
+                "core.fsmonitor=false",
                 "-C",
                 str(repository_root),
                 "ls-files",

@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, model_validator
 from idml_foundation.domain.common import SHA256_PATTERN, Evidence, StrictModel
 from idml_foundation.mathml import parse_mathml_fragment
 
-CANONICAL_SCHEMA_VERSION = "1.4.0"
+CANONICAL_SCHEMA_VERSION = "1.6.0"
 
 _ORCID = re.compile(r"^(?:https?://orcid\.org/)?(\d{4})-(\d{4})-(\d{4})-(\d{3}[\dXx])$")
 
@@ -151,6 +151,7 @@ class FrontMatter(StrictModel):
     license_text: SourcedText | None = None
     license_url: SourcedText | None = None
     funding: tuple[FundingStatement, ...] = ()
+    subject_category: SourcedText | None = None
 
     @model_validator(mode="after")
     def license_url_is_https(self) -> Self:
@@ -376,6 +377,7 @@ class Section(StrictModel):
     id: str
     title: SourcedText
     level: int = Field(ge=1, le=10)
+    section_type: str | None = None
     blocks: tuple[ContentBlock, ...] = ()
     children: tuple["Section", ...] = ()
     evidence_ids: tuple[str, ...] = ()
@@ -404,6 +406,22 @@ class Reference(StrictModel):
     year: SourcedText | None = None
     title: SourcedText | None = None
     source: SourcedText | None = None
+    volume: SourcedText | None = None
+    issue: SourcedText | None = None
+    first_page: SourcedText | None = None
+    last_page: SourcedText | None = None
+    elocation_id: SourcedText | None = None
+    publication_type: Literal["journal", "book", "thesis", "webpage", "report", "other"] | None = (
+        None
+    )
+    part_title: SourcedText | None = None
+    editors: tuple[SourcedText, ...] = ()
+    publisher_name: SourcedText | None = None
+    publisher_location: SourcedText | None = None
+    edition: SourcedText | None = None
+    publication_description: SourcedText | None = None
+    access_date: SourcedText | None = None
+    review_reasons: tuple[str, ...] = ()
     evidence_ids: tuple[str, ...] = ()
 
 

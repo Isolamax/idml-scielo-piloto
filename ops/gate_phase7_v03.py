@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from collections.abc import Iterable
 from io import BytesIO
@@ -86,6 +87,17 @@ def reconstructed_story_text(raw: RawArticle, story_id: str) -> str:
         and item.anchor_run_id is not None
         and item.label is not None
     }
+    runs = {run.id: run for run in story.runs}
+    # A label in a separate style range stays in the raw text. Only restore
+    # labels consumed by the parser; never count the separate range twice.
+    for paragraph in story.paragraphs:
+        for index, run_id in enumerate(paragraph.text_run_ids):
+            label = labels.get(run_id)
+            if label is None:
+                continue
+            following = "".join(runs[key].text for key in paragraph.text_run_ids[index + 1 :])
+            if re.match(rf"^\s*{re.escape(label)}", following):
+                labels.pop(run_id)
     return "".join(run.text + labels.get(run.id, "") for run in story.runs)
 
 
@@ -235,7 +247,10 @@ def synthetic_gate() -> dict[str, int]:
             )
         ),
         "footnote": bool(root.xpath("back/fn-group/fn/p")),
-        "list": bool(root.xpath("body//list/list-item/p")),
+        # SPS profile intentionally emits a one-item list as a paragraph (7C-04).
+        "single_item_list_preserved": root.xpath("string(body//p[normalize-space(.)='list item'])")
+        == "list item"
+        and not root.xpath("body//list"),
         "designmap_order": [spread.source_self_id for spread in raw.spreads]
         == ["spread-first", "spread-second"],
         "page_columns": sorted(

@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Query, Response, status
 from sqlalchemy import select
 
-from idml_foundation.dependencies import CorrelationId, Database, require_permission
+from idml_foundation.dependencies import Configuration, CorrelationId, Database, require_permission
 from idml_foundation.models import DomainSnapshot, Resource, ReviewBuild, ReviewDecision, ReviewItem
 from idml_foundation.pipeline.profile import load_profile
 from idml_foundation.pipeline.validation import OfflineJatsValidator
@@ -21,6 +21,7 @@ from idml_foundation.schemas import (
     SnapshotRead,
 )
 from idml_foundation.services.audit import record_audit
+from idml_foundation.services.canonical_heads import lock_resource
 from idml_foundation.services.reviews import (
     apply_review_decision,
     claim_review_item,
@@ -55,6 +56,7 @@ def create_review_item(
     )
     if resource is None or snapshot is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="resource not found")
+    lock_resource(db, context.organization_id, resource.id)
     item = ReviewItem(
         organization_id=context.organization_id,
         resource_id=payload.resource_id,
@@ -151,6 +153,7 @@ def decide_review(
     item_id: str,
     payload: ReviewDecisionCreate,
     db: Database,
+    settings: Configuration,
     correlation_id: CorrelationId,
     context: Annotated[TenantContext, require_permission(Permission.REVIEW_WRITE)],
 ) -> ReviewDecisionRead:
@@ -162,7 +165,7 @@ def decide_review(
             item_id=item_id,
             user_id=context.user.id,
             payload=payload,
-            profile=load_profile(),
+            profile=load_profile(settings.journal_profile_path),
             validator=OfflineJatsValidator(vendor),
         )
     except LookupError as exc:

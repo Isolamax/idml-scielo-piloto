@@ -76,7 +76,7 @@ def test_v10_full_operational_flow_is_idempotent_auditable_and_ai_optional(
     monkeypatch: object,
 ) -> None:
     monkeypatch.setattr(  # type: ignore[attr-defined]
-        "idml_foundation.routers.jobs.Redis.from_url", lambda _url: _RedisWakeup()
+        "idml_foundation.routers.jobs.Redis.from_url", lambda _url, **_kwargs: _RedisWakeup()
     )
     org = Organization(slug="v10-flow", name="V10 Operational Flow")
     db.add(org)
@@ -115,7 +115,7 @@ def test_v10_full_operational_flow_is_idempotent_auditable_and_ai_optional(
         client,
         operator_headers,
         "/v1/artifacts/assets",
-        "Figure 1.jpg",
+        "1809-4457-esa-30-e20240001-gf01.jpg",
         b"\xff\xd8\xff\xe0 deterministic V10 fixture",
     )
 
@@ -233,6 +233,10 @@ def test_v10_full_operational_flow_is_idempotent_auditable_and_ai_optional(
     ).json()
     assert package_status["state"] == "succeeded"
     package_result = package_status["result"]
+    formal = package_result["formal_validation"]
+    assert formal["state"] == "validation-unavailable"
+    assert formal["package_sha256"] == package_result["package_sha256"]
+    assert not formal["ready_for_scielo"]
     package_download = client.get(
         f"/v1/artifacts/{package_result['package_artifact_id']}/download",
         headers=operator_headers,
@@ -279,6 +283,12 @@ def test_v10_full_operational_flow_is_idempotent_auditable_and_ai_optional(
     )
     assert second_approval.status_code == 200, second_approval.text
     assert second_approval.json()["request_state"] == "editorially_approved"
+    assert (
+        client.get(f"/v1/jobs/{package_job.json()['id']}", headers=operator_headers).json()[
+            "result"
+        ]["formal_validation"]
+        == formal
+    )
 
     capabilities = client.get("/v1/ai/capabilities", headers=operator_headers)
     assert capabilities.status_code == 200
@@ -308,7 +318,7 @@ def test_v10_job_cancel_manual_retry_and_transient_resume(
     monkeypatch: object,
 ) -> None:
     monkeypatch.setattr(  # type: ignore[attr-defined]
-        "idml_foundation.routers.jobs.Redis.from_url", lambda _url: _RedisWakeup()
+        "idml_foundation.routers.jobs.Redis.from_url", lambda _url, **_kwargs: _RedisWakeup()
     )
     org = Organization(slug="v10-control", name="V10 Job Control")
     db.add(org)
@@ -426,8 +436,8 @@ def test_v10_interface_exposes_operational_states_and_controls(client: TestClien
     for label in (
         "Criar artigo",
         "Converter IDML",
-        "Montar pacote SciELO",
-        "Chave idempotente",
+        "Revisão e pacote SciELO",
+        "Imagens do artigo",
     ):
         assert label in page.text
     for contract in (

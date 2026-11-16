@@ -113,6 +113,20 @@ def _canonical_1_3_to_1_4(payload: dict[str, Any]) -> dict[str, Any]:
     front.setdefault("history_dates", [])
     back = migrated.get("back", {})
     back.setdefault("data_availability_mode", None)
+    migrated["schema_version"] = "1.4.0"
+    return migrated
+
+
+def _canonical_1_4_to_1_5(payload: dict[str, Any]) -> dict[str, Any]:
+    migrated = copy.deepcopy(payload)
+    # Migration is not reconversion: do not infer bibliographic classification.
+    migrated["schema_version"] = "1.5.0"
+    return migrated
+
+
+def _canonical_1_5_to_1_6(payload: dict[str, Any]) -> dict[str, Any]:
+    migrated = copy.deepcopy(payload)
+    # Webpage/report are permitted, never assigned by migration.
     migrated["schema_version"] = CANONICAL_SCHEMA_VERSION
     return migrated
 
@@ -126,7 +140,9 @@ MIGRATIONS: dict[tuple[ModelKind, str], tuple[str, Migration]] = {
     ("canonical", "1.0.0"): ("1.1.0", _canonical_1_0_to_1_1),
     ("canonical", "1.1.0"): ("1.2.0", _canonical_1_1_to_1_2),
     ("canonical", "1.2.0"): ("1.3.0", _canonical_1_2_to_1_3),
-    ("canonical", "1.3.0"): (CANONICAL_SCHEMA_VERSION, _canonical_1_3_to_1_4),
+    ("canonical", "1.3.0"): ("1.4.0", _canonical_1_3_to_1_4),
+    ("canonical", "1.4.0"): ("1.5.0", _canonical_1_4_to_1_5),
+    ("canonical", "1.5.0"): (CANONICAL_SCHEMA_VERSION, _canonical_1_5_to_1_6),
 }
 
 LATEST_VERSIONS: dict[ModelKind, str] = {

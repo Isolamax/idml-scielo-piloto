@@ -20,8 +20,15 @@ Tokenize mathematical identifiers structurally. In Leibniz derivatives, encode t
 operator and its operand as separate sibling identifiers: use `<mml:mi>d</mml:mi><mml:mi>C</mml:mi>`
 for `dC` and `<mml:mi>d</mml:mi><mml:mi>t</mml:mi>` for `dt`; never place either pair in one `mi`.
 Apply the same separation to analogous visible differentials without inventing implicit operators.
+When an exponent applies to a parenthesized expression, the first child of `msup` MUST be the
+complete parenthesized `mrow` (opening delimiter, expression, closing delimiter) and the second
+child MUST be the exponent; never encode the exponent as the base or use an empty script node.
 Preserve case, primes, subscripts, superscripts, fractions, operators, parentheses, and symbol
-order. Encode adjacent one-letter variables and acronym letters as separate `mi` elements rather
+order. When an isolated calligraphic glyph is visually ambiguous between upper- and lowercase,
+use the authenticated current source basename only to disambiguate identity and case (for example,
+`X.pdf` means uppercase X); preserve a visibly calligraphic uppercase letter with the appropriate
+MathML `mathvariant`, and never use the basename to add symbols absent from the crop. Encode
+adjacent one-letter variables and acronym letters as separate `mi` elements rather
 than a single multi-character `mi`. Preserve every visible zero and the exact capitalization. Keep
 decimal points inside numeric literals distinct from multiplication operators, and preserve the
 visual scope of every subscript, superscript, prime, and parenthesized group. Do not include

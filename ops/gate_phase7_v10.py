@@ -18,7 +18,7 @@ from idml_foundation.services.jobs import TRANSITIONS
 from idml_foundation.settings import Settings
 
 ROOT = Path(__file__).parents[1]
-REPORT = ROOT / "benchmarks" / "qualification" / "reports" / "v10-operational-workflow-v1.json"
+REPORT = ROOT / "benchmarks/qualification/reports/v10-operational-workflow-vh19-v1.json"
 
 
 def _load(path: Path) -> dict[str, Any]:
@@ -187,7 +187,10 @@ def _interface_and_degraded_gate() -> dict[str, Any]:
     html_markers = (
         "Criar artigo",
         "Converter IDML",
-        "Montar pacote SciELO",
+        "Revisão e pacote SciELO",
+        'id="input-article"',
+        'id="process-idml"',
+        'id="package-pdf"',
         "Criar pendência",
         "Aprovação editorial",
         "Auditoria",

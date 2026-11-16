@@ -3,6 +3,10 @@
 - Status: aceito
 - Data: 2026-09-04
 
+Atualização em 2026-09-25: ADR-015 substitui a exigência de prontidão completa antes da
+primeira avaliação humana. G-HOMOLOG permite VH restrita; G8-H e requisitos de produção
+permanecem. O texto abaixo registra a decisão original.
+
 ## Contexto
 
 A indisponibilidade temporária de revisores humanos não deve interromper o desenvolvimento e a

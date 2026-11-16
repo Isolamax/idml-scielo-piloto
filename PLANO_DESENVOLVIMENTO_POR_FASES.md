@@ -21,14 +21,30 @@ docs/XML_VALIDATION_MASTER_PLAN.md
 ## 2. Estado geral
 
 ```text
-PROJECT_STATUS: PHASE_7_VALIDATION_IN_PROGRESS
-CURRENT_PHASE: FASE 7 — V-01 a V-11 qualificados; próxima família V-12
+PROJECT_STATUS: EXPERT_HOMOLOGATION_PREPARATION
+CURRENT_PHASE: VH1 — Correção por IA autorizada pelo portal na VPS em vh19-web-provider-20261114-v1. Próximo aceite: congelar a versão do piloto, conferir o roteiro final e registrar a decisão G-HOMOLOG. Ver seção 65 de docs/HOMOLOGATION_VH1_DELIVERY.md.
 CURRENT_IMPLEMENTATION_AUTHORIZED: PHASE_7
 DEVELOPMENT_ROADMAP_AUTHORIZED: THROUGH_PHASE_8_PRODUCTION_READINESS
 PRODUCTION_ACTIVATION_AUTHORIZED: NO — REQUIRES XML_EXPERT_FINAL_ACCEPTANCE
+EXPERT_TEST_ACCESS_READY: NO — REQUIRES G-HOMOLOG
+CURRENT_INCREMENT: 2026-11-09 — 3.244 testes por plataforma. Cobertura de 90,16% no Windows e 90,15% no Linux. 42 verificações do workflow aprovadas. Revisor recuperou os dois ZIPs de avaliação após a implantação.
+HOMOLOGATION_AI_AUTOCORRECTION: NAMED OPERATOR AND REVIEWER PATH AND VH-17 REGRESSION QUALIFIED. FINAL EDIT, RESTORE AND REVALIDATION ACCEPTANCE, PILOT SOURCE GOVERNANCE AND INDIVIDUAL SPECIALIST HANDOFF PENDING. See docs/HOMOLOGATION_VH1_DELIVERY.md section 63.
 ARCHITECTURE_STATUS: APPROVED_WITH_CHANGES
 INFRASTRUCTURE_STATUS: IN_USE_WITH_CONSTRAINTS
 ```
+
+Registro histórico da candidata `vh1-doctype-20261027-v1`: 2.906 testes locais e 966 Linux
+aprovados, conjuntos sobrepostos, 41 novos; zero falhas/erros/skip finais. Auditoria
+nativa reproduzida, 1.176 arquivos conferidos, 25 serviços preservados e ready/app
+HTTP 200. Documentação/prova na seção 44 da VH1. Naquele fechamento, a candidata
+estava armazenada, sem ativação. Estado ativo atual na seção 52; aprovação SciELO
+e G-HOMOLOG não concedidos.
+
+Fechamento da release implantada vh09-heads-20261021-v1 em 22/10: 2.654 testes locais aprovados, zero falhas/erros/skip,
+90,04% de cobertura de linhas; 223 testes Linux e concorrência PostgreSQL aprovados
+(conjuntos sobrepostos). VPS atualizada e documentação de fechamento sincronizada.
+Evidência: `benchmarks/qualification/reports/vh09-head-vps-v1.json` e seção 37 do
+plano VH1. Isso não encerra VH-09, não declara CI global aprovado e não aprova XML.
 
 ### Legenda de status
 
@@ -49,6 +65,11 @@ Ao concluir um item:
 5. não aprovar o próprio gate sem validação definida para a fase.
 
 ## 3. Princípios obrigatórios
+
+Para concluir a primeira homologação, seguir exclusivamente a fila VH-01–20 em
+`docs/HOMOLOGATION_VH1_DELIVERY.md` (ADR-017). Fases históricas abaixo preservam
+contexto e escopo de produção, mas não adicionam pré-requisitos automaticamente.
+H1-A permanece obrigatório dentro dos itens mapeados; não ativar automação sem provas.
 
 - Parser, aplicação de patches, builder XML, validações formais e empacotamento devem ser determinísticos.
 - IA não gera nem edita diretamente o XML final.
@@ -122,29 +143,29 @@ Antes de qualquer implantação futura na VPS:
 | 4 | Validação, fidelidade e pacote | Pacote validado e política de release | Implementada — Gate G4 bloqueado por validadores externos/crossrefs |
 | 5 | Revisão humana e interface mínima | Correção humana auditável | Concluída — Gate G5 aprovado |
 | 6 | IA assistiva e OpenClaw | Assistência semântica controlada | Concluída — Gate G6-T aprovado; produção não autorizada |
-| 7 | Homologação automatizada e piloto simulado | Sistema completo validado antes da revisão humana | Em andamento — V-01 a V-11 qualificados; próxima V-12 |
-| 8 | Prontidão, homologação humana e produção | RC operacional, aceite do especialista e rollout | Não iniciada — ativação real bloqueada pelo G8-H |
+| 7 | Homologação automatizada e piloto simulado | Validação técnica e versão funcional para avaliação | Em andamento — prioridade H0–H4/G-HOMOLOG; V-12 incompleta |
+| 8 | Prontidão, homologação humana e produção | RC operacional, aceite final e rollout | Avaliação inicial antecipada via G-HOMOLOG; prontidão completa pendente |
 | 9 | Expansão controlada | Novos periódicos e casos complexos | Não iniciada |
 
 ---
 
 ## 5.1 Estratégia revisada de homologação
 
-O desenvolvimento seguirá até uma Release Candidate operacionalmente pronta antes de solicitar a
-homologação do especialista em XML. A ausência temporária desse especialista não bloqueia os gates
-técnicos G6-T e G7-T nem o desenvolvimento da prontidão G8-RC. Esses gates exigem evidências
-determinísticas e multiagente, mas não autorizam produção.
+Revisão autorizada em 2026-09-25 (ADR-015): priorizar uma versão funcional de homologação (VH)
+para avaliação editorial e de usabilidade antes da prontidão operacional completa. O plano
+executável é `docs/EXPERT_TEST_READINESS_PLAN.md`. G-HOMOLOG libera somente testes restritos;
+G7-T/G8-RC e todos os requisitos de produção continuam pendentes quando não comprovados.
 
 Fluxo obrigatório:
 
 1. Codex e agentes OpenClaw executam testes técnicos, semânticos, adversariais e comparativos;
 2. validadores determinísticos têm precedência sobre qualquer conclusão de IA;
-3. o sistema completo é implantado como RC em ambiente controlado, sem tráfego editorial real;
-4. código, corpus, prompts, modelos, schemas e infraestrutura são congelados;
-5. o especialista em XML testa a RC e registra os ajustes necessários;
-6. cada apontamento gera correção, teste de regressão e nova execução integral;
-7. o Gate Humano Final G8-H autoriza ou rejeita a ativação de produção;
-8. o início da produção permanece acompanhado e com revisão humana por artigo.
+3. H0–H4 fecham escopo, validação formal (incluindo XPM), implantação segura mínima, fluxo e acessos;
+4. a VH é congelada e G-HOMOLOG autoriza testes restritos, sem publicação/tráfego editorial real;
+5. o especialista avalia XML e usabilidade; cada defeito confirmado gera correção e regressão;
+6. V-12 a V-15 e prontidão G7-T/G8-RC são concluídos depois ou em paralelo, sem perder pendências;
+7. o especialista revalida a RC final; G8-H e critérios operacionais autorizam ou rejeitam produção;
+8. a ativação permanece acompanhada e com revisão humana por artigo.
 
 O catálogo, os critérios e as evidências estão definidos em
 `docs/XML_VALIDATION_MASTER_PLAN.md`. Nenhuma métrica ou consenso de agentes substitui o G8-H.
@@ -490,7 +511,7 @@ Comprovar conformidade, fidelidade e integridade do pacote antes de adicionar IA
 
 ## Pacote 4.5 — XPM e Release Policy
 
-- [x] Integrar contrato/parser XPM conforme decisão da Fase 0; executor Windows pendente.
+- [x] Integrar contrato/parser XPM; executor Linux qualificado em laboratório em 2026-10-15, integração supervisionada e compatibilidade ainda pendentes (ADR-002 revisada).
 - [x] Criar política determinística de release.
 - [x] Definir gates obrigatórios por SpsProfile.
 - [x] Impedir que IA conceda `READY_FOR_SCIELO`.
@@ -679,14 +700,14 @@ o especialista sem depender de revisão humana intermediária.
 
 ## Pacote 7.1 — Testes completos
 
-- [x] Executar integralmente V-01 a V-11 do plano mestre.
+- [x] V-01 a V-11 reexecutadas; V-07 passou no corpus atual após encerramento da trilha 7C.
 - [x] V-01 — proveniência, integridade, segregação e reprodução do catálogo do corpus.
 - [x] V-02 — segurança da ingestão IDML.
 - [x] V-03 — leitura e fidelidade do IDML.
 - [x] V-04 — invariantes do Canonical Article Model.
 - [x] V-05 — construção XML JATS/SPS.
 - [x] V-06 — validadores formais e regras editoriais, com restrições documentadas.
-- [x] V-07 — fidelidade comparativa aprovada; candidato real com zero bloqueios e qualificações rastreáveis.
+- [x] V-07 — mecanismo e corpus atual requalificados; zero bloqueio semântico nos dois artigos.
 - [x] V-08 — validação assistiva OpenClaw.
 - [x] V-09 — segurança, identidade e multiempresa.
 - [x] V-10 — fluxo ponta a ponta e experiência operacional.
@@ -701,13 +722,81 @@ o especialista sem depender de revisão humana intermediária.
 
 ## Pacote 7.2 — Homologação do corpus
 
-- [ ] Executar corpus não usado no desenvolvimento.
+- [x] Executar primeiro artigo não usado no desenvolvimento; o caso e20240135 bloqueou o candidato e abriu a trilha 7C.
 - [ ] Congelar `regression`, `adversarial`, `holdout-ai` e reservar `holdout-human`.
 - [ ] Medir qualidade por tipo de artigo.
 - [ ] Comparar resultados com XML aprovado.
 - [ ] Classificar falsos positivos e falsos negativos.
 - [ ] Medir concordância, falso consenso, abstenção e ciclos de reparo dos agentes.
 - [ ] Impedir acesso dos agentes proponentes aos alvos do holdout.
+
+### Trilha corretiva 7C — Generalização do artigo e20240135
+
+Plano detalhado: `docs/PHASE_7_CORRECTIVE_E20240135.md`.
+
+- [x] 7C-00 — congelar baseline, hashes, métricas e famílias de defeito.
+- [x] 7C-01 — gate de regressão e inventário content-addressed da origem aprovados.
+- [x] 7C-02 — figuras, ativos, ordem global e resolução de nomes finais aprovados.
+- [x] 7C-03 — detecção inline/display e 43 fórmulas MathML aprovadas pelo gate corretivo.
+- [x] 7C-04 — hierarquia de 26 seções, fluxo do corpo e notas editoriais aprovados.
+- [x] 7C-05 — autores compostos, metadados e 39 cross-references aprovados.
+- [x] 7C-06 — zerar erros reais SPS e construir pacote reproduzível.
+- [x] 7C-07 — reavaliar domínios alterados com OpenClaw em modo assistivo.
+- [x] 7C-08 — requalificação integral, implantação, backup/restore e rollback aprovados.
+
+G7C-08 foi aprovado em 2026-09-21. Próxima ação: V-12 na VPS atual, com carga controlada,
+limites de interrupção e medição de CPU/RAM/swap/disco/latência/custo, sem upgrade antecipado.
+
+### Execução incremental V-12 — Desempenho, capacidade e custo
+
+Prioridade revisada em 2026-09-25: registros abaixo preservam o histórico. Suas indicações de
+"próximo" não sobrepõem H0–H4 em `docs/EXPERT_TEST_READINESS_PLAN.md`. Executar agora apenas
+os controles V-12 necessários à segurança da VH; os restantes não foram cancelados/aprovados.
+
+- [x] V-12.1 — baseline, instrumentação, matriz sintética 1/2 concorrentes, janela limitada de
+  cinco minutos e medição local dos dois artigos; gate aprovado em 2026-09-22 (728 conversões,
+  25 containers preservados, sem crescimento de RSS na janela, zero novas inferências).
+- [~] V-12.2 — fila durável API/Redis/worker em ambiente isolado; espera, recuperação sob carga,
+  upload/descompactação, quotas de artefatos e política de logs/backups.
+  Laboratório real da fila aprovado em 2026-09-22: 24 conversões na execução reforçada,
+  quatro cenários (normal, duplicados, avisos perdidos e Redis desligado), sem antecipação ou
+  efeitos duplicados; 25 serviços preservados. Limites de ingestão/armazenamento ainda pendentes.
+  Ingestão XML limitada: OOM sintético reproduzido/corrigido; oito casos VPS aprovados,
+  453 testes/87,57%; 16 MiB de XML agregado e 200 mil unidades de complexidade na candidata.
+  Restam corpo HTTP/multipart, pipeline completo próximo aos limites e quotas/logs/backups.
+  Ver `docs/PHASE_7_V12_INGESTION.md`; alterações ainda não implantadas nos serviços existentes.
+  Recepção HTTP/multipart concluída na candidata em 2026-09-24: 100 MiB com/sem Content-Length
+  testados em laboratório, limpeza de temporários e recusa antecipada comprovadas;
+  489 testes/87,65%. Restam quotas/admissão concorrente, pipeline completo, logs/backups e
+  implantação com backup/restore e rollback. Ver `docs/PHASE_7_V12_HTTP_UPLOAD.md`.
+  Admissão de uploads concluída na candidata: trava entre processos, verificação de espaço
+  temporário, timeout ocioso/total e liberação após falhas. Ensaio HTTP VPS confirmou 503 por
+  ocupação, 408 por inatividade e recuperação 200; serviços existentes preservados.
+  Regressão local: 502 testes aprovados, cobertura 87,68%.
+  Próximo bloco: quotas por empresa e reserva concorrente do armazenamento definitivo,
+  incluindo uploads e artefatos gerados. Ver `docs/PHASE_7_V12_UPLOAD_ADMISSION.md`.
+  Quotas/armazenamento concluídos na candidata em 2026-09-24: limite de bytes/arquivos por
+  empresa, margem livre no disco, trava até commit/rollback e deduplicação verificada.
+  530 testes/87,72%, 18 gates, HTTP/ingestão repetidos e fila PostgreSQL aprovada com 24
+  conversões e cinco controles de concorrência/órfãos. Tentativas bloqueadas/OOM do laboratório
+  preservadas; rodada final sem OOM e 25 serviços intactos. Ainda não implantado.
+  Próximo: armazenamento/pipeline perto dos limites, alertas/logs/backups e implantação controlada.
+  Ver `docs/PHASE_7_V12_STORAGE_BUDGET.md`.
+  Ensaios volumétricos aprovados em 2026-09-24: seis perfis isolados, incluindo IDML de
+  100 MiB, ZIP de 500 MiB expandidos com payload binário, texto XML de 14 MiB, 10 mil
+  arquivos e recusa por margem de disco. Sem OOM, 25 serviços preservados, sem implantação.
+  Regressão local: 546 testes aprovados, cobertura 87,72%.
+  Não qualifica qualquer combinação editorial desses tamanhos. Próximo: alertas/reconciliação,
+  logs/backups e implantação controlada; diversidade/saturação prolongada em V-12.3.
+  Ver `docs/PHASE_7_V12_VOLUME_PROFILES.md`.
+- [ ] V-12.3 — janela prolongada, orçamento integrado de IA, critérios de saturação e fechamento
+  da capacidade por perfil de artigo, com pausas automáticas para proteger os demais serviços.
+
+A aprovação de V-12.1 não libera V-13 nem declara capacidade de produção. Não extrapolar tempo de
+fila em threads do benchmark para a fila Redis. O inventário identificou 100 MiB de upload e
+500 MiB descompactados frente a 256 MiB do worker; são limites ainda não qualificados sob carga.
+O OpenClaw dedicado precisa de rotação explícita de logs. Não remover backups nem alterar os
+serviços compartilhados para ganhar espaço. Detalhes em `docs/PHASE_7_V12_CAPACITY.md`.
 
 ## Pacote 7.3 — Piloto editorial simulado
 
@@ -718,6 +807,9 @@ o especialista sem depender de revisão humana intermediária.
 - [ ] Validar interface, mensagens, auditoria e downloads controlados.
 
 ## Pacote 7.4 — Release Candidate técnica
+
+Este pacote continua obrigatório para a RC de produção, mas não é pré-requisito integral
+para a primeira avaliação humana: a VH usa H0–H4/G-HOMOLOG (ADR-015).
 
 - [ ] Corrigir todos os defeitos blocker, critical e major encontrados automaticamente.
 - [ ] Executar integralmente V-12 a V-14 do plano mestre.
@@ -758,8 +850,8 @@ o especialista sem depender de revisão humana intermediária.
 
 ## Objetivo
 
-Concluir a prontidão operacional, submeter a RC completa ao especialista em XML, corrigir seus
-apontamentos e somente então realizar o rollout gradual de produção.
+Antecipar a avaliação da VH via G-HOMOLOG, corrigir seus apontamentos, concluir a prontidão
+operacional e obter revalidação da RC final antes do rollout gradual de produção.
 
 ## Pacote 8.1 — Infraestrutura de produção
 
@@ -801,6 +893,9 @@ apontamentos e somente então realizar o rollout gradual de produção.
 - [ ] Nenhum tráfego editorial real ou release automático foi habilitado.
 
 ## Pacote 8.4 — Homologação do especialista em XML
+
+A avaliação inicial pode começar após G-HOMOLOG, sem aguardar G8-RC. A avaliação final e
+G8-H permanecem posteriores à prontidão completa; usar H4/H5 para acesso, roteiro e feedback.
 
 - [ ] Disponibilizar ambiente isolado e corpus `holdout-human` nunca usado no desenvolvimento.
 - [ ] Entregar fontes, XMLs, diffs semânticos, relatórios e matriz de rastreabilidade.
@@ -871,7 +966,7 @@ Cada novo periódico deve possuir corpus, profile, style mapping, métricas, hom
 |---|---|---|
 | Documentação SPS vigente | 0–9 | Versionar perfil e bloquear release sem regra confirmada |
 | Packtools | 0, 3, 4, 7 | Isolar versão e registrar incompatibilidades |
-| XPM | 0, 4, 7, 8 | Worker Windows dedicado, se necessário e permitido |
+| XPM | 0, 4, 7, 8 | Worker Linux isolado na mesma VPS; qualificação em VH-02 e serviço em VH-14/16 |
 | Amostras reais | 0–3, 7 | Não congelar modelo/parser sem corpus |
 | OpenClaw/Swarm | 0, 6–9 | SequentialOrchestrator e revisão humana |
 | OpenAI | 6–9 | Pipeline determinístico e modo degradado |
@@ -882,7 +977,7 @@ Cada novo periódico deve possuir corpus, profile, style mapping, métricas, hom
 | ID | Risco | Impacto | Mitigação | Estado |
 |---|---|---|---|---|
 | R-01 | Reading order incorreto no IDML | Crítico | Corpus real, frames/threads/coordenadas e revisão visual | Mitigação definida |
-| R-02 | XPM não automatizável em Linux | Crítico | Worker Windows dedicado e adapter desacoplado | Mitigação definida |
+| R-02 | XPM legado incompatível com SPS 1.10/JATS 1.3 | Crítico | Executor Linux já demonstrado; qualificar regras/consultas sem rebaixar XML, manter adapter desacoplado | Execução resolvida em 2026-10-15; compatibilidade pendente |
 | R-03 | Regras SPS mudarem | Alto | SpsProfile versionado e testes de regressão | Aberto |
 | R-04 | Capacidade da VPS tornar-se insuficiente | Alto | Monitoramento, limites por serviço e upgrade de hardware sob demanda | Monitorado |
 | R-05 | Impacto no sistema atual | Crítico | Compose/network/volumes exclusivos e limites | Mitigado e monitorado |
@@ -901,7 +996,7 @@ Cada novo periódico deve possuir corpus, profile, style mapping, métricas, hom
 | R-18 | Harness de benchmark contorna intencionalmente o fluxo persistido da aplicação | Alto | Dois casos minimizados, dupla confirmação, flags falsas, nenhuma aplicação de patch, output privado, orçamento agregado, tentativa única e reset final do gateway | Mitigado para avaliação; proibido como caminho de produção |
 | R-19 | Agentes correlacionados produzirem falso consenso | Crítico | Sessões/prompts separados, alvos ocultos, críticos independentes e juiz determinístico com abstenção | Aberto; medir no laboratório multiagente |
 | R-20 | Homologação humana tardia encontrar erro arquitetural caro | Alto | Corpus holdout, testes V-01 a V-15, RC reproduzível e correções com regressão antes do go-live | Aceito pelo usuário; mitigação planejada |
-| R-21 | Overfitting ao único artigo/template ESA | Crítico | Particionar corpus, gerar casos adversariais e reservar novos artigos para `holdout-human` | Aberto até ampliar o corpus |
+| R-21 | Overfitting ao único artigo/template ESA | Crítico | Trilha 7C, regressões gerais, múltiplos artigos e reserva de `holdout-human` | Materializado pelo e20240135; correção em andamento |
 | R-22 | Atualização de SPS/JATS/validadores invalidar evidências | Alto | Fixar versões, monitorar mudanças, executar regressão e manter rollback de profile | Aberto; controle planejado |
 
 # 8. Definition of Done global
@@ -1016,3 +1111,12 @@ ADRs iniciais esperados:
 | 2026-09-11 | V-09 concluída e implantada: 35 testes dedicados, 305 testes completos/87,02%, 40 operações autenticadas e 30 multiempresa inventariadas; zero achado crítico/alto aberto e zero vazamento conhecido; limitação Redis, equalização de login, auditoria de falhas, redaction de logs, contratos anti-mass-assignment e cabeçalhos defensivos implementados; backup/restore e gate sem rede passaram; imagem `phase7-v09-security-v1` saudável; próxima família V-10 | Codex |
 | 2026-09-11 | V-10 concluída e implantada: jobs reais de conversão IDML e pacote SciELO, snapshots/artefatos atômicos, idempotência estrita, cancelamento/retry/retomada, revisão, manifesto, hashes, dupla aprovação e UI operacional passaram de ponta a ponta; 308 testes/87,44%, gate local/VPS sem rede, backup/restore e imagem `phase7-v10-operational-v1` saudáveis; OpenClaw desligado e banco de agentes em zero; próxima família V-11 | Codex |
 | 2026-09-11 | V-11 concluída e implantada: 121 entradas binárias arbitrárias, 128 mutações de ZIP, cinco XMLs hostis e propriedades de Unicode, conteúdo misto, ordem e empacotamento passaram; 13/13 mutações comportamentais foram detectadas; uma propagação de `zlib.error` foi encontrada, corrigida e coberta por regressão; 317 testes/87,50%, Ruff/mypy, gate local/VPS read-only sem rede, backup/restore e imagem `phase7-v11-robustness-v1` saudáveis; próxima família V-12 | Codex |
+| 2026-09-11 | Novo artigo e20240135 testado como caso não usado anteriormente: comparador bloqueou 108 divergências, Packtools registrou 108 críticos/79 erros e o pacote recusou ativos ausentes; risco R-21 materializado; aberta a trilha corretiva 7C, baseline 7C-00 concluído e V-12 adiada até G7C-08 | Codex |
+| 2026-09-14 | 7C-01 concluída: manifesto verificou 12/12 artefatos privados; inventário content-safe mapeou 60 Stories, 68 frames, 54 objetos/ativos, 89 links, 292 estilos e 697 evidências; gate reproduziu deterministicamente os 108 bloqueios sem mismatch; regressões anti-vazamento e anti-special-case adicionadas; 321 testes/87,58%, Ruff e mypy aprovados; próxima etapa 7C-02 | Codex |
+| 2026-09-14 | 7C-02 concluída: PDFs `FigNN` deixaram de ser classificados como fórmulas, sete captions foram ligadas um-a-um a sete `graphic`, ordem global 1–7 restaurada e seção artificial removida; figuras e mídia atingiram precisão/recall/F1/fidelidade 1,0, bloqueios caíram de 108 para 94 e os sete JPGs finais passaram no pré-empacotamento por ordinal; gate real determinístico sem mismatch, 325 testes/87,50%, Ruff e mypy aprovados; próxima etapa 7C-03 | Codex |
+| 2026-09-15 | 7C-03 concluída: parser e mapper passaram a detectar 43 fórmulas na ordem correta (32 inline/11 display); 43 recortes PDF autenticados foram avaliados com gold oculto por proponente, dois críticos e adjudicador; catálogo registrou 43 aceites, 86 passes de críticos, zero abstensão incorporada e custo de 1.793.642 micro-USD; XML determinístico/válido com zero fórmula gráfica, domínios `formulas` e `formula_content` aprovados e bloqueios gerais reduzidos de 94 para 33; 335 testes/87,59%, Ruff, formatação e mypy aprovados; próxima etapa 7C-04 | Codex |
+| 2026-09-16 | 7C-04 concluída: hierarquia reproduziu 26 seções nos níveis 6/11/9; sete notas estruturais e dez unidades semânticas foram aprovadas; corpo sem omissão, invenção, alteração, deslocamento ou token não autenticado, com precisão 0,998969 e recall 1,0; tabelas, referências e 43 fórmulas permaneceram aprovadas; bloqueios gerais reduzidos de 30 para 6; gate determinístico sem mismatch, 343 testes/87,72%, Ruff, formatação e mypy aprovados; próxima etapa 7C-05 | Codex |
+| 2026-09-16 | 7C-05 concluída: quatro autores e ORCIDs preservados da fonte e componentes confirmados por autoridade Crossref independente; título do periódico e `other=00224` emitidos com proveniência; chamada da referência ordinal 18 resolvida, atingindo 39/39 cross-references e 35 destinos; corpo exato 5.814/5.814 sem duplicação; comparador com zero bloqueio nos 12 domínios após 24 fórmulas qualificadas; XML determinístico e válido sem issues, gate sem mismatch, 350 testes/87,70%, Ruff, formatação, mypy e diff check aprovados; próxima etapa 7C-06 | Codex |
+| 2026-09-17 | 7C-06 concluída: metadados formais content-addressed, idiomas, afiliações, 14 papéis CRediT, IDs, acessibilidade e 35 referências estruturadas implementados; oito erros reais de paginação e nove divergências de citação eliminados; pacote byte a byte reproduzível com XML, PDF e sete JPEGs, vínculos completos e zero issue offline; gate externo aceita somente códigos/quantidades comprovados e registra zero erro real, mantendo `release_ready=false` pelo XPM SPS 1.10 pendente; 360 testes/87,33%, Ruff, formatação e mypy aprovados; próxima etapa 7C-07 | Codex |
+| 2026-09-17 | 7C-07 concluída: seis domínios reavaliados por proponente, dois críticos e adjudicador em 24 chamadas, com seis propostas somente para revisão humana, cinco exatas e uma fórmula semanticamente equivalente; precisão/recall controlados 1,0, zero reparo/falso consenso/tool/Skill e custo de 140.447 micro-USD; cinco controles negativos falharam fechado e matriz adversarial passou 30/30; cleanup da VPS confirmou serviços saudáveis, flags falsas e zero credencial, rede, sessão ou persistência; gate content-safe/CI, 367 testes/87,29%, Ruff, formatação e mypy aprovados; próxima etapa 7C-08 | Codex |
+| 2026-09-21 | 7C-08 concluída: dois artigos requalificados com zero bloqueio semântico; 106/106 stories preservadas; regressão de ORCID editorial ambíguo e compatibilidade de catálogo corrigidas; 380 testes/87,31%, Ruff/mypy e 18 gates locais/VPS read-only sem rede aprovados; imagem `phase7-7c08-v1` implantada com backup/restore e rollback real comprovados; 23 serviços preservados, flags falsas e corpus privado somente local; V-07 PASSOU NO CORPUS ATUAL; próxima V-12, mantendo XPM e Gate Humano Final como bloqueios de release | Codex |

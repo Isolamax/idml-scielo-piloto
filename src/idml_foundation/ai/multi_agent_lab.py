@@ -149,7 +149,7 @@ class LabRoleConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     role: LabRole
-    max_output_tokens: int = Field(ge=200, le=4_000)
+    max_output_tokens: int = Field(ge=200, le=8_000)
 
 
 class MultiAgentLabPlan(BaseModel):
@@ -163,7 +163,7 @@ class MultiAgentLabPlan(BaseModel):
     model_key: str
     selected_case_ids: tuple[str, ...] = Field(min_length=1, max_length=10)
     roles: tuple[LabRoleConfig, ...] = Field(min_length=4, max_length=4)
-    timeout_seconds: int = Field(ge=1, le=45)
+    timeout_seconds: int = Field(ge=1, le=60)
     max_attempts: int = Field(ge=1, le=2)
     max_input_tokens_per_call: int = Field(ge=1, le=12_000)
     max_total_cost_microusd: int = Field(ge=1, le=10_000_000)
@@ -302,13 +302,13 @@ def _selected_cases(
             if (
                 root_path == field_path
                 or atomic_formula.get("root_path") != root_path
-                or current_representation not in {"image", "unknown"}
+                or current_representation not in {"image", "text", "unknown"}
                 or not isinstance(atomic_formula.get("display"), bool)
                 or (
                     current_representation == "image"
                     and (not isinstance(asset_id, str) or not asset_id)
                 )
-                or (current_representation == "unknown" and asset_id is not None)
+                or (current_representation in {"text", "unknown"} and asset_id is not None)
                 or required_paths != [field_path, f"{root_path}{representation_suffix}"]
                 or atomic_formula.get("allowed_target_representations") != ["mathml"]
                 or any(

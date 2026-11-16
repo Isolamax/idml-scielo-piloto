@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any, Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
@@ -12,6 +13,7 @@ class StrictRequestModel(BaseModel):
 
 class LoginRequest(StrictRequestModel):
     email: EmailStr
+    trust_browser: bool = False
     password: str = Field(min_length=14, max_length=1024)
     mfa_code: str | None = Field(default=None, pattern=r"^\d{6}$")
     recovery_code: str | None = Field(default=None, min_length=8, max_length=40)
@@ -28,6 +30,7 @@ class SessionResponse(BaseModel):
 class CurrentUserRead(BaseModel):
     id: str
     email: EmailStr
+    is_platform_admin: bool = False
     mfa_required: bool
     mfa_enabled: bool
 
@@ -55,7 +58,7 @@ class PasswordRecoveryRequest(StrictRequestModel):
 
 class PasswordRecoveryIssued(BaseModel):
     accepted: bool = True
-    development_token: str | None = None
+    reset_token: str | None = None
 
 
 class PasswordRecoveryComplete(StrictRequestModel):
@@ -135,6 +138,20 @@ class ScieloPackagePayload(StrictRequestModel):
     asset_artifact_ids: tuple[str, ...] = Field(default=(), max_length=100)
 
 
+class EditEvaluationPayload(StrictRequestModel):
+    resource_id: UUID
+    canonical_snapshot_id: UUID
+    review_version: int = Field(ge=1, strict=True)
+
+
+class EditRestorePayload(EditEvaluationPayload):
+    action: Literal["undo", "recover"]
+
+
+class EditPreflightPayload(EditEvaluationPayload):
+    authorization_id: UUID | None = None
+
+
 class JobCreate(StrictRequestModel):
     kind: str = Field(pattern=r"^[a-z][a-z0-9_.-]{1,79}$")
     idempotency_key: str = Field(min_length=8, max_length=200)
@@ -145,6 +162,10 @@ class JobCreate(StrictRequestModel):
         models: dict[str, type[BaseModel]] = {
             "idml.process": IdmlProcessPayload,
             "scielo.package": ScieloPackagePayload,
+            "autocorrection.preflight": EditPreflightPayload,
+            "autocorrection.evaluate": EditEvaluationPayload,
+            "autocorrection.authorize": EditEvaluationPayload,
+            "autocorrection.restore": EditRestorePayload,
         }
         model = models.get(self.kind)
         if model is not None:

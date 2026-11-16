@@ -80,6 +80,16 @@ def test_clamav_timeout_and_unknown_response_fail_closed(
         ClamAVScanner("scanner", 3310).scan(b"payload")
 
 
+@pytest.mark.parametrize("reply", [b"stream: NOT OK\0", b"stream: OK", b"stream: OK\0garbage"])
+def test_partial_or_misleading_clamav_reply_is_never_clean(monkeypatch, reply):
+    chunks = iter((reply, b""))
+    connection = FakeClamAVConnection(reply)
+    monkeypatch.setattr(connection, "recv", lambda size: next(chunks))
+    monkeypatch.setattr(socket, "create_connection", lambda *_args, **_kwargs: connection)
+    with pytest.raises(ScannerUnavailableError):
+        ClamAVScanner("scanner", 3310).scan(b"payload")
+
+
 def test_scanner_unavailable_response_is_sanitized() -> None:
     app = create_app()
 

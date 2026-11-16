@@ -137,7 +137,9 @@ else {
 }
 JS
 )
-[ "$session_count" = 0 ]
+if [ "${1:-}" != "--web-pilot" ]; then
+  [ "$session_count" = 0 ]
+fi
 
 provider exec -T openclaw-idml openclaw models list --json |
   python3 -c '

@@ -13,6 +13,7 @@ from idml_foundation.domain.canonical import (
     FormulaBlock,
     FormulaRepresentation,
     InlineKind,
+    InlineNode,
     ListBlock,
     NoteBlock,
     Paragraph,
@@ -22,12 +23,17 @@ from idml_foundation.domain.canonical import (
     TableBlock,
 )
 from idml_foundation.mathml import MATHML_NS, parse_mathml_fragment
+from idml_foundation.pipeline.affiliation_hierarchy import institution_divisions
+from idml_foundation.pipeline.metadata_normalization import normalize_credit_writing_role
+from idml_foundation.publication_dates import publication_parts
 
 XLINK_NS = "http://www.w3.org/1999/xlink"
 XML_NS = "http://www.w3.org/XML/1998/namespace"
 JATS_DTD_NAME = "JATS-journalpublishing1-3-mathml3.dtd"
-JATS_PUBLIC_ID = "-//NLM//DTD JATS (Z39.96) Journal Publishing DTD v1.3 20210610//EN"
+# The MathML3 entry point has a distinct PUBLIC identifier in the NLM catalog.
+JATS_PUBLIC_ID = "-//NLM//DTD JATS (Z39.96) Journal Publishing DTD with MathML3 v1.3 20210610//EN"
 _INVALID_NCNAME = re.compile(r"[^A-Za-z0-9_.-]+")
+_REFERENCE_URL = re.compile(r"https?://[^\s]+", re.IGNORECASE)
 _UNSAFE_INVISIBLE_CHARACTERS = frozenset(
     {
         "\ufeff",
@@ -115,6 +121,41 @@ def _xml_text(value: str) -> str:
     )
 
 
+def _funding_text(value: str, *, terminal_period: bool) -> str:
+    stripped = value.strip()
+    if re.fullmatch(r"none\.?", stripped, re.IGNORECASE):
+        return "None." if terminal_period else "None"
+    return stripped
+
+
+def _rich_lines(value: RichText) -> tuple[RichText, ...]:
+    """Split source line breaks into JATS paragraphs without dropping inline markup."""
+    if "\n" not in (value.plain.value or ""):
+        return (value,)
+    groups: list[list[InlineNode]] = [[]]
+    for inline in value.inlines:
+        parts = inline.text.split("\n")
+        for position, part in enumerate(parts):
+            if part or inline.kind == InlineKind.INLINE_FORMULA:
+                groups[-1].append(inline.model_copy(update={"text": part}))
+            if position < len(parts) - 1:
+                groups.append([])
+    lines = (value.plain.value or "").splitlines()
+    return tuple(
+        RichText(
+            plain=value.plain.model_copy(
+                update={
+                    "value": lines[position],
+                    "transformation": "source-line-break-to-jats-paragraph",
+                }
+            ),
+            inlines=tuple(groups[position]),
+        )
+        for position in range(min(len(lines), len(groups)))
+        if lines[position].strip()
+    )
+
+
 class JatsBuilder:
     def __init__(self, *, sps_version: str = "sps-1.10") -> None:
         if sps_version != "sps-1.10":
@@ -135,7 +176,7 @@ class JatsBuilder:
             },
         )
         asset_names = {asset.id: asset.logical_name for asset in article.assets}
-        self._front(root, article, registry)
+        self._front(root, article, registry, asset_names)
         self._body(root, article, registry, asset_names)
         self._back(root, article, registry, asset_names)
         tree = etree.ElementTree(root)
@@ -158,6 +199,12 @@ class JatsBuilder:
             self._register_section(section, registry)
         for note in article.back.notes:
             registry.register(note.id, target_type="fn")
+        for position, funding in enumerate(article.front.funding):
+            if funding.statement and funding.statement.value:
+                registry.register(
+                    f"{article.article_id}:funding-disclosure:{position}",
+                    target_type="fn",
+                )
         for reference in article.back.references:
             registry.register(reference.id, target_type="bibr")
         for paragraph in article.back.acknowledgements:
@@ -173,11 +220,28 @@ class JatsBuilder:
                 NoteBlock: "other",
             }.get(type(block))
             registry.register(block.id, target_type=target_type)
+            if isinstance(block, Paragraph):
+                self._register_rich(block.content, registry)
             if isinstance(block, ListBlock):
                 for item in block.items:
                     registry.register(item.id)
+                    self._register_rich(item.content, registry)
+            elif isinstance(block, FigureBlock):
+                self._register_rich(block.caption, registry)
+            elif isinstance(block, TableBlock):
+                for row in block.rows:
+                    for cell in row:
+                        self._register_rich(cell, registry)
+                for footnote in block.footnotes:
+                    self._register_rich(footnote, registry)
+            elif isinstance(block, NoteBlock):
+                self._register_rich(block.content, registry)
         for child in section.children:
             self._register_section(child, registry)
+
+    def _register_rich(self, value: RichText, registry: IdRegistry) -> None:
+        for inline in value.inlines:
+            registry.register(inline.id)
 
     def _primary_language(self, article: CanonicalArticle) -> str:
         return article.front.titles[0].language if article.front.titles else "pt"
@@ -187,11 +251,16 @@ class JatsBuilder:
         root: etree._Element,
         article: CanonicalArticle,
         registry: IdRegistry,
+        asset_names: dict[str, str],
     ) -> None:
         front = _add(root, "front")
         journal_meta = _add(front, "journal-meta")
         journal_id = next(
-            (item.value.value for item in article.front.journal.identifiers if item.value.value),
+            (
+                item.value.value
+                for item in article.front.journal.identifiers
+                if item.kind == "publisher-id" and item.value.value
+            ),
             article.journal_profile_id,
         )
         _add(journal_meta, "journal-id", journal_id, **{"journal-id-type": "publisher-id"})
@@ -209,7 +278,8 @@ class JatsBuilder:
             )
         for identifier in article.front.journal.identifiers:
             if identifier.value.value and "issn" in identifier.kind:
-                _add(journal_meta, "issn", identifier.value.value, **{"pub-type": "epub"})
+                pub_type = "ppub" if identifier.kind == "print-issn" else "epub"
+                _add(journal_meta, "issn", identifier.value.value, **{"pub-type": pub_type})
         if article.front.journal.publisher_name and article.front.journal.publisher_name.value:
             publisher = _add(journal_meta, "publisher")
             _add(publisher, "publisher-name", article.front.journal.publisher_name.value)
@@ -235,7 +305,8 @@ class JatsBuilder:
                 )
         categories = _add(article_meta, "article-categories")
         subject_group = _add(categories, "subj-group", **{"subj-group-type": "heading"})
-        _add(subject_group, "subject", article.front.article_category.value or "research-article")
+        subject = article.front.subject_category or article.front.article_category
+        _add(subject_group, "subject", subject.value or "research-article")
 
         title_group = _add(article_meta, "title-group")
         for position, localized in enumerate(article.front.titles):
@@ -310,10 +381,11 @@ class JatsBuilder:
                         },
                     )
                 for role in contributor.roles:
+                    normalized_role = normalize_credit_writing_role(role)
                     attributes = {}
-                    if role in _CREDIT_ROLE_URIS:
-                        attributes["content-type"] = _CREDIT_ROLE_URIS[role]
-                    _add(contrib, "role", role, **attributes)
+                    if normalized_role in _CREDIT_ROLE_URIS:
+                        attributes["content-type"] = _CREDIT_ROLE_URIS[normalized_role]
+                    _add(contrib, "role", normalized_role, **attributes)
                 if contributor.email and contributor.email.value:
                     _add(contrib, "email", contributor.email.value)
         for position, affiliation in enumerate(article.front.affiliations, start=1):
@@ -334,12 +406,14 @@ class JatsBuilder:
                     affiliation.ror.value,
                     **{"institution-id-type": "ror"},
                 )
-            if affiliation.department and affiliation.department.value:
+            for level, division in enumerate(
+                institution_divisions(affiliation, article.evidence), start=1
+            ):
                 _add(
                     aff,
                     "institution",
-                    affiliation.department.value,
-                    **{"content-type": "orgdiv1"},
+                    division,
+                    **{"content-type": f"orgdiv{level}"},
                 )
             _add(
                 aff,
@@ -379,7 +453,12 @@ class JatsBuilder:
             for contributor in article.front.contributors
             if contributor.corresponding and contributor.email and contributor.email.value
         )
-        if corresponding:
+        editorial_notes = tuple(
+            note
+            for note in article.back.notes
+            if note.note_type in {"edited-by", "associate-editor", "scientific-editor"}
+        )
+        if corresponding or article.back.conflicts or editorial_notes:
             author_notes = _add(article_meta, "author-notes")
             for contributor in corresponding:
                 email = contributor.email
@@ -392,6 +471,20 @@ class JatsBuilder:
                 )
                 _add(corresp, "label", "*")
                 _add(corresp, "email", email.value)
+            if article.back.conflicts and article.back.conflicts.value:
+                conflict = _add(author_notes, "fn", **{"fn-type": "coi-statement"})
+                _add(conflict, "label", "Conflicts of interest:")
+                _add(conflict, "p", article.back.conflicts.value)
+            for note in editorial_notes:
+                element = _add(author_notes, "fn", **{"fn-type": "edited-by"})
+                label = {
+                    "edited-by": "Editor:",
+                    "associate-editor": "Associate editor:",
+                    "scientific-editor": "Scientific editor:",
+                }[note.note_type]
+                _add(element, "label", label)
+                paragraph = _add(element, "p")
+                self._rich(paragraph, note.content, registry, asset_names)
 
         if article.front.publication_date.state == FieldState.PRESENT:
             self._publication_date(article_meta, article.front.publication_date.value or "")
@@ -433,12 +526,17 @@ class JatsBuilder:
             _add(license_element, "license-p", article.front.license_text.value)
         for abstract in article.front.abstracts:
             if abstract.text.value:
+                tag = (
+                    "abstract"
+                    if abstract.language == self._primary_language(article)
+                    else "trans-abstract"
+                )
                 element = _add(
                     article_meta,
-                    "abstract",
+                    tag,
                     **{f"{{{XML_NS}}}lang": abstract.language},
                 )
-                _add(element, "title", "Abstract")
+                _add(element, "title", "Resumo" if abstract.language == "pt" else "Abstract")
                 _add(element, "p", abstract.text.value)
         for keyword_group in article.front.keywords:
             if not keyword_group.text.value:
@@ -461,11 +559,21 @@ class JatsBuilder:
                     if funding.award_id and funding.award_id.value:
                         _add(award_group, "award-id", funding.award_id.value)
                 if funding.statement and funding.statement.value:
-                    _add(funding_group, "funding-statement", funding.statement.value)
+                    _add(
+                        funding_group,
+                        "funding-statement",
+                        _funding_text(funding.statement.value, terminal_period=True),
+                    )
 
     def _publication_date(self, article_meta: etree._Element, value: str) -> None:
         attributes = {"publication-format": "electronic", "date-type": "pub"}
         parsed: date | None = None
+        partial_month: tuple[int, ...] | None = None
+        if re.fullmatch(r"\d{4}-\d{2}", value):
+            try:
+                partial_month = publication_parts(value)
+            except ValueError:
+                pass
         try:
             parsed = date.fromisoformat(value)
         except ValueError:
@@ -479,15 +587,18 @@ class JatsBuilder:
             _add(pub_date, "year", str(parsed.year))
         elif re.fullmatch(r"\d{4}", value):
             _add(pub_date, "year", value)
+        elif partial_month:
+            _add(pub_date, "month", str(partial_month[1]).zfill(2))
+            _add(pub_date, "year", str(partial_month[0]))
         else:
             _add(pub_date, "string-date", value)
-        if parsed is not None or re.fullmatch(r"\d{4}", value):
+        if parsed is not None or partial_month or re.fullmatch(r"\d{4}", value):
             collection = _add(
                 article_meta,
                 "pub-date",
                 **{"publication-format": "electronic", "date-type": "collection"},
             )
-            _add(collection, "year", str(parsed.year) if parsed is not None else value)
+            _add(collection, "year", str(parsed.year) if parsed is not None else value[:4])
 
     def _history_date(
         self,
@@ -523,7 +634,10 @@ class JatsBuilder:
         registry: IdRegistry,
         asset_names: dict[str, str],
     ) -> None:
-        element = _add(parent, "sec", id=registry.resolve(section.id))
+        section_attributes = {"id": registry.resolve(section.id)}
+        if section.section_type:
+            section_attributes["sec-type"] = section.section_type
+        element = _add(parent, "sec", **section_attributes)
         if section.title.value:
             _add(element, "title", section.title.value)
         for block in section.blocks:
@@ -538,12 +652,17 @@ class JatsBuilder:
                 caption_paragraph = _add(caption, "p")
                 self._rich(caption_paragraph, block.caption, registry, asset_names)
                 if block.asset_id:
-                    _add(
+                    graphic = _add(
                         figure,
                         "graphic",
                         id=f"{registry.resolve(block.id)}-g1",
                         **{f"{{{XLINK_NS}}}href": asset_names[block.asset_id]},
                     )
+                    if block.caption.plain.value:
+                        summary = "Visual summary: " + " ".join(block.caption.plain.value.split())
+                        if len(summary) > 120:
+                            summary = summary[:117].rstrip() + "..."
+                        _add(graphic, "alt-text", summary)
             elif isinstance(block, TableBlock):
                 wrapper = _add(element, "table-wrap", id=registry.resolve(block.id))
                 if block.label.value:
@@ -566,23 +685,27 @@ class JatsBuilder:
                     for column_index, cell in enumerate(row):
                         if (row_index, column_index) in covered:
                             continue
-                        attributes: dict[str, str] = {}
+                        cell_attributes: dict[str, str] = {}
                         span = spans.get((row_index, column_index))
                         if span and span.row_span > 1:
-                            attributes["rowspan"] = str(span.row_span)
+                            cell_attributes["rowspan"] = str(span.row_span)
                         if span and span.column_span > 1:
-                            attributes["colspan"] = str(span.column_span)
-                        td = _add(tr, "td", **attributes)
+                            cell_attributes["colspan"] = str(span.column_span)
+                        td = _add(tr, "td", **cell_attributes)
                         if cell.plain.value:
                             self._rich(td, cell, registry, asset_names)
                 if block.footnotes:
                     table_footer = _add(wrapper, "table-wrap-foot")
-                    for position, footnote in enumerate(block.footnotes, start=1):
+                    for footnote in block.footnotes:
                         footnote_element = _add(table_footer, "fn")
-                        _add(footnote_element, "label", str(position))
-                        paragraph = _add(footnote_element, "p")
-                        self._rich(paragraph, footnote, registry, asset_names)
+                        for line in _rich_lines(footnote):
+                            paragraph = _add(footnote_element, "p")
+                            self._rich(paragraph, line, registry, asset_names)
             elif isinstance(block, ListBlock):
+                if len(block.items) == 1:
+                    paragraph = _add(element, "p", id=registry.resolve(block.id))
+                    self._rich(paragraph, block.items[0].content, registry, asset_names)
+                    continue
                 listing = _add(
                     element,
                     "list",
@@ -611,7 +734,9 @@ class JatsBuilder:
                         **{f"{{{XLINK_NS}}}href": asset_names[block.asset_id]},
                     )
                 elif block.representation == FormulaRepresentation.MATHML:
-                    formula.append(parse_mathml_fragment(block.source.value or "", display=True))
+                    math = parse_mathml_fragment(block.source.value or "", display=True)
+                    math.set("id", f"m-{registry.resolve(block.id)}")
+                    formula.append(math)
                 else:
                     _add(formula, "tex-math", block.source.value or "")
             elif isinstance(block, NoteBlock):
@@ -645,14 +770,18 @@ class JatsBuilder:
                     inline.formula_source is None or inline.formula_source.value is None
                 ):
                     continue
-                inline_formula = _add(parent, "inline-formula")
+                inline_formula = _add(
+                    parent,
+                    "inline-formula",
+                    id=f"e-{registry.resolve(inline.id)}",
+                )
                 if inline.formula_representation == FormulaRepresentation.MATHML:
-                    inline_formula.append(
-                        parse_mathml_fragment(
-                            (inline.formula_source.value or "") if inline.formula_source else "",
-                            display=False,
-                        )
+                    math = parse_mathml_fragment(
+                        (inline.formula_source.value or "") if inline.formula_source else "",
+                        display=False,
                     )
+                    math.set("id", f"m-{registry.resolve(inline.id)}")
+                    inline_formula.append(math)
                 elif (
                     inline.formula_representation == FormulaRepresentation.IMAGE
                     and inline.formula_asset_id
@@ -707,17 +836,27 @@ class JatsBuilder:
         registry: IdRegistry,
         asset_names: dict[str, str],
     ) -> None:
+        back_notes = tuple(
+            note
+            for note in article.back.notes
+            if note.note_type not in {"edited-by", "associate-editor", "scientific-editor"}
+        )
+        funding_disclosures = tuple(
+            (position, funding)
+            for position, funding in enumerate(article.front.funding)
+            if funding.statement and funding.statement.value
+        )
         if not any(
             (
                 bool(article.back.references),
-                bool(article.back.notes),
+                bool(back_notes),
+                bool(funding_disclosures),
                 bool(article.back.acknowledgements),
                 bool(
                     article.back.contribution_statement
                     and article.back.contribution_statement.value
                 ),
                 bool(article.back.data_availability and article.back.data_availability.value),
-                bool(article.back.conflicts and article.back.conflicts.value),
             )
         ):
             return
@@ -729,22 +868,42 @@ class JatsBuilder:
                 paragraph = _add(acknowledgements, "p", id=registry.resolve(source.id))
                 self._rich(paragraph, source.content, registry, asset_names)
         for section_type, title, sourced in (
-            ("author-contributions", "Author contributions", article.back.contribution_statement),
-            ("data-availability", "Data availability", article.back.data_availability),
-            ("conflict-of-interest", "Conflicts of interest", article.back.conflicts),
+            (None, "Author contributions", article.back.contribution_statement),
+            (
+                "data-availability",
+                "DATA AVAILABILITY STATEMENT",
+                article.back.data_availability,
+            ),
         ):
             if sourced and sourced.value:
                 attributes: dict[str, str] = {}
-                if section_type == "data-availability":
+                if section_type:
                     attributes["sec-type"] = section_type
-                    if article.back.data_availability_mode:
-                        attributes["specific-use"] = article.back.data_availability_mode
+                if section_type == "data-availability":
+                    attributes["specific-use"] = article.back.data_availability_mode or "uninformed"
                 section = _add(back, "sec", **attributes)
                 _add(section, "title", title)
                 _add(section, "p", sourced.value)
-        if article.back.notes:
+        if back_notes or funding_disclosures:
             note_group = _add(back, "fn-group")
-            for position, note in enumerate(article.back.notes, start=1):
+            for position, funding in funding_disclosures:
+                statement = funding.statement
+                if statement is None or statement.value is None:
+                    continue
+                funding_id = f"{article.article_id}:funding-disclosure:{position}"
+                element = _add(
+                    note_group,
+                    "fn",
+                    id=registry.resolve(funding_id),
+                    **{"fn-type": "financial-disclosure"},
+                )
+                _add(element, "label", "Funding:")
+                _add(
+                    element,
+                    "p",
+                    _funding_text(statement.value, terminal_period=False),
+                )
+            for position, note in enumerate(back_notes, start=1):
                 element = _add(
                     note_group,
                     "fn",
@@ -768,13 +927,28 @@ class JatsBuilder:
                         reference.year and reference.year.value,
                         reference.title and reference.title.value,
                         reference.source and reference.source.value,
+                        reference.volume and reference.volume.value,
+                        reference.issue and reference.issue.value,
+                        reference.first_page and reference.first_page.value,
+                        reference.last_page and reference.last_page.value,
+                        reference.elocation_id and reference.elocation_id.value,
                         reference.identifiers,
+                        reference.part_title,
+                        reference.editors,
+                        reference.publisher_name,
+                        reference.publisher_location,
+                        reference.edition,
+                        reference.publication_description,
+                        reference.access_date,
                     )
                 ):
                     structured = _add(
                         element,
                         "element-citation",
-                        **{"publication-type": "journal", "specific-use": "machine-readable"},
+                        **{
+                            "publication-type": reference.publication_type or "other",
+                            "specific-use": "machine-readable",
+                        },
                     )
                     if reference.authors:
                         authors = _add(
@@ -782,13 +956,58 @@ class JatsBuilder:
                         )
                         for author in reference.authors:
                             if author.value:
-                                _add(authors, "string-name", author.value)
+                                if "," in author.value:
+                                    surname, given_names = author.value.split(",", 1)
+                                    name = _add(authors, "name", **{"name-style": "western"})
+                                    _add(name, "surname", surname.strip())
+                                    if given_names.strip():
+                                        _add(name, "given-names", given_names.strip())
+                                else:
+                                    _add(authors, "collab", author.value)
                     if reference.title and reference.title.value:
                         _add(structured, "article-title", reference.title.value)
+                    if reference.part_title and reference.part_title.value:
+                        _add(structured, "part-title", reference.part_title.value)
+                    if reference.editors:
+                        editors = _add(
+                            structured, "person-group", **{"person-group-type": "editor"}
+                        )
+                        for editor in reference.editors:
+                            if editor.value:
+                                surname, _, given = editor.value.partition(",")
+                                name = _add(editors, "name", **{"name-style": "western"})
+                                _add(name, "surname", surname.strip())
+                                if given.strip():
+                                    _add(name, "given-names", given.strip())
                     if reference.source and reference.source.value:
                         _add(structured, "source", reference.source.value)
+                    for tag, field_value in (
+                        ("edition", reference.edition),
+                        ("publisher-loc", reference.publisher_location),
+                        ("publisher-name", reference.publisher_name),
+                        ("comment", reference.publication_description),
+                    ):
+                        if field_value and field_value.value:
+                            _add(structured, tag, field_value.value)
                     if reference.year and reference.year.value:
                         _add(structured, "year", reference.year.value)
+                    if reference.volume and reference.volume.value:
+                        _add(structured, "volume", reference.volume.value)
+                    if reference.issue and reference.issue.value:
+                        _add(structured, "issue", reference.issue.value)
+                    if reference.first_page and reference.first_page.value:
+                        _add(structured, "fpage", reference.first_page.value)
+                    if reference.last_page and reference.last_page.value:
+                        _add(structured, "lpage", reference.last_page.value)
+                    if reference.elocation_id and reference.elocation_id.value:
+                        _add(structured, "elocation-id", reference.elocation_id.value)
+                    if reference.access_date and reference.access_date.value:
+                        _add(
+                            structured,
+                            "date-in-citation",
+                            reference.access_date.value,
+                            **{"content-type": "access-date"},
+                        )
                     for identifier in reference.identifiers:
                         if identifier.value.value:
                             _add(
@@ -796,4 +1015,17 @@ class JatsBuilder:
                                 "pub-id",
                                 identifier.value.value,
                                 **{"pub-id-type": identifier.kind},
+                            )
+                    if reference.mixed_citation.plain.value:
+                        for match in _REFERENCE_URL.finditer(reference.mixed_citation.plain.value):
+                            href = match.group(0).rstrip(".,;)")
+                            _add(
+                                structured,
+                                "ext-link",
+                                href,
+                                **{
+                                    "ext-link-type": "uri",
+                                    f"{{{XLINK_NS}}}href": href,
+                                    f"{{{XLINK_NS}}}title": "External reference",
+                                },
                             )

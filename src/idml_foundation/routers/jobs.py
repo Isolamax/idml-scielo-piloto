@@ -1,5 +1,5 @@
 import logging
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, status
 from redis import Redis
@@ -23,6 +23,7 @@ from idml_foundation.services.jobs import (
     schedule_retry,
     transition_job,
 )
+from idml_foundation.services.validation_diagnosis import describe_validation
 
 router = APIRouter(prefix="/v1/jobs", tags=["jobs"])
 logger = logging.getLogger(__name__)
@@ -36,7 +37,9 @@ def _wake_worker(db: Session, settings: Configuration, job: Job, correlation_id:
     db.commit()
     db.refresh(job)
     try:
-        Redis.from_url(settings.redis_url).lpush("idml:jobs", job_id)
+        Redis.from_url(settings.redis_url, socket_connect_timeout=2, socket_timeout=2).lpush(
+            "idml:jobs", job_id
+        )
     except RedisError:
         logger.warning(
             "job persisted; Redis wake-up failed",
@@ -112,6 +115,16 @@ def get_job(
     if job is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="job not found")
     return job
+
+
+@router.get("/{job_id}/validation-diagnosis")
+def get_validation_diagnosis(
+    job_id: str,
+    db: Database,
+    context: Annotated[TenantContext, require_permission(Permission.JOB_READ)],
+) -> dict[str, Any]:
+    job = get_job(job_id, db, context)
+    return describe_validation(job.result)
 
 
 @router.get("/{job_id}/events", response_model=list[JobEventRead])

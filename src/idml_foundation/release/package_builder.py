@@ -10,6 +10,7 @@ from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 from lxml import etree
 from pydantic import Field, model_validator
 
+from idml_foundation.asset_identity import figure_asset_number
 from idml_foundation.domain.common import SHA256_PATTERN, StrictModel, canonical_bytes
 
 _ZIP_EPOCH = (1980, 1, 1, 0, 0, 0)
@@ -76,6 +77,14 @@ class PackageBuilder:
         pdf: bytes,
         assets: tuple[AssetPayload, ...],
     ) -> tuple[PackageInput, ...]:
+        files, _ = self.scielo_files_with_bindings(
+            package_stem=package_stem, xml=xml, pdf=pdf, assets=assets
+        )
+        return files
+
+    def scielo_files_with_bindings(
+        self, *, package_stem: str, xml: bytes, pdf: bytes, assets: tuple[AssetPayload, ...]
+    ) -> tuple[tuple[PackageInput, ...], list[tuple[str, str, str]]]:
         if PurePosixPath(package_stem).name != package_stem:
             raise ValueError("package stem must be a safe basename")
         parser = etree.XMLParser(
@@ -90,7 +99,26 @@ class PackageBuilder:
         if len(by_source) != len(assets):
             raise ValueError("asset source names must be unique")
         package_assets: list[PackageInput] = []
+        bindings: list[tuple[str, str, str]] = []
         used: set[str] = set()
+
+        def resolve_payload(source_name: str) -> AssetPayload | None:
+            exact = by_source.get(source_name)
+            if exact is not None and exact.source_name not in used:
+                return exact
+            figure_number = figure_asset_number(source_name)
+            if figure_number is None:
+                return None
+            candidates = [
+                item
+                for item in assets
+                if item.source_name not in used
+                and figure_asset_number(item.source_name) == figure_number
+            ]
+            if len(candidates) > 1:
+                raise ValueError(f"ambiguous package figure asset: {source_name}")
+            return candidates[0] if candidates else None
+
         graphics = (
             element
             for element in root.iter()
@@ -98,13 +126,14 @@ class PackageBuilder:
         )
         for position, graphic in enumerate(graphics, start=1):
             source_name = graphic.get(_XLINK_HREF, "")
-            payload = by_source.get(source_name)
+            payload = resolve_payload(source_name)
             if payload is None:
                 raise ValueError(f"missing package asset: {source_name}")
-            suffix = PurePosixPath(source_name).suffix.casefold() or ".bin"
+            suffix = PurePosixPath(payload.source_name).suffix.casefold() or ".bin"
             target_name = f"{package_stem}-gf{position:02}{suffix}"
             graphic.set(_XLINK_HREF, target_name)
-            used.add(source_name)
+            bindings.append((source_name, payload.source_name, target_name))
+            used.add(payload.source_name)
             package_assets.append(
                 PackageInput(
                     name=target_name,
@@ -143,7 +172,7 @@ class PackageBuilder:
                 data=pdf,
             ),
             *package_assets,
-        )
+        ), bindings
 
     def build(
         self,

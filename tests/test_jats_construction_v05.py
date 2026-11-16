@@ -67,7 +67,8 @@ def test_builder_emits_complete_dtd_valid_and_deterministic_jats() -> None:
     )
     assert root.xpath("count(front/article-meta/funding-group/award-group)") == 1.0
     assert root.xpath("count(back/ack)") == 1.0
-    assert root.xpath("count(back/sec)") == 3.0
+    assert root.xpath("count(back/sec)") == 2.0
+    assert root.xpath("count(front/article-meta/author-notes/fn[@fn-type='coi-statement'])") == 1.0
     assert root.xpath("count(back/ref-list/ref/element-citation/pub-id)") == 1.0
     assert root.xpath("starts-with(string(body//disp-formula/@id), 'e-')")
 
@@ -85,6 +86,41 @@ def test_builder_preserves_table_spans_and_infers_every_xref_type() -> None:
         "fn",
         "bibr",
     }
+
+
+def test_builder_marks_reference_urls_with_accessible_external_links() -> None:
+    article = complete_article()
+    reference = article.back.references[0]
+    citation = reference.mixed_citation.model_copy(
+        update={
+            "plain": reference.mixed_citation.plain.model_copy(
+                update={
+                    "value": (
+                        "Silva A. Water treatment. Example Journal. 2025. "
+                        "https://doi.org/10.1234/example.1"
+                    )
+                }
+            )
+        }
+    )
+    article = article.model_copy(
+        update={
+            "back": article.back.model_copy(
+                update={"references": (reference.model_copy(update={"mixed_citation": citation}),)}
+            )
+        }
+    )
+
+    root = etree.fromstring(JatsBuilder().build(article))
+
+    assert root.xpath("count(back/ref-list/ref/element-citation/ext-link)") == 1.0
+    assert (
+        root.xpath(
+            "string(back/ref-list/ref/element-citation/ext-link/@xlink:title)",
+            namespaces={"xlink": XLINK_NS},
+        )
+        == "External reference"
+    )
 
 
 @pytest.mark.parametrize(

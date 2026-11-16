@@ -278,6 +278,29 @@ class DomainSnapshot(TimestampMixin, Base):
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
 
+class CanonicalHeadEvent(Base):
+    """Append-only working-head lineage; never evidence of release approval."""
+
+    __tablename__ = "canonical_head_events"
+    __table_args__ = (
+        UniqueConstraint("resource_id", "sequence", name="uq_canonical_head_sequence"),
+        UniqueConstraint("organization_id", "request_id", name="uq_canonical_head_request"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    resource_id: Mapped[str] = mapped_column(ForeignKey("resources.id"), index=True)
+    sequence: Mapped[int] = mapped_column(Integer)
+    snapshot_id: Mapped[str] = mapped_column(ForeignKey("domain_snapshots.id"))
+    previous_snapshot_id: Mapped[str | None] = mapped_column(ForeignKey("domain_snapshots.id"))
+    previous_event_id: Mapped[str | None] = mapped_column(ForeignKey("canonical_head_events.id"))
+    request_id: Mapped[str] = mapped_column(String(36))
+    request_sha256: Mapped[str] = mapped_column(String(64))
+    receipt: Mapped[dict[str, Any]] = mapped_column(JSON)
+    receipt_sha256: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class ReviewItem(TimestampMixin, Base):
     __tablename__ = "review_items"
     __table_args__ = (

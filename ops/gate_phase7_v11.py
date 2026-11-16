@@ -24,7 +24,7 @@ from idml_foundation.release.package_builder import PackageBuilder, PackageInput
 from idml_foundation.settings import Settings
 
 ROOT = Path(__file__).parents[1]
-REPORT = ROOT / "benchmarks/qualification/reports/v11-robustness-mutation-v1.json"
+REPORT = ROOT / "benchmarks/qualification/reports/v11-robustness-mutation-vh19-v1.json"
 
 
 def _archive_with(entries: tuple[tuple[str, bytes, int], ...] = ()) -> bytes:
@@ -60,8 +60,14 @@ def _published_report_gate(report: dict[str, Any]) -> dict[str, Any]:
     if report.get("critical_findings_open") != 0 or report.get("major_findings_open") != 0:
         raise ValueError("V-11 has an unresolved critical/major finding")
     mutation = report.get("mutation_assessment", {})
-    if mutation.get("score_percent", 0) < 90 or mutation.get("mutants_killed") != mutation.get(
-        "mutants_total"
+    total = mutation.get("mutants_total")
+    if (
+        type(total) is not int
+        or total < 13
+        or type(mutation.get("mutants_killed")) is not int
+        or mutation["mutants_killed"] != total
+        or mutation.get("score_percent") != 100
+        or len(mutation.get("guards", {})) != total
     ):
         raise ValueError("V-11 mutation threshold was not met")
     if report.get("release_candidate_approved") is not False:
@@ -69,6 +75,8 @@ def _published_report_gate(report: dict[str, Any]) -> dict[str, Any]:
     if any(report.get("privacy", {}).values()):
         raise ValueError("V-11 public report violates the content-safe contract")
     expected = report.get("source_sha256", {})
+    if "src/idml_foundation/release/package_builder.py" not in expected:
+        raise ValueError("V11 source evidence missing")
     actual = {name: _sha256(ROOT / name) for name in expected}
     if actual != expected:
         raise ValueError("V-11 source evidence hash mismatch")

@@ -26,7 +26,7 @@ from idml_foundation.domain.metrics import (
 def test_repository_corpus_manifests_are_valid_and_holdout_is_separate() -> None:
     root = Path(__file__).parents[1]
     manifests = [load_manifest(path) for path in sorted((root / "corpus/manifests").glob("*.json"))]
-    assert len(manifests) == 6
+    assert len(manifests) == 7
     assert sum(item.split == CorpusSplit.HOMOLOGATION_HOLDOUT for item in manifests) == 1
     assert all(not item.policy.redistribution_allowed for item in manifests)
     esa = next(item for item in manifests if item.corpus_id == "esa-e20240086")
@@ -34,6 +34,11 @@ def test_repository_corpus_manifests_are_valid_and_holdout_is_separate() -> None
     assert esa.expected.figures == 5
     assert esa.expected.references == 52
     assert len(esa.artifacts) == 11
+    corrective = next(item for item in manifests if item.corpus_id == "esa-e20240135")
+    assert corrective.expected.figures == 7
+    assert corrective.expected.inline_formulas == 32
+    assert corrective.expected.display_formulas == 11
+    assert len(corrective.artifacts) == 12
 
 
 def test_manifest_verification_checks_size_and_digest(tmp_path: Path) -> None:

@@ -11,10 +11,16 @@ class JournalProfile(StrictModel):
     profile_version: str
     journal_title: str
     journal_abbreviated_title: str
+    journal_publisher_id: str
+    journal_print_issn: str
     journal_issn: str
+    publisher_name: str
     primary_language: str = Field(pattern=r"^[a-z]{2,3}$")
     secondary_language: str = Field(pattern=r"^[a-z]{2,3}$")
     article_category: str
+    subject_category: str
+    license_text: str
+    country_codes: dict[str, str]
     sps_version: str = Field(pattern=r"^sps-\d+\.\d+$")
     package_name_template: str
     style_roles: dict[str, str]

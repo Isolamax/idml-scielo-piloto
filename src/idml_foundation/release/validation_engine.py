@@ -516,6 +516,8 @@ class ValidationEngine:
         return environment
 
     def _category(self, code: str, message: str) -> IssueCategory:
+        if code.startswith("external-verification-unavailable-"):
+            return IssueCategory.SYSTEM
         text = f"{code} {message}".casefold()
         if any(token in text for token in ("missing", "required", "not found", "absent")):
             return IssueCategory.MISSING_SOURCE

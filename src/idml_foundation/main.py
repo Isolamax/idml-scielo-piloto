@@ -12,18 +12,23 @@ from idml_foundation.ingest.safe_zip import UnsafeArchiveError
 from idml_foundation.ingest.scanner import ScannerUnavailableError
 from idml_foundation.logging_config import configure_logging
 from idml_foundation.routers import (
+    article_sources,
     artifacts,
     assistants,
     audit,
     auth,
+    edit_evaluation_ui,
+    edit_evaluations,
     health,
     jobs,
     organizations,
     releases,
     resources,
     reviews,
+    source_access_ui,
     ui,
 )
+from idml_foundation.services.storage_budget import ArtifactStorageError
 from idml_foundation.settings import get_settings
 
 REQUESTS = Counter("idml_http_requests_total", "HTTP requests", ["method", "route", "status"])
@@ -78,6 +83,10 @@ def create_app() -> FastAPI:
     application.include_router(health.router)
     application.include_router(auth.router)
     application.include_router(resources.router)
+    application.include_router(article_sources.router)
+    application.include_router(edit_evaluations.router)
+    application.include_router(edit_evaluation_ui.router)
+    application.include_router(source_access_ui.router)
     application.include_router(jobs.router)
     application.include_router(artifacts.router)
     application.include_router(organizations.router)
@@ -103,6 +112,15 @@ def create_app() -> FastAPI:
         return JSONResponse(
             status_code=503,
             content={"detail": "content scanner unavailable", "code": "scanner_unavailable"},
+        )
+
+    @application.exception_handler(ArtifactStorageError)
+    async def artifact_storage_handler(request: Request, exc: ArtifactStorageError) -> JSONResponse:
+        del request
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": "artifact storage rejected operation", "code": exc.code},
+            headers={"Retry-After": "5"} if exc.status_code == 503 else None,
         )
 
     return application

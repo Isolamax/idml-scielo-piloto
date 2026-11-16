@@ -6,6 +6,7 @@ from io import BytesIO
 from pathlib import PurePosixPath
 from zipfile import ZIP_DEFLATED, ZIP_STORED, BadZipFile, LargeZipFile, ZipFile, ZipInfo
 
+from idml_foundation.ingest.xml_security import MAX_IDML_XML_BYTES, MAX_UNTRUSTED_XML_BYTES
 from idml_foundation.settings import Settings
 
 NESTED_ARCHIVE_SUFFIXES = {
@@ -95,6 +96,7 @@ def inspect_idml(data: bytes, settings: Settings) -> ArchiveInspection:
         exact_names: set[str] = set()
         entry_types: dict[str, str] = {}
         total = 0
+        xml_total = 0
         max_ratio = 1.0
         for info in infos:
             path = _validate_name(info.filename)
@@ -130,6 +132,16 @@ def inspect_idml(data: bytes, settings: Settings) -> ArchiveInspection:
             total += info.file_size
             if total > settings.zip_max_uncompressed_bytes:
                 raise UnsafeArchiveError("expanded_too_large", "expanded archive exceeds limit")
+            if path.suffix.casefold() == ".xml" and info.file_size > MAX_UNTRUSTED_XML_BYTES:
+                raise UnsafeArchiveError("unsafe_xml", "XML exceeds the ingestion size limit")
+            if path.suffix.casefold() == ".xml":
+                xml_total += info.file_size
+                if xml_total > MAX_IDML_XML_BYTES:
+                    raise UnsafeArchiveError("expanded_xml_too_large", "combined XML exceeds limit")
+            if info.filename == "mimetype" and info.file_size != len(
+                b"application/vnd.adobe.indesign-idml-package"
+            ):
+                raise UnsafeArchiveError("invalid_mimetype", "unexpected IDML mimetype size")
             ratio = info.file_size / max(info.compress_size, 1)
             max_ratio = max(max_ratio, ratio)
             if ratio > settings.zip_max_ratio and info.file_size > 1024:

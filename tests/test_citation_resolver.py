@@ -78,6 +78,21 @@ def test_find_citations_resolves_parenthetical_and_narrative_and_rejects_ambigui
     assert ambiguous == ((1, 19),)
 
 
+def test_find_citations_accepts_et_al_for_three_author_reference() -> None:
+    reference = _reference(
+        "ref-three",
+        "LAGHDAF, Sid; EL BARAA, Ahmed; MOHAMED, Alia. Title. Journal, 2022.",
+    )
+    text = "Laghdaf et al. (2022) reported the regional cluster."
+
+    matches, ambiguous = find_citations(text, (reference,))
+
+    assert not ambiguous
+    assert [(text[item.start : item.end], item.target_id) for item in matches] == [
+        ("2022", "ref-three")
+    ]
+
+
 def test_resolution_preserves_text_and_styles_while_adding_bibr_target() -> None:
     reference = _reference(
         "ref-1",

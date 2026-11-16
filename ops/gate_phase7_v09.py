@@ -36,7 +36,7 @@ from idml_foundation.schemas import (
 from idml_foundation.settings import Settings
 
 ROOT = Path(__file__).parents[1]
-REPORT = ROOT / "benchmarks" / "security" / "v09-security-validation-v1.json"
+REPORT = ROOT / "benchmarks" / "security" / "v09-security-validation-vh19-v1.json"
 
 PUBLIC_V1_PATHS = {
     "/v1/auth/login",
@@ -101,6 +101,8 @@ def _published_report_gate(report: dict[str, Any]) -> dict[str, Any]:
     if any(privacy.values()):
         raise ValueError("V-09 public report violates the content-safe contract")
     expected = report.get("source_sha256", {})
+    if "src/idml_foundation/routers/edit_evaluations.py" not in expected:
+        raise ValueError("V09 source evidence missing")
     actual = {name: _sha256(ROOT / name) for name in expected}
     if actual != expected:
         raise ValueError("V-09 source evidence hash mismatch")

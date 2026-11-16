@@ -26,6 +26,10 @@ CATALOG_VERSION = "editorial-enrichment-catalog-1.0"
 REPORT_VERSION = "editorial-enrichment-qualification-1.0"
 _ORCID_URL = re.compile(r"https?://orcid\.org/\d{4}-\d{4}-\d{4}-\d{3}[\dXx]")
 _MAX_XML_BYTES = 100 * 1024 * 1024
+_NOTE_LABELS = {
+    "associate-editor": "Associate editor:",
+    "scientific-editor": "Scientific editor:",
+}
 
 
 def _value_sha256(value: str) -> str:
@@ -143,11 +147,19 @@ class EditorialEnrichmentCatalog(StrictModel):
                 notes.append(note)
                 continue
             current = note.content.plain.value or ""
-            if _value_sha256(current) != note_entry.current_value_sha256:
+            label = _NOTE_LABELS[note.note_type]
+            legacy_current = f"{label} {current}"
+            if _value_sha256(current) == note_entry.current_value_sha256:
+                enriched_value = note_entry.enriched_value
+            elif _value_sha256(legacy_current) == note_entry.current_value_sha256:
+                enriched_value = note_entry.enriched_value
+                if enriched_value.startswith(label):
+                    enriched_value = enriched_value.removeprefix(label).strip()
+            else:
                 raise ValueError("editorial enrichment current note hash mismatch")
             plain = note.content.plain.model_copy(
                 update={
-                    "value": note_entry.enriched_value,
+                    "value": enriched_value,
                     "state": FieldState.PRESENT,
                     "evidence_ids": tuple(
                         dict.fromkeys((*note.content.plain.evidence_ids, evidence_id))
@@ -242,7 +254,7 @@ def build_editorial_enrichment_catalog(
             if (node.findtext("label") or "").strip().removesuffix(":") != label:
                 continue
             paragraphs = cast(list[etree._Element], node.xpath("p"))
-            matching.extend(f"{label}: {_node_text(paragraph)}" for paragraph in paragraphs)
+            matching.extend(_node_text(paragraph) for paragraph in paragraphs)
         current = source_notes.get(note_type)
         if len(matching) != 1 or current is None:
             raise ValueError(f"approved XML editorial enrichment is incomplete: {note_type}")
