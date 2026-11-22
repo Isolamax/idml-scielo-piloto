@@ -57,6 +57,7 @@ from idml_foundation.domain.raw import (
     RawStory,
 )
 from idml_foundation.pipeline.citation_resolver import resolve_citations
+from idml_foundation.pipeline.country_codes import iso_country_code
 from idml_foundation.pipeline.funding_parser import parse_funding
 from idml_foundation.pipeline.idml_parser import style_prefix
 from idml_foundation.pipeline.metadata_normalization import split_explicit_brazil_state
@@ -288,6 +289,59 @@ def _history_iso_date(value: str, order: str) -> str | None:
         return datetime(year, month, day).date().isoformat()
     except ValueError:
         return None
+
+
+_AFFILIATION_NO_DEPARTMENT = re.compile(
+    r"^(?P<institution>[^,\ufffd\u2013\u2014]+?)\s*[\ufffd\u2013\u2014]\s*"
+    r"(?P<city>[^,]+),\s*(?P<country>[^.]+)\.?$"
+)
+
+
+def _roman(number: int) -> str:
+    out = ""
+    for value, letters in ((100, "C"), (90, "XC"), (50, "L"), (40, "XL"), (10, "X"), (9, "IX")):
+        while number >= value:
+            out, number = out + letters, number - value
+    for value, letters in ((5, "V"), (4, "IV"), (1, "I")):
+        while number >= value:
+            out, number = out + letters, number - value
+    return out
+
+
+def _strip_affiliation_label(line: str, ordinal: int) -> str:
+    """Drop the leading affiliation label: any digits, a spaced roman numeral, or the
+    expected ordinal glued to the name ('IVNTS' as 4th line -> 'NTS')."""
+    stripped = re.sub(r"^(?:\d+|[IVXLC]+(?=\s))", "", line).strip()
+    if stripped != line.strip():
+        return stripped
+    expected = _roman(ordinal)
+    if line.startswith(expected) and line[len(expected) : len(expected) + 1].isupper():
+        return line[len(expected) :].strip()
+    return line
+
+
+class _AffiliationParts:
+    """Minimal match-like view so the caller can keep using ``groupdict()``."""
+
+    def __init__(self, values: dict[str, str]) -> None:
+        self._values = values
+
+    def groupdict(self) -> dict[str, str]:
+        return dict(self._values)
+
+
+def _split_trailing_country(match: re.Match[str]) -> re.Match[str] | _AffiliationParts:
+    """'- Bogotá, Cundinamarca, Colombia' -> city 'Bogotá, Cundinamarca', country 'Colombia'."""
+    values = {key: value or "" for key, value in match.groupdict().items()}
+    city, country = values["city"], values["country"]
+    if "," not in country or iso_country_code(country):
+        return match
+    head, last = country.rsplit(",", 1)
+    if not iso_country_code(last):
+        return match
+    values["city"] = f"{city.strip()}, {head.strip()}"
+    values["country"] = last.strip()
+    return _AffiliationParts(values)
 
 
 def _front_heading_role(value: str) -> str | None:
@@ -1500,8 +1554,13 @@ class CanonicalMapper:
                 clean = line.strip()
                 if not clean:
                     continue
-                clean = re.sub(r"^(?:\d+|[IVXLC]+(?=\s))", "", clean).strip()
-                match = _AFFILIATION.fullmatch(clean)
+                clean = _strip_affiliation_label(clean, len(affiliations) + 1)
+                match: re.Match[str] | _AffiliationParts | None = _AFFILIATION.fullmatch(clean)
+                if match is None:
+                    # "Institution - City, Country." without a department segment.
+                    match = _AFFILIATION_NO_DEPARTMENT.fullmatch(clean)
+                if isinstance(match, re.Match):
+                    match = _split_trailing_country(match)
                 if match is None:
                     institution = clean
                     original_text = department = city = state = country = country_code = None
@@ -1513,10 +1572,14 @@ class CanonicalMapper:
                         paragraph.evidence_ids,
                         "line-from-affiliation-style",
                     )
-                    department = _present(
-                        values["department"],
-                        paragraph.evidence_ids,
-                        "deterministic-affiliation-decomposition",
+                    department = (
+                        _present(
+                            values["department"],
+                            paragraph.evidence_ids,
+                            "deterministic-affiliation-decomposition",
+                        )
+                        if values.get("department")
+                        else None
                     )
                     city_value, state_value = split_explicit_brazil_state(
                         values["city"], values["country"]
@@ -1541,6 +1604,7 @@ class CanonicalMapper:
                         "deterministic-affiliation-decomposition",
                     )
                     code = self.profile.country_codes.get(values["country"])
+                    generic_code = None if code else iso_country_code(values["country"])
                     country_code = (
                         _present(
                             code,
@@ -1548,6 +1612,12 @@ class CanonicalMapper:
                             "journal-profile-country-code",
                         )
                         if code
+                        else _present(
+                            generic_code,
+                            paragraph.evidence_ids,
+                            "cldr-country-name-to-iso-3166",
+                        )
+                        if generic_code
                         else None
                     )
                 affiliations.append(
