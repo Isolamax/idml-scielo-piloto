@@ -47,6 +47,7 @@ from idml_foundation.ingest.xml_security import (
     XmlComplexityBudget,
     parse_untrusted_xml,
 )
+from idml_foundation.pipeline.profile import DIRECT_PARAGRAPH_SUFFIX
 from idml_foundation.settings import Settings
 
 _STYLE_PREFIX = re.compile(r"^(\d{1,2}(?:\.\d+)?)")
@@ -804,7 +805,7 @@ class IdmlParser:
                 override_styles.append(
                     RawStyle(
                         id=paragraph_style_id,
-                        source_name=f"{base_name} [direct paragraph properties]",
+                        source_name=f"{base_name}{DIRECT_PARAGRAPH_SUFFIX}",
                         normalized_name=_normalize_style_name(
                             " ".join((paragraph_style or "", *paragraph_properties.values()))
                         ),

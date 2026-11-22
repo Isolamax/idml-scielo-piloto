@@ -1962,6 +1962,35 @@ class CanonicalMapper:
                 rows.append(tuple(row))
             return tuple(rows)
 
+        def table_header_rows(table_id: str) -> int:
+            """Count leading rows whose filled cells all use the profile's header style."""
+            table = raw_tables[table_id]
+            source_story = story_by_table[table_id]
+            paragraphs_by_cell: defaultdict[str, list[RawParagraph]] = defaultdict(list)
+            for item in source_story.paragraphs:
+                if item.table_cell_id:
+                    paragraphs_by_cell[item.table_cell_id].append(item)
+            header = 0
+            for row_index in range(table.row_count - 1):
+                filled = [
+                    cell
+                    for cell in table.cells
+                    if cell.row == row_index
+                    and "".join(run_lookup[item].text for item in cell.text_run_ids).strip()
+                ]
+                roles = {
+                    self.profile.role_for_style(
+                        style_names.get(item.paragraph_style_id or "", ""),
+                        style_prefix(style_names.get(item.paragraph_style_id or "", "")),
+                    )
+                    for cell in filled
+                    for item in paragraphs_by_cell[cell.id]
+                }
+                if not filled or roles != {"table-heading"}:
+                    break
+                header += 1
+            return header
+
         def table_cell_spans(table_id: str) -> tuple[TableCellSpan, ...]:
             return tuple(
                 TableCellSpan(
@@ -2075,6 +2104,7 @@ class CanonicalMapper:
                         cell_spans=table_cell_spans(table_id),
                         footnotes=table_footnotes,
                         evidence_ids=table.evidence_ids,
+                        header_rows=table_header_rows(table_id),
                     )
                 )
             else:

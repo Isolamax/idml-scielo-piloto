@@ -6,6 +6,8 @@ from pydantic import Field, SerializerFunctionWrapHandler, model_serializer
 
 from idml_foundation.domain.common import StrictModel
 
+DIRECT_PARAGRAPH_SUFFIX = " [direct paragraph properties]"
+
 
 class JournalProfile(StrictModel):
     profile_id: str
@@ -45,7 +47,10 @@ class JournalProfile(StrictModel):
         return value
 
     def role_for_style(self, source_name: str, prefix: str | None) -> str | None:
-        named = self.style_name_roles.get(source_name.strip())
+        # The parser records local overrides as "<style> [direct paragraph properties]";
+        # the semantic role is the one of the underlying style.
+        base_name = source_name.removesuffix(DIRECT_PARAGRAPH_SUFFIX).strip()
+        named = self.style_name_roles.get(base_name)
         return named if named is not None else self.role_for_prefix(prefix)
 
     def role_for_prefix(self, prefix: str | None) -> str | None:

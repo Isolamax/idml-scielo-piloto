@@ -671,6 +671,7 @@ class JatsBuilder:
                 caption_paragraph = _add(caption, "p")
                 self._rich(caption_paragraph, block.caption, registry, asset_names)
                 table = _add(wrapper, "table")
+                thead = _add(table, "thead") if block.header_rows else None
                 tbody = _add(table, "tbody")
                 spans = {(span.row, span.column): span for span in block.cell_spans}
                 covered = {
@@ -681,7 +682,8 @@ class JatsBuilder:
                     if (row, column) != (span.row, span.column)
                 }
                 for row_index, row in enumerate(block.rows):
-                    tr = _add(tbody, "tr")
+                    in_header = thead is not None and row_index < block.header_rows
+                    tr = _add(thead if in_header and thead is not None else tbody, "tr")
                     for column_index, cell in enumerate(row):
                         if (row_index, column_index) in covered:
                             continue
@@ -691,7 +693,7 @@ class JatsBuilder:
                             cell_attributes["rowspan"] = str(span.row_span)
                         if span and span.column_span > 1:
                             cell_attributes["colspan"] = str(span.column_span)
-                        td = _add(tr, "td", **cell_attributes)
+                        td = _add(tr, "th" if in_header else "td", **cell_attributes)
                         if cell.plain.value:
                             self._rich(td, cell, registry, asset_names)
                 if block.footnotes:

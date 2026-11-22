@@ -106,3 +106,43 @@ def test_name_based_roles_take_precedence_and_keep_legacy_digest() -> None:
     assert named.role_for_style("05.1.list", "05.1") == "list-level-1"
     rbepid = load_profile(Path("profiles/rbepid-aop-1.0.json"))
     assert rbepid.role_for_style("zp.titulação", None) == "affiliations"
+
+
+def test_leading_header_styled_rows_become_thead_and_th() -> None:
+    from io import BytesIO as _BytesIO
+    from zipfile import ZipFile as _ZipFile
+
+    from idml_foundation.pipeline.service import DeterministicPipeline
+    from tests.phase3_helpers import synthetic_idml
+
+    source = _ZipFile(_BytesIO(synthetic_idml(include_table=True, include_styled_table=True)))
+    buffer = _BytesIO()
+    with _ZipFile(buffer, "w") as target:
+        for info in source.infolist():
+            data = source.read(info.filename)
+            if info.filename == "Resources/Styles.xml":
+                data = data.replace(
+                    b"</RootParagraphStyleGroup>",
+                    b'<ParagraphStyle Self="ParagraphStyle/07.1.head" Name="07.1.head"/>'
+                    b"</RootParagraphStyleGroup>",
+                )
+            if info.filename == "Stories/Story_u2.xml":
+                data = data.replace(
+                    b'<Cell Name="0:0"><ParagraphStyleRange '
+                    b'AppliedParagraphStyle="ParagraphStyle/05.0.text">',
+                    b'<Cell Name="0:0"><ParagraphStyleRange '
+                    b'AppliedParagraphStyle="ParagraphStyle/07.1.head">',
+                )
+                data = data.replace(
+                    b'BodyRowCount="1" ColumnCount="2"', b'BodyRowCount="2" ColumnCount="1"'
+                )
+                data = data.replace(b'<Cell Name="1:0">', b'<Cell Name="0:1">')
+            target.writestr(info, data)
+    profile = load_profile(Path("profiles/esa-aop-1.1.json"))
+    xml = (
+        DeterministicPipeline(profile=profile)
+        .run(buffer.getvalue(), logical_name="ESA_2024001_AOP.idml")
+        .xml
+    )
+    assert b"<thead><tr><th>kgO<sub>2</sub>/h</th></tr></thead>" in xml
+    assert b"<tbody><tr><td>Beta</td></tr></tbody>" in xml
