@@ -96,13 +96,16 @@ def _citation_patterns(signature: ReferenceSignature) -> tuple[tuple[re.Pattern[
         parenthetical = rf"{authors[0]}\s*,\s*{year}"
         narrative = rf"{authors[0]}\s*\(\s*(?P<year>{year})\s*\)"
     elif len(authors) == 2:
-        parenthetical = rf"{authors[0]}\s*;\s*{authors[1]}\s*,\s*{year}"
+        parenthetical = rf"{authors[0]}\s*(?:;|&|\band\b|\be\b)\s*{authors[1]}\s*,\s*{year}"
         narrative = (
             rf"{authors[0]}\s+(?:and|e|&)\s+{authors[1]}"
             rf"\s*\(\s*(?P<year>{year})\s*\)"
         )
     elif len(authors) == 3:
-        parenthetical = rf"{authors[0]}\s*;\s*{authors[1]}\s*;\s*{authors[2]}\s*,\s*{year}"
+        parenthetical = (
+            rf"{authors[0]}\s*[;,]\s*{authors[1]}\s*(?:;|,|&|\band\b|\be\b)\s*"
+            rf"{authors[2]}\s*,\s*{year}"
+        )
         narrative = (
             rf"{authors[0]}\s*,\s*{authors[1]}\s+(?:and|e|&)\s+{authors[2]}"
             rf"\s*\(\s*(?P<year>{year})\s*\)"

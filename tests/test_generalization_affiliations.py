@@ -36,3 +36,26 @@ def test_multi_segment_city_and_affiliation_without_department() -> None:
     assert (parts["city"], parts["country"]) == ("Santander, Bucaramanga", "Colombia")
     plain = _AFFILIATION_NO_DEPARTMENT.fullmatch("NTS Electronic Control \u2013 Bogotá, Colombia.")
     assert plain is not None and plain.group("country") == "Colombia"
+
+
+def test_abnt_last_author_initials_do_not_leak_into_title() -> None:
+    from idml_foundation.pipeline.canonical_mapper import _reference_parts
+
+    assert _reference_parts(
+        "LOPES, M. D.; NUNES, T. F. Decentralized sewage. Revista Exemplo, v. 12, p. 1-2, 2019."
+    ) == (("LOPES, M. D.", "NUNES, T. F"), "Decentralized sewage", "Revista Exemplo")
+    assert _reference_parts("SANTOS, R. A. A study of nitrogen. Exemplo, v. 5, 2015.") == (
+        ("SANTOS, R. A",),
+        "A study of nitrogen",
+        "Exemplo",
+    )
+    assert _reference_parts("SILVA, Ana Maria. Um titulo. Revista, v. 1, 2020.")[1] == "Um titulo"
+
+
+def test_two_author_parenthetical_citation_accepts_ampersand_and_e() -> None:
+    from idml_foundation.pipeline.citation_resolver import ReferenceSignature, _citation_patterns
+
+    signature = ReferenceSignature(target_id="r1", authors=("LOPES", "NUNES"), year="2019")
+    pattern = _citation_patterns(signature)[0][0]
+    for text in ("(Lopes & Nunes, 2019)", "(LOPES; NUNES, 2019)", "(Lopes e Nunes, 2019)"):
+        assert pattern.search(text), text

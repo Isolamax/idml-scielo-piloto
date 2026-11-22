@@ -382,6 +382,20 @@ def _credit_roles(statement: SourcedText | None) -> dict[str, tuple[str, ...]]:
     return roles
 
 
+def _author_title_boundary(prefix: str, start: int) -> int:
+    """Position of the '. ' that ends the last author, skipping initials ('NUNES, T. F.')."""
+    candidates = [match.start() for match in re.finditer(r"\. ", prefix[start:])]
+    last_initial = -1
+    for offset in candidates:
+        position = start + offset
+        token = prefix[:position].rsplit(" ", 1)[-1].lstrip(",")
+        if re.fullmatch(r"[A-ZÀ-Ý]", token):
+            last_initial = position
+            continue
+        return position
+    return last_initial
+
+
 def _reference_parts(value: str) -> tuple[tuple[str, ...], str | None, str | None]:
     journal = re.match(r"^(?P<prefix>.+)\.\s+(?P<source>.+?),\s+v\.\s*", value)
     if journal is not None:
@@ -390,7 +404,7 @@ def _reference_parts(value: str) -> tuple[tuple[str, ...], str | None, str | Non
     else:
         return reference_without_volume(value)
     last_semicolon = prefix.rfind(";")
-    boundary = prefix.find(". ", last_semicolon + 1)
+    boundary = _author_title_boundary(prefix, last_semicolon + 1)
     if boundary < 0:
         return (), None, source
     author_text = prefix[:boundary].strip()
