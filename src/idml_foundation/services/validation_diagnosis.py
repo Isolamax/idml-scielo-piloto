@@ -70,6 +70,30 @@ def describe_validation(result: Any) -> dict[str, Any]:
             detail + " Nenhum agente foi chamado.",
         )
 
+    rejected = _object(result.get("error_detail"))
+    if isinstance(rejected.get("reason"), str):
+        subject = rejected.get("subject")
+        add(
+            "input",
+            "job-input-rejected",
+            "action-required",
+            "Entrada recusada antes da validação",
+            "O job parou antes de gerar o pacote; nenhuma validação foi executada. "
+            + (f"Arquivo ou campo indicado: {subject}. " if isinstance(subject, str) else "")
+            + "Corrija a entrada e enfileire novamente.",
+            reason=rejected["reason"],
+        )
+        return dict(
+            version="validation-diagnosis-1.0",
+            basis="stored-job-result",
+            notice="Resultado salvo deste job. Não executa nem renova validações ou consultas.",
+            package_sha256=None,
+            xml_sha256=None,
+            items=rows,
+            approval_granted=False,
+            modifies_validation=False,
+        )
+
     package_sha = _digest(result.get("package_sha256"))
     bindings = _object(result.get("figure_bindings"))
     if package_sha and bindings.get("version") == "package-figure-bindings-1.0":
