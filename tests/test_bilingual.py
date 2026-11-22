@@ -50,3 +50,21 @@ def test_translation_becomes_sub_article_with_prefixed_ids_and_main_references()
 def test_same_language_inputs_are_rejected() -> None:
     with pytest.raises(BilingualCompositionError):
         compose_bilingual(_article("en", "pt", "A", "r"), _article("en", "pt", "B", "r"))
+
+
+def test_missing_orcid_in_main_is_filled_from_translation_by_exact_name() -> None:
+    def article(lang: str, other: str, orcid: str) -> bytes:
+        contrib = (
+            f"<contrib>{orcid}<name><surname>Silva</surname><given-names>Ana</given-names></name>"
+            "</contrib>"
+        )
+        return _article(lang, other, "T", "r").replace(
+            b'<contrib><xref ref-type="aff" rid="aff-1">I</xref></contrib>', contrib.encode()
+        )
+
+    orcid = '<contrib-id contrib-id-type="orcid">0000-0002-1825-0097</contrib-id>'
+    xml = compose_bilingual(article("en", "pt", ""), article("pt", "en", orcid))
+    root = etree.fromstring(xml, parser=etree.XMLParser(load_dtd=False, no_network=True))
+    assert root.findtext("front/article-meta/contrib-group/contrib/contrib-id") == (
+        "0000-0002-1825-0097"
+    )

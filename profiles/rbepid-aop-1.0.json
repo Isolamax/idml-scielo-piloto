@@ -49,5 +49,6 @@
     "en": "mdy",
     "pt": "dmy"
   },
-  "reference_style": "vancouver"
+  "reference_style": "vancouver",
+  "license_url": "https://creativecommons.org/licenses/by/4.0/"
 }

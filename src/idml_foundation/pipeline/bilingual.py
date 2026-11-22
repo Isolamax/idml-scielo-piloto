@@ -43,6 +43,29 @@ def _strip_other_languages(article_meta: etree._Element, language: str) -> None:
             title_group.remove(trans)
 
 
+def _person_key(contrib: etree._Element) -> tuple[str, str]:
+    return (
+        " ".join((contrib.findtext("name/surname") or "").split()).casefold(),
+        " ".join((contrib.findtext("name/given-names") or "").split()).casefold(),
+    )
+
+
+def _share_contributor_ids(main_meta: etree._Element, translation_meta: etree._Element) -> None:
+    """The same authors sign both versions: fill a missing ORCID in the main article from
+    the translation (matched by exact surname + given names; never overwritten)."""
+    known: dict[tuple[str, str], etree._Element] = {}
+    for contrib in translation_meta.iter("contrib"):
+        orcid = contrib.find("contrib-id[@contrib-id-type='orcid']")
+        if orcid is not None and any(_person_key(contrib)):
+            known.setdefault(_person_key(contrib), orcid)
+    for contrib in main_meta.iter("contrib"):
+        if contrib.find("contrib-id[@contrib-id-type='orcid']") is not None:
+            continue
+        source = known.get(_person_key(contrib))
+        if source is not None:
+            contrib.insert(0, copy.deepcopy(source))
+
+
 def compose_bilingual(main_xml: bytes, translation_xml: bytes, *, prefix: str = "s1") -> bytes:
     main = etree.fromstring(main_xml, parser=_PARSER)
     translation = etree.fromstring(translation_xml, parser=_PARSER)
@@ -54,6 +77,7 @@ def compose_bilingual(main_xml: bytes, translation_xml: bytes, *, prefix: str = 
     if main_meta is None or meta is None:
         raise BilingualCompositionError("bilingual_article_meta_missing")
     _strip_other_languages(main_meta, main_lang)
+    _share_contributor_ids(main_meta, meta)
 
     sub = etree.Element(
         "sub-article",

@@ -370,6 +370,34 @@ def _split_trailing_country(match: re.Match[str]) -> re.Match[str] | _Affiliatio
     return _AffiliationParts(values)
 
 
+def _author_run_groups(runs: list[tuple[str, bool]]) -> list[list[int]]:
+    """Indices of the runs belonging to each author, with the same rules as
+    ``_split_marked_authors`` (used to attach ORCID icon links to the right author)."""
+    groups: list[list[int]] = []
+    name = ""
+    current: list[int] = []
+
+    def close() -> None:
+        nonlocal name, current
+        if any(character.isalpha() for character in name):
+            groups.append(current)
+        elif groups:
+            groups[-1].extend(current)
+        name, current = "", []
+
+    for index, (value, superscript) in enumerate(runs):
+        if superscript:
+            current.append(index)
+            continue
+        for position, piece in enumerate(value.split(",")):
+            if position:
+                close()
+            name += piece.replace("*", " ")
+        current.append(index)
+    close()
+    return groups
+
+
 def _front_heading_role(value: str) -> str | None:
     """Recognize abstract/reference headings set with an ordinary section style."""
     normalized = " ".join(value.split()).strip(":. ").casefold()
@@ -393,7 +421,10 @@ def _credit_roles(statement: SourcedText | None) -> dict[str, tuple[str, ...]]:
     if statement is None or not statement.value:
         return {}
     roles: dict[str, tuple[str, ...]] = {}
-    for item in re.split(r"\.\s+(?=[A-Z][^:]{1,100},\s*[^:]+:)|\.$", statement.value.strip()):
+    for item in re.split(
+        r"\.\s+(?=[A-Z][^:]{1,100},\s*[^:]+:)|\.\s+(?=[A-ZÀ-Ý]{1,8}\s*:)|\.$",
+        statement.value.strip(),
+    ):
         if ":" not in item:
             continue
         source_name, source_roles = item.split(":", 1)
@@ -406,6 +437,41 @@ def _credit_roles(statement: SourcedText | None) -> dict[str, tuple[str, ...]]:
         if key and normalized_roles:
             roles[key] = tuple(normalized_roles)
     return roles
+
+
+_PARTICLES = frozenset({"de", "da", "do", "das", "dos", "del", "la", "e", "y", "van", "von"})
+_CONTRIBUTIONS_LINE = re.compile(
+    r"^\s*(?:authors?[\u2019']?\s*contributions?|contribui[çc][õo]es\s+dos\s+autores)\s*:\s*(.+)$",
+    re.IGNORECASE,
+)
+
+
+def _name_initials(name: str) -> set[str]:
+    """Lower-cased initials of a full name, with and without particles ('de', 'da'...)."""
+    variants: set[str] = set()
+    for separator in (r"[\s\-]+", r"\s+"):  # 'La-Rotta' counts as L or as LR
+        parts = [part for part in re.split(separator, name) if part and part[0].isalpha()]
+        variants.add("".join(part[0] for part in parts).casefold())
+        variants.add(
+            "".join(part[0] for part in parts if part.casefold() not in _PARTICLES).casefold()
+        )
+    return variants
+
+
+def _contribution_line(
+    paragraphs: list[tuple[RawStory, RawParagraph]], text_for: object
+) -> SourcedText | None:
+    """'AUTHORS' CONTRIBUTIONS: CEAL: ...' typed inside the correspondence block."""
+    for story, paragraph in paragraphs:
+        for line in text_for(story, paragraph).splitlines():  # type: ignore[operator]
+            match = _CONTRIBUTIONS_LINE.match(line)
+            if match:
+                return _present(
+                    match.group(1).strip(),
+                    paragraph.evidence_ids,
+                    "correspondence-contributions-line",
+                )
+    return None
 
 
 def _author_title_boundary(prefix: str, start: int) -> int:
@@ -919,7 +985,8 @@ class CanonicalMapper:
             article_id,
             tuple(item.id for item in affiliations),
             raw,
-            contribution_statement=back_statements.contribution_statement,
+            contribution_statement=back_statements.contribution_statement
+            or _contribution_line(paragraphs_by_role["correspondence"], text_for),
         )
         correspondence = self._correspondence(paragraphs_by_role, text_for, article_id, raw)
         if correspondence.email is not None:
@@ -1123,6 +1190,11 @@ class CanonicalMapper:
                     self.profile.license_text,
                     (profile_evidence.id,),
                     "journal-profile",
+                ),
+                license_url=(
+                    _present(self.profile.license_url, (profile_evidence.id,), "journal-profile")
+                    if self.profile.license_url
+                    else None
                 ),
                 funding=correspondence.funding,
                 subject_category=_present(
@@ -1508,8 +1580,13 @@ class CanonicalMapper:
                 for run_id in paragraph.text_run_ids
                 if run_id in run_by_id
             ]
+            marked_ids = [run_id for run_id in paragraph.text_run_ids if run_id in run_by_id]
+            author_runs: list[list[str]] = []
             if any(flag and _MARKER_TOKEN.search(text) for text, flag in marked):
                 authors = _split_marked_authors(marked)
+                author_runs = [
+                    [marked_ids[index] for index in group] for group in _author_run_groups(marked)
+                ]
             else:
                 authors = [
                     (
@@ -1534,8 +1611,19 @@ class CanonicalMapper:
                     )
                 )
                 contributor_id = stable_id(article_id, "contributor", str(len(contributors)))
+                own_links = (
+                    [links_by_run[r] for r in author_runs[position] if r in links_by_run]
+                    if position < len(author_runs)
+                    else []
+                )
                 orcid_link = (
-                    paragraph_orcids[position] if position < len(paragraph_orcids) else None
+                    own_links[0]
+                    if own_links
+                    else None
+                    if author_runs
+                    else paragraph_orcids[position]
+                    if position < len(paragraph_orcids)
+                    else None
                 )
                 name_tokens = {
                     part.casefold()
@@ -1548,6 +1636,12 @@ class CanonicalMapper:
                     if name_tokens
                     & {part.casefold() for part in re.findall(r"[A-Za-z]+", name) if len(part) >= 4}
                 ]
+                if not matching_roles:
+                    # "CEAL: Conceptualization, ..." identifies authors by their initials.
+                    initials = _name_initials(clean_name)
+                    matching_roles = [
+                        roles for name, roles in roles_by_name.items() if name in initials
+                    ]
                 contributors.append(
                     Contributor(
                         id=contributor_id,

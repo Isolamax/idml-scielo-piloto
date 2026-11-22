@@ -178,3 +178,26 @@ def test_doi_typed_without_slash_still_gives_doi_and_profile_article_id() -> Non
     rbepid = load_profile(Path("profiles/rbepid-aop-1.0.json"))
     assert rbepid.article_id_for_doi("10.1590/1980-549720250033.2") == "e250033"
     assert load_profile(Path("profiles/esa-aop-1.1.json")).article_id_for_doi("10.1590/x") is None
+
+
+def test_credit_roles_by_initials_and_contribution_line() -> None:
+    from idml_foundation.domain.canonical import FieldState, SourcedText
+    from idml_foundation.pipeline.canonical_mapper import (
+        _CONTRIBUTIONS_LINE,
+        _credit_roles,
+        _name_initials,
+    )
+
+    statement = SourcedText(
+        value="ABCD: Conceptualization, Writing \u2013 review & editing. EF: Validation.",
+        state=FieldState.PRESENT,
+        confidence=1.0,
+    )
+    assert _credit_roles(statement) == {
+        "abcd": ("Conceptualization", "Writing \u2013 review & editing"),
+        "ef": ("Validation",),
+    }
+    assert "pf" in _name_initials("Pedro de Faria") and "pdf" in _name_initials("Pedro de Faria")
+    assert "egl" in _name_initials("Eva Gomes La-Rocha")
+    assert _CONTRIBUTIONS_LINE.match("AUTHORS\u2019 CONTRIBUTIONS: ABCD: Conceptualization.")
+    assert _CONTRIBUTIONS_LINE.match("Contribuições dos autores: AB: Validação.")

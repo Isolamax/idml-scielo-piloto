@@ -39,6 +39,7 @@ class JournalProfile(StrictModel):
     history_date_order: dict[str, str] = Field(default_factory=dict)
     # Reference list style; None keeps the historical ABNT-oriented parser.
     reference_style: Literal["vancouver"] | None = None
+    license_url: str | None = None
 
     @model_serializer(mode="wrap")
     def _omit_empty_name_roles(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
@@ -49,7 +50,12 @@ class JournalProfile(StrictModel):
             data.pop("style_name_roles", None)
         if not self.history_date_order:
             data.pop("history_date_order", None)
-        for optional in ("article_id_from_doi", "article_id_template", "reference_style"):
+        for optional in (
+            "article_id_from_doi",
+            "article_id_template",
+            "reference_style",
+            "license_url",
+        ):
             if getattr(self, optional) is None:
                 data.pop(optional, None)
         return data
