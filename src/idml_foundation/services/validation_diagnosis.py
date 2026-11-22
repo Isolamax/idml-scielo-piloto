@@ -290,7 +290,12 @@ def describe_validation(result: Any) -> dict[str, Any]:
                     "unavailable",
                     f"{name}: resultado indisponível",
                     "Reexecutar o validador e conferir o vínculo com este pacote. "
-                    "Falha de execução não demonstra que o XML está correto ou incorreto.",
+                    "Falha de execução não demonstra que o XML está correto ou incorreto."
+                    + (
+                        f" Motivo técnico: {run['failure_reason']}."
+                        if isinstance(run.get("failure_reason"), str)
+                        else ""
+                    ),
                 )
                 continue
             errors = sum(counts[key] for key in _MODERN_COUNTS[:-1])

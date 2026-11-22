@@ -101,6 +101,7 @@ def main() -> None:
     corpus = commands.add_parser("corpus-verify")
     corpus.add_argument("--manifest", type=Path, required=True)
     corpus.add_argument("--root", type=Path, required=True)
+    commands.add_parser("validators-status", help="probe validator broker sockets")
     convert = commands.add_parser("pipeline-convert")
     convert.add_argument("--input", type=Path, required=True)
     convert.add_argument("--output", type=Path, required=True)
@@ -112,6 +113,11 @@ def main() -> None:
         "--translation", type=Path, help="IDML of the translation, emitted as <sub-article>"
     )
     args = parser.parse_args()
+    if args.command == "validators-status":
+        from idml_foundation.services.validator_status import main as status_main
+
+        status_main()
+        return
     if args.command == "bootstrap":
         bootstrap(args.organization_slug, args.organization_name, args.email)
     elif args.command == "corpus-verify":
