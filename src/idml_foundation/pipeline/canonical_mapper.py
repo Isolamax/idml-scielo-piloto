@@ -251,6 +251,45 @@ def _split_marked_authors(
     return authors
 
 
+_HISTORY_TYPES = {
+    "received on": "received",
+    "recebido em": "received",
+    "recibido el": "received",
+    "reviewed on": "rev-recd",
+    "revised on": "rev-recd",
+    "revisado em": "rev-recd",
+    "reformulado em": "rev-recd",
+    "accepted on": "accepted",
+    "approved on": "accepted",
+    "aceito em": "accepted",
+    "aprovado em": "accepted",
+    "aceptado el": "accepted",
+}
+_HISTORY_LANGUAGE = {
+    label: ("en" if label.endswith(" on") else "es" if label.endswith(" el") else "pt")
+    for label in _HISTORY_TYPES
+}
+_HISTORY_LABELLED = re.compile(
+    r"(?P<label>" + "|".join(map(re.escape, _HISTORY_TYPES)) + r")\s*:?\s*"
+    r"(?P<date>\d{1,2}/\d{1,2}/\d{4})",
+    re.IGNORECASE,
+)
+
+
+def _history_iso_date(value: str, order: str) -> str | None:
+    """Parse d/m/y or m/d/y per profile; an unambiguous date (a part > 12) wins."""
+    first, second, year = (int(part) for part in value.split("/"))
+    if first > 12 and second <= 12:
+        order = "dmy"
+    elif second > 12 and first <= 12:
+        order = "mdy"
+    day, month = (second, first) if order == "mdy" else (first, second)
+    try:
+        return datetime(year, month, day).date().isoformat()
+    except ValueError:
+        return None
+
+
 def _front_heading_role(value: str) -> str | None:
     """Recognize abstract/reference headings set with an ordinary section style."""
     normalized = " ".join(value.split()).strip(":. ").casefold()
@@ -633,6 +672,15 @@ def _group_pseudocode_inline_formulas(
     return inlines
 
 
+_DOI_IN_TEXT = re.compile(r"(?<![\d.])10\.\d{4,9}/[^\s<>\"]+")
+
+
+def _doi_in_text(value: str) -> str | None:
+    """First DOI in 'https://doi.org 10.1590/x' or 'https://doi.org10.1590/x' (typed slips)."""
+    match = _DOI_IN_TEXT.search(value)
+    return match.group(0).rstrip(".,;)") if match else None
+
+
 def _article_id(source_id: str) -> str:
     match = _ARTICLE_NUMBER.search(source_id)
     if not match:
@@ -703,6 +751,16 @@ class CanonicalMapper:
             runs = {run.id: run for run in story.runs}
             return "".join(runs[item].text for item in paragraph.text_run_ids).strip()
 
+        source_doi = next(
+            (
+                doi
+                for story, paragraph in paragraphs_by_role["article-doi"]
+                if (doi := _doi_in_text(text_for(story, paragraph)))
+            ),
+            None,
+        )
+        article_id = self.profile.article_id_for_doi(source_doi) or article_id
+
         def first_text(role: str) -> tuple[str, tuple[str, ...]] | None:
             for story, paragraph in paragraphs_by_role[role]:
                 value = text_for(story, paragraph)
@@ -749,7 +807,9 @@ class CanonicalMapper:
         ]
         article_doi = first_text("article-doi")
         if article_doi:
-            doi = re.sub(r"^https?://(?:dx\.)?doi\.org/", "", article_doi[0], flags=re.I)
+            doi = _doi_in_text(article_doi[0]) or re.sub(
+                r"^https?://(?:dx\.)?doi\.org/", "", article_doi[0], flags=re.I
+            )
             article_identifiers.append(
                 Identifier(
                     kind="doi",
@@ -1182,6 +1242,37 @@ class CanonicalMapper:
                                     iso_date,
                                     evidence_ids,
                                     "correspondence-dd-mm-yyyy-to-iso-8601",
+                                ),
+                            )
+                        )
+                        seen_history.add(date_type)
+                    continue
+                labelled = list(_HISTORY_LABELLED.finditer(line))
+                if labelled:
+                    for item in labelled:
+                        date_type = _HISTORY_TYPES[item.group("label").casefold()]
+                        if date_type in seen_history:
+                            review_reasons.append(f"duplicate_history_date:{date_type}")
+                            continue
+                        labelled_date = _history_iso_date(
+                            item.group("date"),
+                            self.profile.history_date_order.get(
+                                _HISTORY_LANGUAGE[item.group("label").casefold()], "dmy"
+                            ),
+                        )
+                        if labelled_date is None:
+                            review_reasons.append(f"invalid_history_date:{date_type}")
+                            continue
+                        history_dates.append(
+                            ArticleHistoryDate(
+                                date_type=cast(
+                                    Literal["received", "rev-request", "rev-recd", "accepted"],
+                                    date_type,
+                                ),
+                                date=_present(
+                                    labelled_date,
+                                    evidence_ids,
+                                    "correspondence-labelled-date-to-iso-8601",
                                 ),
                             )
                         )

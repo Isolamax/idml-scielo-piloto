@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +31,12 @@ class JournalProfile(StrictModel):
     # Exact InDesign style names (as exported, e.g. "zp.Texto") for templates whose
     # styles carry no numeric journal prefix. Checked before the numeric prefix.
     style_name_roles: dict[str, str] = Field(default_factory=dict)
+    # Optional: derive the article id (elocation) from the DOI instead of the file name,
+    # e.g. RBEPID 10.1590/1980-549720250033 -> e250033.
+    article_id_from_doi: str | None = None
+    article_id_template: str | None = None
+    # Day/month order of history dates per language ("dmy" default, "mdy" for US style).
+    history_date_order: dict[str, str] = Field(default_factory=dict)
 
     @model_serializer(mode="wrap")
     def _omit_empty_name_roles(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
@@ -38,7 +45,18 @@ class JournalProfile(StrictModel):
         data: dict[str, Any] = handler(self)
         if not self.style_name_roles:
             data.pop("style_name_roles", None)
+        if not self.history_date_order:
+            data.pop("history_date_order", None)
+        for optional in ("article_id_from_doi", "article_id_template"):
+            if getattr(self, optional) is None:
+                data.pop(optional, None)
         return data
+
+    def article_id_for_doi(self, doi: str | None) -> str | None:
+        if not (doi and self.article_id_from_doi and self.article_id_template):
+            return None
+        match = re.search(self.article_id_from_doi, doi)
+        return self.article_id_template.format(**match.groupdict()) if match else None
 
     def package_stem(self, article_id: str) -> str:
         value = self.package_name_template.replace("{article_id}", article_id)

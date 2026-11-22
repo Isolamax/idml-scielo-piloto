@@ -42,5 +42,11 @@
     "zp.Tabela_cabeçalho": "table-heading",
     "zp.tabela_texto": "table-cell",
     "zp.Resumo_titulo": "abstract-heading"
+  },
+  "article_id_from_doi": "^10\\.1590/1980-5497\\d{2}(?P<yy>\\d{2})(?P<seq>\\d{4})(?:\\.\\d+)?$",
+  "article_id_template": "e{yy}{seq}",
+  "history_date_order": {
+    "en": "mdy",
+    "pt": "dmy"
   }
 }

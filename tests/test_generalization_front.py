@@ -156,3 +156,25 @@ def test_superscript_roman_markers_split_authors_and_attach_dangling_markers() -
         ("Li Wei", ["IV", "*"]),
     ]
     assert [_marker_index(t) for t in ("1", "IV", "IX", "XII", "*")] == [1, 4, 9, 12, None]
+
+
+def test_labelled_history_dates_follow_profile_order_unless_unambiguous() -> None:
+    from idml_foundation.pipeline.canonical_mapper import _HISTORY_LABELLED, _history_iso_date
+
+    line = "Received on: 09/13/2024 Reviewed on: 03/04/2025 Accepted on: 03/27/2025"
+    found = [(m.group("label"), m.group("date")) for m in _HISTORY_LABELLED.finditer(line)]
+    assert [label for label, _ in found] == ["Received on", "Reviewed on", "Accepted on"]
+    assert _history_iso_date("09/13/2024", "dmy") == "2024-09-13"  # unambiguous: m/d
+    assert _history_iso_date("03/04/2025", "mdy") == "2025-03-04"
+    assert _history_iso_date("03/04/2025", "dmy") == "2025-04-03"
+    assert _history_iso_date("31/02/2025", "dmy") is None
+
+
+def test_doi_typed_without_slash_still_gives_doi_and_profile_article_id() -> None:
+    from idml_foundation.pipeline.canonical_mapper import _doi_in_text
+
+    assert _doi_in_text("https://doi.org10.1590/1980-549720250032") == "10.1590/1980-549720250032"
+    assert _doi_in_text("https://doi.org 10.1590/1980-549720250034.") == "10.1590/1980-549720250034"
+    rbepid = load_profile(Path("profiles/rbepid-aop-1.0.json"))
+    assert rbepid.article_id_for_doi("10.1590/1980-549720250033.2") == "e250033"
+    assert load_profile(Path("profiles/esa-aop-1.1.json")).article_id_for_doi("10.1590/x") is None
