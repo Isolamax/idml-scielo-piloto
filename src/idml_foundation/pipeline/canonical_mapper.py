@@ -175,6 +175,41 @@ def _section_type(value: str, level: int) -> str | None:
     return _STANDARD_SECTION_TYPES.get(normalized)
 
 
+# Roles that never belong inside a data table: a table holding them is a layout box.
+_FLOW_ROLES = frozenset(
+    {
+        "abstract",
+        "abstract-heading",
+        "keywords",
+        "title-primary",
+        "title-secondary",
+        "contributors",
+        "affiliations",
+    }
+)
+_ABSTRACT_LABELS = frozenset({"abstract", "resumo", "resumen", "résumé"})
+_REFERENCE_LABELS = frozenset(
+    {"references", "referências", "referencias", "referência", "bibliography", "bibliografia"}
+)
+
+
+_KEYWORDS_LINE = re.compile(
+    r"^\s*(keywords|key words|palavras-chave|palavras chave|palabras clave|descritores)"
+    r"\s*:\s*(.*)$",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def _front_heading_role(value: str) -> str | None:
+    """Recognize abstract/reference headings set with an ordinary section style."""
+    normalized = " ".join(value.split()).strip(":. ").casefold()
+    if normalized in _ABSTRACT_LABELS:
+        return "abstract-heading"
+    if normalized in _REFERENCE_LABELS:
+        return "references-heading"
+    return None
+
+
 def _language_from_label(value: str, fallback: str) -> str:
     normalized = " ".join(value.split()).strip(":. ").casefold()
     if normalized in {"abstract", "keywords"}:
@@ -569,15 +604,31 @@ class CanonicalMapper:
             list
         )
         unknown: set[str] = set()
+
+        def paragraph_role(paragraph: RawParagraph) -> str | None:
+            source_name = style_names.get(paragraph.paragraph_style_id or "", "")
+            return self.profile.role_for_style(source_name, style_prefix(source_name))
+
+        table_by_cell = {cell.id: table.id for table in raw.tables for cell in table.cells}
+        layout_table_ids = frozenset(
+            table_by_cell[paragraph.table_cell_id]
+            for story in raw.stories
+            for paragraph in story.paragraphs
+            if paragraph.table_cell_id in table_by_cell and paragraph_role(paragraph) in _FLOW_ROLES
+        )
         for story_id in raw.reading_order:
             story = story_by_id[story_id]
             runs = {run.id: run for run in story.runs}
             for paragraph in story.paragraphs:
-                if paragraph.table_cell_id:
+                if paragraph.table_cell_id and (
+                    table_by_cell.get(paragraph.table_cell_id) not in layout_table_ids
+                ):
                     continue
                 source_name = style_names.get(paragraph.paragraph_style_id or "", "")
-                role = self.profile.role_for_style(source_name, style_prefix(source_name))
+                role = paragraph_role(paragraph)
                 text = "".join(runs[run_id].text for run_id in paragraph.text_run_ids)
+                if role and role.startswith("section-level-"):
+                    role = _front_heading_role(text) or role
                 if role:
                     paragraphs_by_role[role].append((story, paragraph))
                 elif text.strip():
@@ -682,22 +733,65 @@ class CanonicalMapper:
                 )
         abstracts: list[LocalizedText] = []
         keywords: list[LocalizedText] = []
+        story_rank = {story_id: index for index, story_id in enumerate(raw.reading_order)}
+
+        def document_key(item: tuple[RawStory, RawParagraph]) -> tuple[int, int]:
+            return story_rank.get(item[0].id, len(story_rank)), item[1].position
+
+        heading_keys = sorted(
+            (document_key(item), position)
+            for position, item in enumerate(paragraphs_by_role["abstract-heading"])
+            if abstract_headings[position].strip()
+        )
+        grouped: dict[int, list[tuple[str, tuple[str, ...]]]] = {}
         for position, (story, paragraph) in enumerate(paragraphs_by_role["abstract"]):
-            fallback = (
-                self.profile.primary_language if position == 0 else self.profile.secondary_language
-            )
-            language = _language_from_label(
-                abstract_headings[position] if position < len(abstract_headings) else "",
-                fallback,
-            )
+            key = document_key((story, paragraph))
+            preceding = [heading for heading_key, heading in heading_keys if heading_key < key]
+            # Without headings, each abstract paragraph keeps its historical positional slot.
+            slot = preceding[-1] if preceding else position
             value = text_for(story, paragraph)
-            if value:
-                abstracts.append(
+            kept_lines: list[str] = []
+            for line in (value or "").split("\n"):
+                keyword_line = _KEYWORDS_LINE.match(line)
+                if keyword_line is None or not keyword_line.group(2).strip():
+                    kept_lines.append(line)
+                    continue
+                # "Keywords: a. b." typed inside the abstract box belongs to the keywords.
+                keywords.append(
                     LocalizedText(
-                        language=language,
-                        text=_present(value, paragraph.evidence_ids, "style-role:abstract"),
+                        language=_language_from_label(
+                            keyword_line.group(1),
+                            self.profile.primary_language
+                            if slot == 0
+                            else self.profile.secondary_language,
+                        ),
+                        text=_present(
+                            keyword_line.group(2).strip(),
+                            paragraph.evidence_ids,
+                            "style-role:abstract-keywords-line",
+                        ),
                     )
                 )
+            value = "\n".join(kept_lines).strip()
+            if value:
+                grouped.setdefault(slot, []).append((value, paragraph.evidence_ids))
+        for slot, parts in grouped.items():
+            fallback = (
+                self.profile.primary_language if slot == 0 else self.profile.secondary_language
+            )
+            language = _language_from_label(
+                abstract_headings[slot] if slot < len(abstract_headings) else "", fallback
+            )
+            abstracts.append(
+                LocalizedText(
+                    language=language,
+                    text=_present(
+                        "\n".join(value for value, _ in parts),
+                        tuple(dict.fromkeys(e for _, ids in parts for e in ids)),
+                        "style-role:abstract",
+                    ),
+                )
+            )
         for position, (story, paragraph) in enumerate(paragraphs_by_role["keywords"]):
             fallback = (
                 self.profile.primary_language if position == 0 else self.profile.secondary_language
@@ -725,6 +819,7 @@ class CanonicalMapper:
             article_id,
             references,
             excluded_paragraph_ids=back_statements.excluded_paragraph_ids,
+            layout_table_ids=layout_table_ids,
         )
         notes = (*self._notes(raw, character_names, article_id), *correspondence.notes)
         assets = tuple(
@@ -1447,6 +1542,7 @@ class CanonicalMapper:
         references: tuple[Reference, ...],
         *,
         excluded_paragraph_ids: frozenset[str] = frozenset(),
+        layout_table_ids: frozenset[str] = frozenset(),
     ) -> tuple[tuple[Section, ...], tuple[str, ...]]:
         embedded_story_sources = {
             anchored_object.source_self_id
@@ -1853,7 +1949,7 @@ class CanonicalMapper:
                         segment_run_ids.append(run_id)
                 append_paragraph(segment_run_ids, segment)
 
-        raw_tables = {table.id: table for table in raw.tables}
+        raw_tables = {table.id: table for table in raw.tables if table.id not in layout_table_ids}
         story_by_table = {table_id: story for story in raw.stories for table_id in story.table_ids}
         table_story = {table_id: story.id for table_id, story in story_by_table.items()}
         story_page = {

@@ -40,6 +40,7 @@
     "zp.tabela/fig_titulo": "caption",
     "zp.tabela_legenda": "table-footnote",
     "zp.Tabela_cabeçalho": "table-heading",
-    "zp.tabela_texto": "table-cell"
+    "zp.tabela_texto": "table-cell",
+    "zp.Resumo_titulo": "abstract-heading"
   }
 }

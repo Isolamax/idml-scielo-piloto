@@ -1,0 +1,136 @@
+from io import BytesIO
+from pathlib import Path
+from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile, ZipInfo
+
+from lxml import etree
+
+from idml_foundation.pipeline.profile import load_profile
+from idml_foundation.pipeline.service import DeterministicPipeline
+
+_PKG = "http://ns.adobe.com/AdobeInDesign/idml/1.0/packaging"
+_STYLES = (
+    "zp.Título",
+    "zp.Resumo_titulo",
+    "zp.resumo",
+    "zp.SUB1",
+    "zp.Texto",
+    "zp.refs",
+    "zp.tabela_texto",
+)
+
+
+def _para(style: str, *lines: str) -> str:
+    content = "<Br/>".join(f"<Content>{line}</Content>" for line in lines)
+    return (
+        f'<ParagraphStyleRange AppliedParagraphStyle="ParagraphStyle/{style}">'
+        f'<CharacterStyleRange AppliedCharacterStyle="CharacterStyle/none">{content}'
+        "</CharacterStyleRange></ParagraphStyleRange>"
+    )
+
+
+def _cell(name: str, body: str) -> str:
+    return f'<Cell Name="{name}">{body}</Cell>'
+
+
+def _rbepid_idml() -> bytes:
+    # The abstract sits in a one-column layout table, as in the RBEPID template.
+    box = (
+        '<Table Self="t1" BodyRowCount="2" ColumnCount="2">'
+        + _cell("0:0", _para("zp.Resumo_titulo", "ABSTRACT"))
+        + _cell("1:0", _para("zp.Resumo_titulo", ""))
+        + _cell(
+            "0:1",
+            _para(
+                "zp.resumo",
+                "Objective: To measure things.",
+                "Methods: Cohort study.",
+                "Keywords: Time series studies. Comorbidity. Mortality.",
+            ),
+        )
+        + "</Table>"
+    )
+    u1 = _para("zp.Título", "A measured title") + (
+        '<ParagraphStyleRange AppliedParagraphStyle="ParagraphStyle/zp.Texto">'
+        f'<CharacterStyleRange AppliedCharacterStyle="CharacterStyle/none">{box}'
+        "</CharacterStyleRange></ParagraphStyleRange>"
+    )
+    u2 = (
+        _para("zp.SUB1", "INTRODUCTION")
+        + _para("zp.Texto", "Body text.")
+        + _para("zp.SUB1", "REFERENCES")
+        + _para("zp.refs", "1. Silva A. A source. J Ex. 2020;1(1):1-2.")
+    )
+
+    def story(sid: str, body: str) -> str:
+        return f'<idPkg:Story xmlns:idPkg="{_PKG}"><Story Self="{sid}">{body}</Story></idPkg:Story>'
+
+    styles = (
+        f'<idPkg:Styles xmlns:idPkg="{_PKG}"><RootParagraphStyleGroup>'
+        + "".join(f'<ParagraphStyle Self="ParagraphStyle/{s}" Name="{s}"/>' for s in _STYLES)
+        + "</RootParagraphStyleGroup><RootCharacterStyleGroup>"
+        '<CharacterStyle Self="CharacterStyle/none" Name="none"/>'
+        "</RootCharacterStyleGroup></idPkg:Styles>"
+    )
+    frames = "".join(
+        f'<TextFrame Self="f{i}" ParentStory="u{i}" PreviousTextFrame="n" NextTextFrame="n" '
+        f'ItemTransform="1 0 0 1 10 {i * 300}"><Properties><PathGeometry><GeometryPathType>'
+        '<PathPointArray><PathPointType Anchor="0 0"/><PathPointType Anchor="100 200"/>'
+        "</PathPointArray></GeometryPathType></PathGeometry></Properties></TextFrame>"
+        for i in (1, 2)
+    )
+    spread = (
+        f'<idPkg:Spread xmlns:idPkg="{_PKG}"><Spread Self="s1"><Page Self="p1"/>'
+        f"{frames}</Spread></idPkg:Spread>"
+    )
+    buffer = BytesIO()
+    with ZipFile(buffer, "w") as archive:
+
+        def write(name: str, value: str, compression: int = ZIP_DEFLATED) -> None:
+            info = ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+            info.compress_type = compression
+            archive.writestr(info, value)
+
+        write("mimetype", "application/vnd.adobe.indesign-idml-package", ZIP_STORED)
+        write("designmap.xml", '<Document Self="d" DOMVersion="20.0" StoryList="u1 u2"/>')
+        write("Resources/Styles.xml", styles)
+        write("Spreads/Spread_s1.xml", spread)
+        write("Stories/Story_u1.xml", story("u1", u1))
+        write("Stories/Story_u2.xml", story("u2", u2))
+    return buffer.getvalue()
+
+
+def _article() -> etree._Element:
+    profile = load_profile(Path("profiles/rbepid-aop-1.0.json"))
+    result = DeterministicPipeline(profile=profile).run(
+        _rbepid_idml(), logical_name="RBEPID_2024001_IN_AOP.idml"
+    )
+    parser = etree.XMLParser(resolve_entities=False, load_dtd=False, no_network=True)
+    return etree.fromstring(result.xml, parser=parser)
+
+
+def test_abstract_in_layout_table_becomes_structured_abstract_not_a_table() -> None:
+    article = _article()
+    assert article.xpath("count(//table-wrap)") == 0
+    sections = article.xpath("//abstract/sec")
+    assert [s.findtext("title") for s in sections] == ["Objective:", "Methods:"]
+    assert sections[1].findtext("p") == "Cohort study."
+    assert "Keywords" not in "".join(article.xpath("//abstract//text()"))
+
+
+def test_keywords_line_inside_abstract_and_dot_separator() -> None:
+    article = _article()
+    assert article.xpath("//kwd-group[@xml:lang='en']/kwd/text()") == [
+        "Time series studies",
+        "Comorbidity",
+        "Mortality",
+    ]
+
+
+def test_reference_heading_set_as_section_is_not_a_body_section() -> None:
+    article = _article()
+    assert article.xpath("//body/sec/title/text()") == ["INTRODUCTION"]
+
+
+def test_abstract_language_comes_from_its_heading_even_with_empty_heading_cells() -> None:
+    article = _article()
+    assert article.xpath("//abstract/@xml:lang") == ["en"]

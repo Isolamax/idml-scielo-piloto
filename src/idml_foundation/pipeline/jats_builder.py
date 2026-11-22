@@ -64,6 +64,10 @@ _CREDIT_ROLE_URIS = {
 }
 
 
+# "Objective: text" lines of a structured abstract -> <sec><title>Objective:</title><p>.
+_STRUCTURED_ABSTRACT_LINE = re.compile(r"^\s*([^:\n]{2,40}:)\s+(\S.*)$")
+
+
 class IdRegistryError(ValueError):
     pass
 
@@ -537,7 +541,14 @@ class JatsBuilder:
                     **{f"{{{XML_NS}}}lang": abstract.language},
                 )
                 _add(element, "title", "Resumo" if abstract.language == "pt" else "Abstract")
-                _add(element, "p", abstract.text.value)
+                for line in abstract.text.value.split("\n"):
+                    labelled = _STRUCTURED_ABSTRACT_LINE.match(line)
+                    if labelled and "\n" in abstract.text.value:
+                        section = _add(element, "sec")
+                        _add(section, "title", labelled.group(1))
+                        _add(section, "p", labelled.group(2))
+                    elif line.strip():
+                        _add(element, "p", line)
         for keyword_group in article.front.keywords:
             if not keyword_group.text.value:
                 continue
@@ -546,7 +557,9 @@ class JatsBuilder:
                 "kwd-group",
                 **{f"{{{XML_NS}}}lang": keyword_group.language},
             )
-            for keyword in re.split(r"\s*;\s*", keyword_group.text.value.rstrip(". ")):
+            value = keyword_group.text.value.rstrip(". ")
+            separator = r"\s*;\s*" if ";" in value else r"\.\s+"
+            for keyword in re.split(separator, value):
                 if keyword:
                     _add(group, "kwd", keyword)
         if article.front.funding:
