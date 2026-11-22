@@ -134,3 +134,25 @@ def test_reference_heading_set_as_section_is_not_a_body_section() -> None:
 def test_abstract_language_comes_from_its_heading_even_with_empty_heading_cells() -> None:
     article = _article()
     assert article.xpath("//abstract/@xml:lang") == ["en"]
+
+
+def test_superscript_roman_markers_split_authors_and_attach_dangling_markers() -> None:
+    from idml_foundation.pipeline.canonical_mapper import _marker_index, _split_marked_authors
+
+    runs = [
+        ("Marina Exemplo Costa Lima", False),
+        ("I", True),
+        (", Paula Ficticia Ramos Duarte", False),
+        ("II", True),
+        (",", True),
+        ("III", True),
+        (", Li Wei", False),  # 'Li' is a valid roman numeral but is part of the name here
+        ("IV", True),
+        ("*", False),
+    ]
+    assert _split_marked_authors(runs) == [
+        ("Marina Exemplo Costa Lima", ["I"]),
+        ("Paula Ficticia Ramos Duarte", ["II", "III"]),
+        ("Li Wei", ["IV", "*"]),
+    ]
+    assert [_marker_index(t) for t in ("1", "IV", "IX", "XII", "*")] == [1, 4, 9, 12, None]

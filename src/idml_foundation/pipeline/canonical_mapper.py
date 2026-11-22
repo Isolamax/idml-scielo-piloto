@@ -200,6 +200,57 @@ _KEYWORDS_LINE = re.compile(
 )
 
 
+_ROMAN_VALUES = {"I": 1, "V": 5, "X": 10, "L": 50, "C": 100}
+_MARKER_TOKEN = re.compile(r"\*|\d+|[IVXLC]+")
+
+
+def _marker_index(token: str) -> int | None:
+    """Affiliation ordinal of an author marker: '3' -> 3, 'IV' -> 4, '*' -> None."""
+    if token.isdigit():
+        return int(token)
+    if not token or any(character not in _ROMAN_VALUES for character in token):
+        return None
+    total = 0
+    for current, following in zip(token, [*token[1:], ""], strict=True):
+        value = _ROMAN_VALUES[current]
+        total += -value if following and _ROMAN_VALUES[following] > value else value
+    return total
+
+
+def _split_marked_authors(
+    runs: list[tuple[str, bool]],
+) -> list[tuple[str, list[str]]]:
+    """Split an author line into (name, markers) using superscript runs as markers.
+
+    Commas in normal text separate authors; a segment with markers but no name
+    (e.g. the ", III" of "Duarte II, III") extends the previous author's markers.
+    """
+    authors: list[tuple[str, list[str]]] = []
+    name = ""
+    markers: list[str] = []
+
+    def close() -> None:
+        nonlocal name, markers
+        clean = " ".join(name.replace("*", " ").split())
+        if any(character.isalpha() for character in clean):
+            authors.append((clean, markers))
+        elif authors:
+            authors[-1][1].extend(markers)
+        name, markers = "", []
+
+    for value, superscript in runs:
+        if superscript:
+            markers.extend(_MARKER_TOKEN.findall(value))
+            continue
+        for index, piece in enumerate(value.split(",")):
+            if index:
+                close()
+            markers.extend("*" for _ in range(piece.count("*")))
+            name += piece
+    close()
+    return authors
+
+
 def _front_heading_role(value: str) -> str | None:
     """Recognize abstract/reference headings set with an ordinary section style."""
     normalized = " ".join(value.split()).strip(":. ").casefold()
@@ -1251,21 +1302,51 @@ class CanonicalMapper:
             if link.relationship == "external-hyperlink"
             and _ORCID_URL.fullmatch(link.target) is not None
         }
+        style_by_id = {style.id: style for style in raw.styles}
+
+        def superscript(run_style_id: str | None) -> bool:
+            style = style_by_id.get(run_style_id or "")
+            if style is None:
+                return False
+            name = style.normalized_name.casefold()
+            position = str(style.properties.get("Position", "")).casefold()
+            return "superscript" in name or "sobrescrito" in name or position == "superscript"
+
         for story, paragraph in by_role["contributors"]:
             value = text_for(story, paragraph)  # type: ignore[operator]
             paragraph_orcids = [
                 links_by_run[run_id] for run_id in paragraph.text_run_ids if run_id in links_by_run
             ]
-            for position, source_name in enumerate(re.split(r"\s*,\s*", value)):
-                markers = [int(item) for item in re.findall(r"\d+", source_name)]
-                clean_name = " ".join(_AUTHOR_MARKERS.sub("", source_name).split())
+            run_by_id = {run.id: run for run in story.runs}
+            marked = [
+                (run_by_id[run_id].text, superscript(run_by_id[run_id].character_style_id))
+                for run_id in paragraph.text_run_ids
+                if run_id in run_by_id
+            ]
+            if any(flag and _MARKER_TOKEN.search(text) for text, flag in marked):
+                authors = _split_marked_authors(marked)
+            else:
+                authors = [
+                    (
+                        " ".join(_AUTHOR_MARKERS.sub("", source).split()),
+                        re.findall(r"\*|\d+", source),
+                    )
+                    for source in re.split(r"\s*,\s*", value)
+                ]
+            for position, (clean_name, marker_tokens) in enumerate(authors):
+                source_name = clean_name + ("*" if "*" in marker_tokens else "")
+                markers = [
+                    index for token in marker_tokens if (index := _marker_index(token)) is not None
+                ]
                 parts = clean_name.split()
                 if len(parts) < 2:
                     continue
                 selected_affiliations = tuple(
-                    affiliation_ids[index - 1]
-                    for index in markers
-                    if 0 < index <= len(affiliation_ids)
+                    dict.fromkeys(
+                        affiliation_ids[index - 1]
+                        for index in markers
+                        if 0 < index <= len(affiliation_ids)
+                    )
                 )
                 contributor_id = stable_id(article_id, "contributor", str(len(contributors)))
                 orcid_link = (
@@ -1328,7 +1409,7 @@ class CanonicalMapper:
                 clean = line.strip()
                 if not clean:
                     continue
-                clean = re.sub(r"^\d+", "", clean).strip()
+                clean = re.sub(r"^(?:\d+|[IVXLC]+(?=\s))", "", clean).strip()
                 match = _AFFILIATION.fullmatch(clean)
                 if match is None:
                     institution = clean
