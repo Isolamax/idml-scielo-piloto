@@ -48,5 +48,6 @@
   "history_date_order": {
     "en": "mdy",
     "pt": "dmy"
-  }
+  },
+  "reference_style": "vancouver"
 }

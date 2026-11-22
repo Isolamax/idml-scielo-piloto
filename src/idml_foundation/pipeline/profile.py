@@ -1,7 +1,7 @@
 import json
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import Field, SerializerFunctionWrapHandler, model_serializer
 
@@ -37,6 +37,8 @@ class JournalProfile(StrictModel):
     article_id_template: str | None = None
     # Day/month order of history dates per language ("dmy" default, "mdy" for US style).
     history_date_order: dict[str, str] = Field(default_factory=dict)
+    # Reference list style; None keeps the historical ABNT-oriented parser.
+    reference_style: Literal["vancouver"] | None = None
 
     @model_serializer(mode="wrap")
     def _omit_empty_name_roles(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
@@ -47,7 +49,7 @@ class JournalProfile(StrictModel):
             data.pop("style_name_roles", None)
         if not self.history_date_order:
             data.pop("history_date_order", None)
-        for optional in ("article_id_from_doi", "article_id_template"):
+        for optional in ("article_id_from_doi", "article_id_template", "reference_style"):
             if getattr(self, optional) is None:
                 data.pop(optional, None)
         return data

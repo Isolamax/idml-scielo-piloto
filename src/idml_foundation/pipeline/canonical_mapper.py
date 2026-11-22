@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import re
 from collections import defaultdict
@@ -62,8 +63,9 @@ from idml_foundation.pipeline.funding_parser import parse_funding
 from idml_foundation.pipeline.idml_parser import style_prefix
 from idml_foundation.pipeline.metadata_normalization import split_explicit_brazil_state
 from idml_foundation.pipeline.profile import JournalProfile
-from idml_foundation.pipeline.reference_metadata import reference_metadata
+from idml_foundation.pipeline.reference_metadata import ReferenceType, reference_metadata
 from idml_foundation.pipeline.reference_parser import reference_without_volume
+from idml_foundation.pipeline.vancouver import parse_vancouver
 
 _ARTICLE_NUMBER = re.compile(r"(?:^|_)(20\d{2})(\d{1,4})(?:_|$)")
 _AUTHOR_MARKERS = re.compile(r"[\d*]+")
@@ -2662,14 +2664,36 @@ class CanonicalMapper:
                     if publication_year is not None
                     else (year_matches[-1] if year_matches else None)
                 )
-                authors, title, source = _reference_parts(source_line)
-                details = _reference_details(source_line, year)
-                metadata = reference_metadata(source_line, title, source)
-                additions = dict(metadata.fields)
-                title = additions.pop("title", title)
-                source = additions.pop("source", source)
-                year = additions.pop("year", year)
-                details.update(additions)
+                if self.profile.reference_style == "vancouver":
+                    parsed = parse_vancouver(source_line)
+                    authors, title, source = parsed.authors, parsed.title, parsed.source
+                    year = parsed.year or year
+                    details = {
+                        key: value
+                        for key, value in (
+                            ("volume", parsed.volume),
+                            ("issue", parsed.issue),
+                            ("first_page", parsed.first_page),
+                            ("last_page", parsed.last_page or parsed.first_page),
+                            ("elocation_id", parsed.elocation_id),
+                        )
+                        if value
+                    }
+                    metadata = reference_metadata(source_line, title, source)
+                    if parsed.publication_type:
+                        metadata = dataclasses.replace(
+                            metadata,
+                            publication_type=cast(ReferenceType, parsed.publication_type),
+                        )
+                else:
+                    authors, title, source = _reference_parts(source_line)
+                    details = _reference_details(source_line, year)
+                    metadata = reference_metadata(source_line, title, source)
+                    additions = dict(metadata.fields)
+                    title = additions.pop("title", title)
+                    source = additions.pop("source", source)
+                    year = additions.pop("year", year)
+                    details.update(additions)
                 references.append(
                     Reference(
                         id=reference_id,
