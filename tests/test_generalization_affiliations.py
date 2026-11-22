@@ -59,3 +59,25 @@ def test_two_author_parenthetical_citation_accepts_ampersand_and_e() -> None:
     pattern = _citation_patterns(signature)[0][0]
     for text in ("(Lopes & Nunes, 2019)", "(LOPES; NUNES, 2019)", "(Lopes e Nunes, 2019)"):
         assert pattern.search(text), text
+
+
+def test_chart_and_portuguese_captions_keep_label_word_and_family() -> None:
+    from idml_foundation.pipeline.canonical_mapper import (
+        _CONTINUATION_CAPTION,
+        _NUMBERED_GRAPHIC,
+        _caption_family,
+        _caption_label,
+    )
+    from idml_foundation.pipeline.object_reference_resolver import _label_namespace
+
+    match = _NUMBERED_GRAPHIC.match("Chart 1. Category of the ICD-10")
+    assert match is not None and _caption_family(match.group(1)) == "table"
+    assert _caption_label(match.group(1), 1) == "Chart 1"
+    assert _caption_label("Fig.", 2) == "Figure 2" and _caption_family("Quadro") == "table"
+    assert _CONTINUATION_CAPTION.match(". Continuation.") and _CONTINUATION_CAPTION.match(
+        " - Continuação"
+    )
+    assert not _CONTINUATION_CAPTION.match(". Category of the ICD-10")
+    assert _label_namespace("Chart 1") != _label_namespace("Table 1")
+    assert _label_namespace("Quadro 1") == _label_namespace("Chart 1") == "chart"
+    assert _label_namespace("Tabela 2") == _label_namespace("tables") == "table"

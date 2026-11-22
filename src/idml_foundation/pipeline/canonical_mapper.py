@@ -69,7 +69,31 @@ from idml_foundation.pipeline.vancouver import parse_vancouver
 
 _ARTICLE_NUMBER = re.compile(r"(?:^|_)(20\d{2})(\d{1,4})(?:_|$)")
 _AUTHOR_MARKERS = re.compile(r"[\d*]+")
-_NUMBERED_GRAPHIC = re.compile(r"^\s*(figure|table)\s*([1-9]\d*)\b", re.IGNORECASE)
+_NUMBERED_GRAPHIC = re.compile(
+    r"^\s*(figure|figura|fig\.?|table|tabela|chart|quadro|graph|gr[áa]fico)\s*([1-9]\d*)\b",
+    re.IGNORECASE,
+)
+# 'Chart 1. Continuation.' repeats the caption of a table split across pages.
+_CONTINUATION_CAPTION = re.compile(
+    r"^[\s.:\-\u2013\u2014]*(?:continuation|continued|continua[çc][ãa]o|continua|cont\.)",
+    re.IGNORECASE,
+)
+_TABLE_LABEL_WORDS = frozenset({"table", "tabela", "chart", "quadro"})
+
+
+def _caption_family(word: str) -> str:
+    """'table' for Table/Tabela/Chart/Quadro captions, 'figure' otherwise."""
+    return "table" if word.casefold().rstrip(".") in _TABLE_LABEL_WORDS else "figure"
+
+
+def _caption_label(word: str, number: int) -> str:
+    """Keep the source label word ('Chart 1'); normalize 'Fig.' to 'Figure'."""
+    clean = word.rstrip(".")
+    if clean.casefold() == "fig":
+        clean = "Figure"
+    return f"{clean[:1].upper()}{clean[1:].lower()} {number}"
+
+
 _CAPTION_SEPARATOR = re.compile(r"^[\s.\-\u2013\u2014:]*")
 _MISSING_INLINE_FORMULA = re.compile(r"(?m)^[ \t]*(?=:[ \t]+\S)")
 _NATIVE_DISPLAY_FORMULA = re.compile(
@@ -2248,7 +2272,9 @@ class CanonicalMapper:
         def caption_kind(story: RawStory, paragraph: RawParagraph) -> str | None:
             value = "".join(run_lookup[item].text for item in paragraph.text_run_ids)
             match = _NUMBERED_GRAPHIC.match(value)
-            return match.group(1).casefold() if match else None
+            if match is None or _CONTINUATION_CAPTION.match(value[match.end() :]):
+                return None
+            return _caption_family(match.group(1))
 
         table_caption_keys = sorted(
             (story_order[story.id], paragraph.position)
@@ -2365,7 +2391,10 @@ class CanonicalMapper:
                 if caption_value.strip():
                     graphic_review_reasons.append(f"unnumbered_graphic_caption:{paragraph.id}")
                 continue
-            kind, number_text = numbered.group(1).casefold(), numbered.group(2)
+            if _CONTINUATION_CAPTION.match(caption_value[numbered.end() :]):
+                continue
+            label_word = numbered.group(1)
+            kind, number_text = _caption_family(label_word), numbered.group(2)
             number = int(number_text)
             caption_source = (
                 self._rich_text(
@@ -2449,7 +2478,7 @@ class CanonicalMapper:
                     TableBlock(
                         id=stable_id(article_id, "canonical-table", table.id),
                         label=_present(
-                            f"Table {number}",
+                            _caption_label(label_word, number),
                             paragraph.evidence_ids,
                             "numbered-caption-label",
                         ),
@@ -2479,7 +2508,7 @@ class CanonicalMapper:
                     FigureBlock(
                         id=stable_id(article_id, "figure", paragraph.id),
                         label=_present(
-                            f"Figure {number}",
+                            _caption_label(label_word, number),
                             paragraph.evidence_ids,
                             "numbered-caption-label",
                         ),
