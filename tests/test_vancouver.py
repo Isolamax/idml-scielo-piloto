@@ -44,3 +44,44 @@ def test_numeric_citation_spans() -> None:
     assert [n for _, _, n in numeric_citation_spans("2,3")] == [2, 3]
     assert [n for _, _, n in numeric_citation_spans("4-6")] == [4, 6]
     assert numeric_citation_spans("a") == [] and numeric_citation_spans("2b") == []
+
+
+def test_superscript_numbers_become_bibr_xrefs_but_not_exponents() -> None:
+    from idml_foundation.domain.canonical import (
+        FieldState,
+        InlineKind,
+        InlineNode,
+        Reference,
+        RichText,
+        SourcedText,
+    )
+    from idml_foundation.pipeline.citation_resolver import resolve_citations
+
+    def text(value: str) -> SourcedText:
+        return SourcedText(value=value, state=FieldState.PRESENT, confidence=1.0)
+
+    references = tuple(
+        Reference(
+            id=f"r{n}", mixed_citation=RichText(plain=text(f"{n}. Silva A. T. J. 2020;1:{n}."))
+        )
+        for n in (1, 2, 3)
+    )
+    parts = [
+        ("Deaths worldwide", InlineKind.TEXT),
+        ("1,3", InlineKind.SUPERSCRIPT),
+        (" with R", InlineKind.TEXT),
+        ("2", InlineKind.SUPERSCRIPT),
+        (" and 10", InlineKind.TEXT),
+        ("2", InlineKind.SUPERSCRIPT),
+        (".", InlineKind.TEXT),
+    ]
+    rich = RichText(
+        plain=text("".join(value for value, _ in parts)),
+        inlines=tuple(
+            InlineNode(id=f"i{n}", kind=kind, text=value) for n, (value, kind) in enumerate(parts)
+        ),
+    )
+    resolved = resolve_citations(rich, references, article_id="a", paragraph_id="p")
+    xrefs = [i for i in resolved.content.inlines if i.kind == InlineKind.CROSS_REFERENCE]
+    assert [(i.text, i.target_id) for i in xrefs] == [("1", "r1"), ("3", "r3")]
+    assert all(i.attributes.get("source-position") == "superscript" for i in xrefs)

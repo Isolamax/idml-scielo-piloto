@@ -841,6 +841,13 @@ class JatsBuilder:
                 previous = _add(parent, tag, **attributes)
                 bold = _add(previous, "bold")
                 _add(bold, "italic", inline.text)
+            elif (
+                inline.kind == InlineKind.CROSS_REFERENCE
+                and inline.attributes.get("source-position") == "superscript"
+            ):
+                # Numeric citations keep the source superscript: <sup><xref>1</xref></sup>.
+                previous = _add(parent, "sup")
+                _add(previous, tag, inline.text, **attributes)
             else:
                 previous = _add(parent, tag, inline.text, **attributes)
 

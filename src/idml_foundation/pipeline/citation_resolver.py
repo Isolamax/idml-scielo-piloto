@@ -12,6 +12,7 @@ from idml_foundation.domain.canonical import (
     RichText,
 )
 from idml_foundation.domain.common import stable_id
+from idml_foundation.pipeline.vancouver import numeric_citation_spans, reference_label
 
 _YEAR = re.compile(r"(?<!\d)((?:18|19|20)\d{2}[a-z]?)(?!\d)", re.IGNORECASE)
 _PERSONAL_AUTHOR = re.compile(r"(?:^|;\s*)([^,;]{1,80})(?:,\s|(?=;))")
@@ -253,6 +254,47 @@ def _slice_inlines(
     return tuple(pieces)
 
 
+def _numeric_matches(
+    rich_text: RichText, references: tuple[Reference, ...]
+) -> tuple[CitationMatch, ...]:
+    """Superscript '1', '2,3', '4-6' -> citations of the references labelled with those numbers.
+
+    Active only when most references carry numeric labels (Vancouver lists). Superscripts
+    on a power of ten (10^6) or after a word of at most two letters (R^2, m^2) are
+    exponents or units, not citations.
+    """
+    labels = {
+        number: reference.id
+        for reference in references
+        if (number := reference_label(reference.mixed_citation.plain.value or "")) is not None
+    }
+    if not references or len(labels) * 2 < len(references):
+        return ()
+    plain = rich_text.plain.value or ""
+    found: list[CitationMatch] = []
+    cursor = 0
+    for inline in rich_text.inlines:
+        start = cursor
+        cursor += len(inline.text)
+        if inline.kind != InlineKind.SUPERSCRIPT:
+            continue
+        spans = numeric_citation_spans(inline.text)
+        if not spans:
+            continue
+        before = plain[:start].rstrip(" ")
+        last_word = re.search(r"([^\W\d_]+)$", before)
+        power_of_ten = re.search(r"(?:^|[^\d])10$", before) is not None
+        short_symbol = last_word is not None and len(last_word.group(1)) <= 2
+        if power_of_ten or short_symbol:
+            continue
+        found.extend(
+            CitationMatch(start=start + first, end=start + last, target_id=labels[number])
+            for first, last, number in spans
+            if number in labels
+        )
+    return tuple(found)
+
+
 def resolve_citations(
     rich_text: RichText,
     references: tuple[Reference, ...],
@@ -262,9 +304,37 @@ def resolve_citations(
 ) -> CitationResolution:
     text = rich_text.plain.value or ""
     matches, ambiguous = find_citations(text, references)
+    numeric = _numeric_matches(rich_text, references)
+    if numeric:
+        matches = tuple(
+            sorted(
+                (
+                    *numeric,
+                    *(
+                        match
+                        for match in matches
+                        if not any(match.start < n.end and n.start < match.end for n in numeric)
+                    ),
+                ),
+                key=lambda item: item.start,
+            )
+        )
     content = rich_text.model_copy(
         update={"inlines": _slice_inlines(rich_text, article_id, paragraph_id, matches)}
     )
+    if numeric:
+        numeric_spans = {(item.start, item.end) for item in numeric}
+        marked: list[InlineNode] = []
+        cursor = 0
+        for inline in content.inlines:
+            span = (cursor, cursor + len(inline.text))
+            cursor = span[1]
+            if inline.kind == InlineKind.CROSS_REFERENCE and span in numeric_spans:
+                inline = inline.model_copy(
+                    update={"attributes": {**inline.attributes, "source-position": "superscript"}}
+                )
+            marked.append(inline)
+        content = content.model_copy(update={"inlines": tuple(marked)})
     citation_inlines = tuple(
         inline for inline in content.inlines if inline.kind == InlineKind.CROSS_REFERENCE
     )
