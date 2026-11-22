@@ -17,6 +17,7 @@ import json
 import sys
 from pathlib import Path
 
+from idml_foundation.pipeline.bilingual import compose_bilingual, translation_profile
 from idml_foundation.pipeline.profile import load_profile
 from idml_foundation.pipeline.service import DeterministicPipeline
 from ops.benchmark_published_xml import score, summarize
@@ -31,9 +32,20 @@ def run_case(case: dict[str, str], out: Path) -> dict[str, object]:
         )
     except Exception as exc:  # report and continue with the remaining cases
         return {"error": f"{type(exc).__name__}: {exc}"[:300]}
-    (out / f"{case['case']}.xml").write_bytes(result.xml)
+    xml = result.xml
+    if case.get("translation_idml"):
+        translation = Path(case["translation_idml"])
+        translated_profile = translation_profile(profile or load_profile())
+        try:
+            translated = DeterministicPipeline(profile=translated_profile).run(
+                translation.read_bytes(), logical_name=translation.name
+            )
+            xml = compose_bilingual(result.xml, translated.xml)
+        except Exception as exc:
+            return {"error": f"translation {type(exc).__name__}: {exc}"[:300]}
+    (out / f"{case['case']}.xml").write_bytes(xml)
     published = Path(case["published"]).read_bytes()
-    scores = score(result.xml, published)
+    scores = score(xml, published)
     return {
         "overall": round(summarize(scores), 4),
         "valid": result.validation.valid,
