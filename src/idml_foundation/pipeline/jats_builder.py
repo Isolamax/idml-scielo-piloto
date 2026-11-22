@@ -294,6 +294,8 @@ class JatsBuilder:
             for identifier in article.front.article_identifiers
         )
         for identifier in article.front.article_identifiers:
+            if identifier.kind == "corrected-article-doi":
+                continue  # emitted as <related-article> after <permissions>
             if identifier.value.value:
                 if (
                     has_other_identifier
@@ -528,6 +530,21 @@ class JatsBuilder:
                 license_attributes[f"{{{XLINK_NS}}}href"] = article.front.license_url.value
             license_element = _add(permissions, "license", **license_attributes)
             _add(license_element, "license-p", article.front.license_text.value)
+        for position, identifier in enumerate(
+            item
+            for item in article.front.article_identifiers
+            if item.kind == "corrected-article-doi" and item.value.value
+        ):
+            _add(
+                article_meta,
+                "related-article",
+                **{
+                    "related-article-type": "corrected-article",
+                    "id": f"related-{position + 1}",
+                    f"{{{XLINK_NS}}}href": identifier.value.value or "",
+                    "ext-link-type": "doi",
+                },
+            )
         for abstract in article.front.abstracts:
             if abstract.text.value:
                 tag = (
@@ -650,7 +667,14 @@ class JatsBuilder:
         section_attributes = {"id": registry.resolve(section.id)}
         if section.section_type:
             section_attributes["sec-type"] = section.section_type
-        element = _add(parent, "sec", **section_attributes)
+        # Text before the first heading (e.g. an erratum) is body content, not an untitled
+        # <sec>: JATS requires a title in <sec> but allows paragraphs directly in <body>.
+        lead_in = (
+            not section.title.value
+            and etree.QName(parent).localname == "body"
+            and parent.find("sec") is None
+        )
+        element = parent if lead_in else _add(parent, "sec", **section_attributes)
         if section.title.value:
             _add(element, "title", section.title.value)
         for block in section.blocks:

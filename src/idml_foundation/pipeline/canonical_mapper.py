@@ -835,6 +835,25 @@ def _group_pseudocode_inline_formulas(
 _DOI_IN_TEXT = re.compile(r"(?<![\d.])10\.\d{4,9}/[^\s<>\"]+")
 
 
+_ERRATUM_CORRECTS = re.compile(
+    r"(?:this\s+erratum\s+corrects|esta\s+errata\s+corrige|errata\s+de)\s*:?\s*"
+    r"(?:https?://(?:dx\.)?doi\.org/\s*)?(10\.\d{4,9}/\S+)",
+    re.IGNORECASE,
+)
+
+
+def _corrected_doi(raw: RawArticle, source_doi: str | None) -> str | None:
+    """DOI of the article an erratum corrects, or None when this is not an erratum."""
+    is_erratum = bool(source_doi and source_doi.casefold().endswith("erratum"))
+    for story in raw.stories:
+        text = "".join(run.text for run in story.runs)
+        if match := _ERRATUM_CORRECTS.search(text):
+            return match.group(1).rstrip(".,;)")
+    if is_erratum and source_doi:
+        return re.sub(r"erratum$", "", source_doi, flags=re.IGNORECASE) or None
+    return None
+
+
 def _doi_in_text(value: str) -> str | None:
     """First DOI in 'https://doi.org 10.1590/x' or 'https://doi.org10.1590/x' (typed slips)."""
     match = _DOI_IN_TEXT.search(value)
@@ -920,6 +939,7 @@ class CanonicalMapper:
             None,
         )
         article_id = self.profile.article_id_for_doi(source_doi) or article_id
+        corrected_doi = _corrected_doi(raw, source_doi)
 
         def first_text(role: str) -> tuple[str, tuple[str, ...]] | None:
             for story, paragraph in paragraphs_by_role[role]:
@@ -965,6 +985,20 @@ class CanonicalMapper:
                 value=_present(article_id, (profile_evidence.id,), "filename-rule"),
             )
         ]
+        if corrected_doi:
+            article_identifiers.append(
+                Identifier(
+                    kind="corrected-article-doi",
+                    value=_present(corrected_doi, (profile_evidence.id,), "erratum-corrects-doi"),
+                )
+            )
+            if not titles:
+                titles.append(
+                    LocalizedText(
+                        language=self.profile.primary_language,
+                        text=_present("ERRATUM", (profile_evidence.id,), "erratum-default-title"),
+                    )
+                )
         article_doi = first_text("article-doi")
         if article_doi:
             doi = _doi_in_text(article_doi[0]) or re.sub(
@@ -1175,9 +1209,9 @@ class CanonicalMapper:
                 ),
                 article_identifiers=tuple(article_identifiers),
                 article_category=_present(
-                    self.profile.article_category,
+                    "correction" if corrected_doi else self.profile.article_category,
                     (profile_evidence.id,),
-                    "journal-profile",
+                    "erratum-correction-type" if corrected_doi else "journal-profile",
                 ),
                 titles=tuple(titles),
                 contributors=contributors,
@@ -1198,9 +1232,9 @@ class CanonicalMapper:
                 ),
                 funding=correspondence.funding,
                 subject_category=_present(
-                    self.profile.subject_category,
+                    "Erratum" if corrected_doi else self.profile.subject_category,
                     (profile_evidence.id,),
-                    "journal-profile",
+                    "erratum-section" if corrected_doi else "journal-profile",
                 ),
             ),
             body=sections,

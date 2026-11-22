@@ -81,3 +81,17 @@ def test_chart_and_portuguese_captions_keep_label_word_and_family() -> None:
     assert _label_namespace("Chart 1") != _label_namespace("Table 1")
     assert _label_namespace("Quadro 1") == _label_namespace("Chart 1") == "chart"
     assert _label_namespace("Tabela 2") == _label_namespace("tables") == "table"
+
+
+def test_erratum_detection_and_id_rule() -> None:
+    from pathlib import Path
+
+    from idml_foundation.pipeline.canonical_mapper import _ERRATUM_CORRECTS
+    from idml_foundation.pipeline.profile import load_profile
+
+    found = _ERRATUM_CORRECTS.search("This erratum corrects: https://doi.org/10.1590/1980-5497x.")
+    assert found is not None and found.group(1).rstrip(".") == "10.1590/1980-5497x"
+    assert _ERRATUM_CORRECTS.search("Esta errata corrige: 10.1590/abc")
+    rbepid = load_profile(Path("profiles/rbepid-aop-1.0.json"))
+    assert rbepid.article_id_for_doi("10.1590/1980-549720250022erratum") == "e20250022erratum"
+    assert rbepid.article_id_for_doi("10.1590/1980-549720250022") == "e250022"

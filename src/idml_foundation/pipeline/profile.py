@@ -40,6 +40,8 @@ class JournalProfile(StrictModel):
     # Reference list style; None keeps the historical ABNT-oriented parser.
     reference_style: Literal["vancouver"] | None = None
     license_url: str | None = None
+    # Ordered (DOI regex, id template) rules; the first match wins (e.g. errata ids).
+    article_id_rules: tuple[tuple[str, str], ...] = ()
 
     @model_serializer(mode="wrap")
     def _omit_empty_name_roles(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
@@ -58,10 +60,17 @@ class JournalProfile(StrictModel):
         ):
             if getattr(self, optional) is None:
                 data.pop(optional, None)
+        if not self.article_id_rules:
+            data.pop("article_id_rules", None)
         return data
 
     def article_id_for_doi(self, doi: str | None) -> str | None:
-        if not (doi and self.article_id_from_doi and self.article_id_template):
+        if not doi:
+            return None
+        for pattern, template in self.article_id_rules:
+            if rule := re.search(pattern, doi):
+                return template.format(**rule.groupdict(default=""))
+        if not (self.article_id_from_doi and self.article_id_template):
             return None
         match = re.search(self.article_id_from_doi, doi)
         return self.article_id_template.format(**match.groupdict()) if match else None

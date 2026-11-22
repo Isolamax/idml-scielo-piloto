@@ -50,5 +50,11 @@
     "pt": "dmy"
   },
   "reference_style": "vancouver",
-  "license_url": "https://creativecommons.org/licenses/by/4.0/"
+  "license_url": "https://creativecommons.org/licenses/by/4.0/",
+  "article_id_rules": [
+    [
+      "^10\\.1590/1980-5497(?P<yyyy>\\d{4})(?P<seq>\\d{4})erratum$",
+      "e{yyyy}{seq}erratum"
+    ]
+  ]
 }
