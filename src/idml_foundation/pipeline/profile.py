@@ -1,7 +1,8 @@
 import json
 from pathlib import Path
+from typing import Any
 
-from pydantic import Field
+from pydantic import Field, SerializerFunctionWrapHandler, model_serializer
 
 from idml_foundation.domain.common import StrictModel
 
@@ -24,12 +25,28 @@ class JournalProfile(StrictModel):
     sps_version: str = Field(pattern=r"^sps-\d+\.\d+$")
     package_name_template: str
     style_roles: dict[str, str]
+    # Exact InDesign style names (as exported, e.g. "zp.Texto") for templates whose
+    # styles carry no numeric journal prefix. Checked before the numeric prefix.
+    style_name_roles: dict[str, str] = Field(default_factory=dict)
+
+    @model_serializer(mode="wrap")
+    def _omit_empty_name_roles(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        # Profiles that do not use name-based roles keep their historical serialization,
+        # so their content digests (pinned by qualification evidence) do not change.
+        data: dict[str, Any] = handler(self)
+        if not self.style_name_roles:
+            data.pop("style_name_roles", None)
+        return data
 
     def package_stem(self, article_id: str) -> str:
         value = self.package_name_template.replace("{article_id}", article_id)
         if not value or any(character in value for character in "/\\"):
             raise ValueError("profile produced an unsafe package name")
         return value
+
+    def role_for_style(self, source_name: str, prefix: str | None) -> str | None:
+        named = self.style_name_roles.get(source_name.strip())
+        return named if named is not None else self.role_for_prefix(prefix)
 
     def role_for_prefix(self, prefix: str | None) -> str | None:
         if prefix is None:

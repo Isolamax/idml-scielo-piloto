@@ -576,7 +576,7 @@ class CanonicalMapper:
                 if paragraph.table_cell_id:
                     continue
                 source_name = style_names.get(paragraph.paragraph_style_id or "", "")
-                role = self.profile.role_for_prefix(style_prefix(source_name))
+                role = self.profile.role_for_style(source_name, style_prefix(source_name))
                 text = "".join(runs[run_id].text for run_id in paragraph.text_run_ids)
                 if role:
                     paragraphs_by_role[role].append((story, paragraph))
